@@ -43,10 +43,13 @@ extern DisplayClass display;
 
 
 
-#define CHINESE_WIDTH  12
-#define CHINESE_HEIGHT 12
-#define ASCII_WIDTH    8
-#define ASCII_HEIGHT   16
+// Supported mixed-font sizes (Chinese height = 12/16/24/32; ASCII pairs 6x12/8x16/12x24/16x32)
+typedef enum {
+	DRAW_MIXED_FONT_12 = 12,
+	DRAW_MIXED_FONT_16 = 16,
+	DRAW_MIXED_FONT_24 = 24,
+	DRAW_MIXED_FONT_32 = 32,
+} draw_mixed_font_size_t;
 
 
 uint8_t gt30_init();
@@ -61,20 +64,20 @@ bool utf8_to_gb2312(const char* utf8Char, uint8_t gb[2]);
 
 
 
-bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y);
+bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y, draw_mixed_font_size_t font_size);
 
 
 
 
 // 读取并显示一个 ASCII 字符
-int drawAscii8x16(gt30l32s4w_handle_t *handle,char asciiChar, int x, int y);
+bool drawAscii(gt30l32s4w_handle_t *handle,char asciiChar, int x, int y, draw_mixed_font_size_t font_size);
 
 
 bool isChineseUTF8(const char *str);
 
 
 
-void drawBitmapMixedString(const char* utf8Str, int x, int y);
+void drawBitmapMixedString(const char* utf8Str, int x, int y, draw_mixed_font_size_t font_size);
 
 // optional C wrappers so other translation units can invoke the drawing helpers without
 // including GxEPD2 headers directly.
@@ -84,7 +87,7 @@ extern "C" {
 void drawMixedString_selectFastFullUpdate(bool enable);
 void drawMixedString_init();
 void drawMixedString_fillScreen(int color);
-void drawMixedString_drawText(const char* utf8, int x, int y);
+void drawMixedString_drawText(const char* utf8, int x, int y, draw_mixed_font_size_t font_size);
 void drawMixedString_display(bool partial);
 void drawMixedString_displayWindow(int x, int y, int w, int h, bool partial);
 int drawMixedString_width();

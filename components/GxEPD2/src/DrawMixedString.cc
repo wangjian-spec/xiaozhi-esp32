@@ -29,6 +29,41 @@ typedef struct {
     uint8_t gb[2];
 } utf8_gb2312_t;
 
+struct FontMetrics {
+    int chinese_width;
+    int chinese_height;
+    int ascii_width;
+    int ascii_height;
+};
+
+static draw_mixed_font_size_t normalize_font_size(draw_mixed_font_size_t font_size) {
+    switch (font_size) {
+        case DRAW_MIXED_FONT_12:
+        case DRAW_MIXED_FONT_16:
+        case DRAW_MIXED_FONT_24:
+        case DRAW_MIXED_FONT_32:
+            return font_size;
+        default:
+            ESP_LOGW(TAG, "Unsupported font size %d, fallback to 16", font_size);
+            return DRAW_MIXED_FONT_16;
+    }
+}
+
+static FontMetrics metrics_for(draw_mixed_font_size_t font_size) {
+    switch (font_size) {
+        case DRAW_MIXED_FONT_12:
+            return {12, 12, 6, 12};
+        case DRAW_MIXED_FONT_16:
+            return {16, 16, 8, 16};
+        case DRAW_MIXED_FONT_24:
+            return {24, 24, 12, 24};
+        case DRAW_MIXED_FONT_32:
+            return {32, 32, 16, 32};
+        default:
+            return {16, 16, 8, 16};
+    }
+}
+
 
 
 uint8_t gt30_init()
@@ -93,22 +128,42 @@ bool utf8_to_gb2312(const char* utf8Char, uint8_t gb[2]) {
 
 
 
-bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y)
+bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y, draw_mixed_font_size_t font_size)
 {
-    uint8_t buf[24] = {0};  // 16x16 → 每行2字节 × 16行 = 32字节
-    uint8_t ret;
-    // 从字库读取中文点阵
-    if ((ret = gt30l32s4w_read_char_12x12(handle, gbCode, buf)) != 0)
-    { 
-        ESP_LOGW(TAG, "Chinese read fail");
-        ESP_LOGW(TAG,"Chinese ,ret=%d",ret);
-        return false;
-      
+    uint8_t ret = 0;
+    int width = 0;
+    int height = 0;
+    uint8_t buf[128] = {0};
+
+    switch (font_size) {
+        case DRAW_MIXED_FONT_12:
+            ret = gt30l32s4w_read_char_12x12(handle, gbCode, buf);
+            width = 12; height = 12;
+            break;
+        case DRAW_MIXED_FONT_16:
+            ret = gt30l32s4w_read_char_15x16(handle, gbCode, buf);
+            width = 16; height = 16;
+            break;
+        case DRAW_MIXED_FONT_24:
+            ret = gt30l32s4w_read_char_24x24(handle, gbCode, buf);
+            width = 24; height = 24;
+            break;
+        case DRAW_MIXED_FONT_32:
+            ret = gt30l32s4w_read_char_32x32(handle, gbCode, buf);
+            width = 32; height = 32;
+            break;
+        default:
+            ret = 1;
+            ESP_LOGW(TAG, "Unsupported Chinese font size %d", font_size);
+            break;
     }
 
-    // 一次性绘制
-    display.drawBitmap(x, y, buf, CHINESE_WIDTH, CHINESE_HEIGHT, GxEPD_BLACK);
-   // ESP_LOGW(TAG, "Chinese drawbitmap");
+    if (ret != 0) {
+        ESP_LOGW(TAG, "Chinese read fail, ret=%d", ret);
+        return false;
+    }
+
+    display.drawBitmap(x, y, buf, width, height, GxEPD_BLACK);
     return true;
 }
 
@@ -116,27 +171,42 @@ bool drawChinese(gt30l32s4w_handle_t *handle, uint16_t gbCode, int x, int y)
 
 
 // 读取并显示一个 ASCII 字符
-int drawAscii8x16(gt30l32s4w_handle_t *handle,char asciiChar, int x, int y) {
-    // ESP_LOGW(TAG, "ascii test");
-    uint8_t buf[26] = {0};  
-    // 读取 ASCII 6x12 点阵
-    uint8_t ret;
-    if ((ret = gt30l32s4w_read_ascii_8x16(handle, (uint16_t)asciiChar, buf)) != 0)
-    {
-        ESP_LOGW(TAG, "ascii read fail");
-        ESP_LOGW(TAG, "ascii, ret=%d", ret);
-        return 0;  // 读取失败
-        
+bool drawAscii(gt30l32s4w_handle_t *handle,char asciiChar, int x, int y, draw_mixed_font_size_t font_size) {
+    uint8_t ret = 0;
+    int width = 0;
+    int height = 0;
+    uint8_t buf[64] = {0};
+
+    switch (font_size) {
+        case DRAW_MIXED_FONT_12:
+            ret = gt30l32s4w_read_ascii_6x12(handle, (uint16_t)asciiChar, buf);
+            width = 6; height = 12;
+            break;
+        case DRAW_MIXED_FONT_16:
+            ret = gt30l32s4w_read_ascii_8x16(handle, (uint16_t)asciiChar, buf);
+            width = 8; height = 16;
+            break;
+        case DRAW_MIXED_FONT_24:
+            ret = gt30l32s4w_read_ascii_12x24(handle, (uint16_t)asciiChar, buf);
+            width = 12; height = 24;
+            break;
+        case DRAW_MIXED_FONT_32:
+            ret = gt30l32s4w_read_ascii_16x32(handle, (uint16_t)asciiChar, buf);
+            width = 16; height = 32;
+            break;
+        default:
+            ret = 1;
+            ESP_LOGW(TAG, "Unsupported ASCII font size %d", font_size);
+            break;
     }
 
-    // buf 结构：buf[0] = 字符宽度，buf[1] 开始是点阵数据
-   
-    const uint8_t *dot_data = &buf[0];
+    if (ret != 0) {
+        ESP_LOGW(TAG, "ascii read fail, ret=%d", ret);
+        return false;
+    }
 
-    // 直接使用 GxEPD2 内置的 drawBitmap
-    display.drawBitmap(x, y, dot_data, ASCII_WIDTH, ASCII_HEIGHT, GxEPD_BLACK);
-    //ESP_LOGW(TAG, "ascii drawbitmap");
-    return 0;  
+    display.drawBitmap(x, y, buf, width, height, GxEPD_BLACK);
+    return true;
 }
 
 
@@ -148,8 +218,10 @@ bool isChineseUTF8(const char *str)
 }
 
 
-void drawBitmapMixedString(const char* utf8Str, int x, int y)
+void drawBitmapMixedString(const char* utf8Str, int x, int y, draw_mixed_font_size_t font_size)
 {
+    const draw_mixed_font_size_t normalized_size = normalize_font_size(font_size);
+    const FontMetrics metrics = metrics_for(normalized_size);
     int cursorX = x;
     int cursorY = y;
 
@@ -157,19 +229,22 @@ void drawBitmapMixedString(const char* utf8Str, int x, int y)
         if (isChineseUTF8(utf8Str)) {
             // UTF-8 → GB2312 转换
             uint8_t gb2312[2];
-            utf8_to_gb2312(utf8Str, gb2312);  // 你需要提供此函数
- //            ESP_LOGW(TAG, "Chinese utf8_to_gb2312");
+            if (!utf8_to_gb2312(utf8Str, gb2312)) {
+                utf8Str += 3;
+                cursorX += metrics.chinese_width;
+                continue;
+            }
             uint16_t gbCode = (gb2312[0] << 8) | gb2312[1];
 
             // 显示中文
-            drawChinese(&gs_handle, gbCode, cursorX, cursorY);
-            cursorX += CHINESE_WIDTH;
+            drawChinese(&gs_handle, gbCode, cursorX, cursorY, normalized_size);
+            cursorX += metrics.chinese_width;
 
             utf8Str += 3; // UTF-8 中文占3字节
         } else {
             // 显示英文
-            drawAscii8x16(&gs_handle, *utf8Str, cursorX, cursorY);
-            cursorX += ASCII_WIDTH;
+            drawAscii(&gs_handle, *utf8Str, cursorX, cursorY, normalized_size);
+            cursorX += metrics.ascii_width;
 
             utf8Str += 1;
         }
@@ -209,10 +284,11 @@ extern "C" {
         display.fillScreen(color);
     }
 
-    void drawMixedString_drawText(const char* utf8, int x, int y)
+    void drawMixedString_drawText(const char* utf8, int x, int y, draw_mixed_font_size_t font_size)
     {
-        ESP_LOGD(TAG, "drawMixedString_drawText: x=%d y=%d text=%s", x, y, utf8);
-        drawBitmapMixedString(utf8, x, y);
+        const draw_mixed_font_size_t normalized_size = normalize_font_size(font_size);
+        ESP_LOGD(TAG, "drawMixedString_drawText: x=%d y=%d size=%d text=%s", x, y, normalized_size, utf8);
+        drawBitmapMixedString(utf8, x, y, normalized_size);
     }
 
     void drawMixedString_display(bool partial)

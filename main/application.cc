@@ -533,7 +533,7 @@ void Application::Start() {
                     // @Reason  : route TTS sentence to DisplayManager (assistant side)
                     // Send assistant (server TTS) sentence start to DisplayManager
                     Schedule([this, message = std::string(text->valuestring)]() {
-                        EpdManager::GetInstance().UpdateConversationSide(false, message, "");
+                        EpdManager::GetInstance().UpdateConversation(false, message);
                     //===================== [wj] End =====================
                     });
                 }
@@ -549,7 +549,7 @@ void Application::Start() {
                     // @Reason  : route STT result to DisplayManager (user side)
                 // Route user STT result to DisplayManager (user side)
                 Schedule([this, message = std::string(text->valuestring)]() {
-                    EpdManager::GetInstance().UpdateConversationSide(true, message, "");
+                    EpdManager::GetInstance().UpdateConversation(true, message);
                     //===================== [wj] End =====================
                 });
             }

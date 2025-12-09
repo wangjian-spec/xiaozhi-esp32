@@ -16,7 +16,7 @@ public:
     void ShowMainMenu();
     void ShowMainMenu(const std::vector<std::string>& items, int selected_index);
     void ShowWordCard(const std::string& card_html);
-    void UpdateConversationSide(bool is_user, const std::string& text_en, const std::string& text_cn);
+    void UpdateConversation(bool is_user, const std::string& text);
     void SetActiveScreen(int screen_id);
     // Set button hints (6 entries) to be shown on screen
     void SetButtonHints(const std::array<std::string, 6>& hints);
@@ -26,8 +26,7 @@ private:
     struct Command;
     struct ConversationEntry {
         bool is_user = false;
-        std::string en;
-        std::string cn;
+        std::string text;
     };
 
     void EnsureTaskCreated();

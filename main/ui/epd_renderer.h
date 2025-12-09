@@ -2,11 +2,17 @@
 #include <string>
 
 namespace EpdRenderer {
+    enum class FontSize : int {
+        k12 = 12,
+        k16 = 16,
+        k24 = 24,
+        k32 = 32,
+    };
     // Returns true if native DrawMixedString-based EPD rendering is available
     bool Available();
 
     // Draw text onto existing buffer (no clear)
-    void DrawText(const std::string &utf8, int x, int y);
+    void DrawText(const std::string &utf8, int x, int y, FontSize font_size = FontSize::k16);
     // Draw a bitmap into the buffer (no refresh)
     void DrawBitmap(const uint8_t* data, int x, int y, int w, int h, int color);
     // Refresh a specific window on the display

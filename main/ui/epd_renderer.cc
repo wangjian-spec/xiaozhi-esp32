@@ -10,7 +10,7 @@ static const char* TAG = "EpdRenderer";
 // Use C wrappers from DrawMixedString.cc so this TU doesn't need GxEPD2 headers/macros.
 extern "C" void drawMixedString_init();
 extern "C" void drawMixedString_fillScreen(int color);
-extern "C" void drawMixedString_drawText(const char* utf8, int x, int y);
+extern "C" void drawMixedString_drawText(const char* utf8, int x, int y, int font_size);
 extern "C" void drawMixedString_display(bool partial);
 extern "C" void drawMixedString_drawBitmap(int x, int y, const uint8_t* data, int w, int h, int color);
 extern "C" void drawMixedString_displayWindow(int x, int y, int w, int h, bool partial);
@@ -43,8 +43,8 @@ namespace EpdRenderer {
         drawMixedString_fillScreen(0xFFFF);
     }
 
-    void DrawText(const std::string &utf8, int x, int y) {
-        drawMixedString_drawText(utf8.c_str(), x, y);
+    void DrawText(const std::string &utf8, int x, int y, FontSize font_size) {
+        drawMixedString_drawText(utf8.c_str(), x, y, static_cast<int>(font_size));
     }
     void DrawBitmap(const uint8_t* data, int x, int y, int w, int h, int color) {
 
