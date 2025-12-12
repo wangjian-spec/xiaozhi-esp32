@@ -4,6 +4,9 @@
 #include "display.h"
 #include "esp_log.h"
 #include "assets.h"
+#include "storage/sd_resource.h"
+
+#include "driver/spi_master.h"
 
 #include <algorithm>
 #include <new>
@@ -17,6 +20,8 @@ constexpr size_t kCommandQueueLength = 10;
 constexpr TickType_t kQueueWaitTicks = pdMS_TO_TICKS(100);
 constexpr uint32_t kTaskStackSize = 4096;
 constexpr UBaseType_t kTaskPriority = 4;
+constexpr const char* kUserAvatarPath = "resource/image/student.bin";
+constexpr const char* kAiAvatarPath = "resource/image/teacher.bin";
 }
 
 struct EpdManager::Command {
@@ -99,6 +104,43 @@ void EpdManager::TaskLoop() {
     }
 }
 
+bool EpdManager::LoadAvatarFromSd(const std::string& relative_path, AvatarData& dst, const char* label) {
+    const char* safe_label = label ? label : "unknown";
+
+    std::vector<uint8_t> buf;
+    if (!SdResource::GetInstance().LoadBinary(relative_path, buf, safe_label)) {
+        dst.ok = false;
+        dst.buffer.clear();
+        dst.data = nullptr;
+        dst.size = 0;
+        return false;
+    }
+
+    dst.buffer = std::move(buf);
+    dst.size = dst.buffer.size();
+    dst.data = dst.buffer.empty() ? nullptr : dst.buffer.data();
+    dst.ok = dst.data != nullptr && dst.size > 0;
+
+    if (!dst.ok) {
+        ESP_LOGW(TAG, "%s avatar data pointer is null after load", safe_label);
+        return false;
+    }
+
+    ESP_LOGW(TAG, "%s avatar load success path=%s size=%zu ptr=%p", safe_label, relative_path.c_str(), dst.size, dst.data);
+    return true; 
+}
+
+void EpdManager::EnsureAvatarsLoaded() {
+    if (!user_avatar_.ok) {
+        LoadAvatarFromSd(kUserAvatarPath, user_avatar_, "user");
+    }
+    if (!ai_avatar_.ok) {
+        LoadAvatarFromSd(kAiAvatarPath, ai_avatar_, "ai");
+    }
+    // LoadAvatarFromSd(kUserAvatarPath, user_avatar_, "user");
+    // LoadAvatarFromSd(kAiAvatarPath, ai_avatar_, "ai");
+}
+
 void EpdManager::DispatchCommand(Command* cmd) {
     if (!cmd) {
         return;
@@ -159,9 +201,14 @@ void EpdManager::ProcessCommand(Command& cmd) {
             break;
         }
         case Command::Type::UPDATE_CONVERSATION: {
-            ESP_LOGW(TAG, "Conversation %s: text='%s'",
+            std::string safe_text = cmd.text;
+            if (safe_text.empty()) safe_text = "(empty)";
+            ESP_LOGI(TAG, "Conversation %s: text='%s'",
                 cmd.is_user ? "user" : "assistant",
-                cmd.text.c_str());
+                safe_text.c_str());
+
+            // Load avatars from SD so that 20x20 bitmaps can be drawn beside messages
+            EnsureAvatarsLoaded();
 
             // Configurable area, avatars, and history caps
             constexpr int region_width = 400;    // 对话区域宽度，可调
@@ -173,10 +220,10 @@ void EpdManager::ProcessCommand(Command& cmd) {
             constexpr int max_history_lines = 160; // 历史总行数上限，可调
 
             // Avatar configuration
-            constexpr int avatar_ai_w = 30;
-            constexpr int avatar_ai_h = 30;
-            constexpr int avatar_user_w = 30;
-            constexpr int avatar_user_h = 30;
+            constexpr int avatar_ai_w = 20;
+            constexpr int avatar_ai_h = 20;
+            constexpr int avatar_user_w = 20;
+            constexpr int avatar_user_h = 20;
             constexpr int gap_ai_text = 5;    // AI头像与文字间距
             constexpr int gap_user_text = 5;  // 用户头像与文字间距
 
@@ -354,42 +401,7 @@ void EpdManager::ProcessCommand(Command& cmd) {
             // 反转回正序以正确绘制
             std::reverse(render_items.begin(), render_items.end());
 
-            // 头像资源加载（按需只加载一次）
-            struct AvatarData {
-                const uint8_t* data = nullptr;
-                size_t size = 0;
-                bool ok = false;
-            };
-            static AvatarData ai_avatar;
-            static AvatarData user_avatar;
-            static bool avatars_loaded = false;
-            static bool warned_ai_avatar = false;
-            static bool warned_user_avatar = false;
 
-            auto ensure_avatar = [&](const char* name, int w, int h, AvatarData& out) {
-                if (out.ok) return;
-                void* ptr = nullptr;
-                size_t size = 0;
-                if (!Assets::GetInstance().GetAssetData(name, ptr, size)) {
-                    ESP_LOGW(TAG, "Avatar asset missing: %s", name);
-                    return;
-                }
-                const size_t expected = (w * h + 7) / 8;
-                if (size < expected) {
-                    ESP_LOGW(TAG, "Avatar asset %s size %u < expected %u", name, (unsigned)size, (unsigned)expected);
-                    return;
-                }
-                out.data = static_cast<const uint8_t*>(ptr);
-                out.size = size;
-                out.ok = true;
-            };
-
-            if (!avatars_loaded) {
-                ensure_avatar("resource/image/teacher.bin", avatar_ai_w, avatar_ai_h, ai_avatar);
-                ensure_avatar("resource/image/student.bin", avatar_user_w, avatar_user_h, user_avatar);
-                avatars_loaded = true;
-                ESP_LOGW(TAG, "Avatar load status: ai=%s user=%s", ai_avatar.ok ? "ok" : "missing", user_avatar.ok ? "ok" : "missing");
-            }
 
             EpdRenderer::Clear();
             int cursor_y = margin_y;
@@ -402,18 +414,18 @@ void EpdManager::ProcessCommand(Command& cmd) {
 
                 // Draw avatar if available
                 if (is_user) {
-                    if (user_avatar.ok) {
-                        EpdRenderer::DrawBitmap(user_avatar.data, avatar_x, avatar_y, avatar_w, avatar_h, 0);
-                    } else if (!warned_user_avatar) {
+                    if (user_avatar_.ok && user_avatar_.data && user_avatar_.size > 0) {
+                        EpdRenderer::DrawBitmap(user_avatar_.data, avatar_x, avatar_y, avatar_w, avatar_h, 0);
+                    } else if (!warned_user_avatar_) {
                         ESP_LOGW(TAG, "User avatar not drawn (asset missing or invalid)");
-                        warned_user_avatar = true;
+                        warned_user_avatar_ = true;
                     }
                 } else {
-                    if (ai_avatar.ok) {
-                        EpdRenderer::DrawBitmap(ai_avatar.data, avatar_x, avatar_y, avatar_w, avatar_h, 0);
-                    } else if (!warned_ai_avatar) {
+                    if (ai_avatar_.ok && ai_avatar_.data && ai_avatar_.size > 0) {
+                        EpdRenderer::DrawBitmap(ai_avatar_.data, avatar_x, avatar_y, avatar_w, avatar_h, 0);
+                    } else if (!warned_ai_avatar_) {
                         ESP_LOGW(TAG, "AI avatar not drawn (asset missing or invalid)");
-                        warned_ai_avatar = true;
+                        warned_ai_avatar_ = true;
                     }
                 }
 
@@ -459,6 +471,7 @@ void EpdManager::ProcessCommand(Command& cmd) {
 
             int window_height = std::min(region_height, cursor_y + margin_y);
             EpdRenderer::DisplayWindow(0, 0, region_width, window_height, true);
+            ESP_LOGW(TAG, "DisplayWindow");
             break;
         }
         case Command::Type::SET_ACTIVE_SCREEN:

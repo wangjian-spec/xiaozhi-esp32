@@ -29,11 +29,20 @@ private:
         std::string text;
     };
 
+    struct AvatarData {
+        std::vector<uint8_t> buffer;
+        uint8_t* data = nullptr;
+        size_t size = 0;
+        bool ok = false;
+    };
+
     void EnsureTaskCreated();
     static void TaskEntry(void* arg);
     void TaskLoop();
     void DispatchCommand(Command* cmd);
     void ProcessCommand(Command& cmd);
+    bool LoadAvatarFromSd(const std::string& relative_path, AvatarData& dst, const char* label);
+    void EnsureAvatarsLoaded();
 
     EpdManager() = default;
 
@@ -44,4 +53,9 @@ private:
     int active_screen_ = 0;
     std::array<std::string, kButtonCount> button_hints_ = {"", "", "", "", "", ""};
     std::vector<ConversationEntry> conversation_history_;
+
+    AvatarData user_avatar_;
+    AvatarData ai_avatar_;
+    bool warned_user_avatar_ = false;
+    bool warned_ai_avatar_ = false;
 };

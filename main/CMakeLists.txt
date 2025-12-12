@@ -47,6 +47,7 @@ list(APPEND SOURCES "ui/epd_manager.cc"
                      "services/free_conversation.cc"
                      "services/scene_conversation.cc"
                      "ui/menu_manager.cc"
+                     "storage/sd_resource.cc"
                      )
 
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "protocols")

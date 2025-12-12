@@ -5,6 +5,7 @@
 #include<driver_gt30l32s4w_interface.h>
 #include<utf8_to_gb2312_table.h>
 #include <GxEPD2_BW.h>
+#include <SPI.h>
 #include "DrawMixedString.h"
 
 static const char *TAG = "EPD_DEMO";
@@ -19,6 +20,20 @@ DisplayClass display(
         /*BUSY=*/ EPD_PIN_NUM_BUSY
     )
 );
+
+namespace {
+constexpr uint32_t kEpdSpiFreq = 20000000UL;  // 20 MHz for e-ink and GT30 transfers
+const SPISettings kEpdSpiSettings{kEpdSpiFreq, MSBFIRST, SPI_MODE0};
+bool EnsureEpdSpiBus() {
+    static bool spi_ready = false;
+    if (!spi_ready) {
+        SPI.begin(SPI_PIN_NUM_CLK, SPI_PIN_NUM_MISO, SPI_PIN_NUM_MOSI);
+        spi_ready = true;
+        ESP_LOGI(TAG, "SPI bus configured for EPD: clk=%d miso=%d mosi=%d", SPI_PIN_NUM_CLK, SPI_PIN_NUM_MISO, SPI_PIN_NUM_MOSI);
+    }
+    return spi_ready;
+}
+}
 
 // ...existing code...
 
@@ -258,13 +273,15 @@ extern "C" {
     {
         // initialize GT30 and display with sensible defaults
         initArduino();
-        SPI.begin(SPI_PIN_NUM_CLK, SPI_NUM_MISO, SPI_PIN_NUM_MOSI);
+        EnsureEpdSpiBus();
         pinMode(EPD_PIN_NUM_CS, OUTPUT);
         pinMode(EPD_PIN_NUM_DC, OUTPUT);
         pinMode(EPD_PIN_NUM_RST, OUTPUT);
         pinMode(EPD_PIN_NUM_BUSY, INPUT);
         pinMode(GT30_PIN_NUM_CS, OUTPUT);
+        SPI.beginTransaction(kEpdSpiSettings);
         uint8_t rt = gt30_init();
+        SPI.endTransaction();
         if (rt != 0) {
             ESP_LOGE(TAG, "gt30_init failed: %d", rt);
         } else {

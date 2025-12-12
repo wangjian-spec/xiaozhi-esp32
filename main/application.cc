@@ -356,12 +356,15 @@ void Application::StopListening() {
 }
 
 void Application::Start() {
+
+    EpdManager::GetInstance().Init();
+    ESP_LOGW(TAG, "EPD INITED SUCCESSFUL");
     auto& board = Board::GetInstance();
     SetDeviceState(kDeviceStateStarting);
 
     /* Setup the display */
     auto display = board.GetDisplay();
-
+   ESP_LOGW(TAG, "BOARD SD CARD INITED SUCCESSFUL");
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
 
@@ -383,7 +386,7 @@ void Application::Start() {
     codec->SetOutputVolume(10);
 
 
-    EpdManager::GetInstance().Init();
+
 
 
     //===================== [wj] End =====================

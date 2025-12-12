@@ -9,6 +9,7 @@
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
+#include "storage/sd_resource.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -184,6 +185,12 @@ private:
         static LampController lamp(LAMP_GPIO);
     }
 
+    void InitializeSdCard() {
+        if (!SdResource::GetInstance().Init()) {
+            ESP_LOGW(TAG, "SD card init failed");
+        }
+    }
+
 public:
     EnglishTeacherBoard() :
         button_up_(BUTTON_UP_GPIO),
@@ -202,6 +209,7 @@ public:
        // InitializeSsd1306Display();
         display_ = new NoDisplay(); // Disable display for English Teacher Board
         InitializeButtons();
+        InitializeSdCard();
         InitializeTools();
     }
 
