@@ -9,8 +9,8 @@
 #include "driver/spi_master.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <new>
-#include <unordered_map>
 
 // EPD helpers (DrawMixedString) - optional
 #include "ui/epd_renderer.h"
@@ -207,25 +207,23 @@ void EpdManager::ProcessCommand(Command& cmd) {
                 cmd.is_user ? "user" : "assistant",
                 safe_text.c_str());
 
-            // Load avatars from SD so that 20x20 bitmaps can be drawn beside messages
             EnsureAvatarsLoaded();
 
-            // Configurable area, avatars, and history caps
-            constexpr int region_width = 400;    // 对话区域宽度，可调
-            constexpr int region_height = 300;   // 对话区域高度，可调
-            constexpr int bubble_padding_y = 0;  // 气泡内边距（垂直）
-            constexpr int bubble_gap_y = 3;     // 气泡间垂直间距
-            constexpr int margin_x = 8;         // 左右边距
-            constexpr int margin_y = 8;         // 上下边距
-            constexpr int max_history_lines = 160; // 历史总行数上限，可调
+            constexpr int region_width = 400;
+            constexpr int region_height = 300;
+            constexpr int bubble_padding_y = 0;
+            constexpr int bubble_gap_y = 3;
+            constexpr int margin_x = 8;
+            constexpr int margin_y = 8;
+            constexpr int max_history_lines = 50;
+            constexpr size_t max_message_entries = static_cast<size_t>(kMaxConversationHistory);
 
-            // Avatar configuration
             constexpr int avatar_ai_w = 20;
             constexpr int avatar_ai_h = 20;
             constexpr int avatar_user_w = 20;
             constexpr int avatar_user_h = 20;
-            constexpr int gap_ai_text = 5;    // AI头像与文字间距
-            constexpr int gap_user_text = 5;  // 用户头像与文字间距
+            constexpr int gap_ai_text = 5;
+            constexpr int gap_user_text = 5;
 
             const auto font_size = EpdRenderer::FontSize::k16;
             struct FontMetrics { int chinese_width; int ascii_width; int line_height; };
@@ -239,180 +237,191 @@ void EpdManager::ProcessCommand(Command& cmd) {
                 }
             }();
 
-            const int line_height = metrics.line_height; // 行高与字体高度保持一致
+            const int line_height = metrics.line_height;
 
-            // Text区域留出左右头像和间隙
             const int text_area_left = margin_x + avatar_ai_w + gap_ai_text;
             const int text_area_right = region_width - margin_x - avatar_user_w - gap_user_text;
             const int text_area_width = std::max(1, text_area_right - text_area_left);
             auto decode_utf8 = [](const std::string& s, size_t& i) -> uint32_t {
                 const unsigned char c0 = static_cast<unsigned char>(s[i]);
                 if (c0 < 0x80) { i += 1; return c0; }
-                if ((c0 >> 5) == 0x6 && i + 1 < s.size()) { // 2-byte
+                if ((c0 >> 5) == 0x6 && i + 1 < s.size()) {
                     uint32_t cp = ((c0 & 0x1F) << 6) | (static_cast<unsigned char>(s[i + 1]) & 0x3F);
                     i += 2; return cp;
                 }
-                if ((c0 >> 4) == 0xE && i + 2 < s.size()) { // 3-byte
+                if ((c0 >> 4) == 0xE && i + 2 < s.size()) {
                     uint32_t cp = ((c0 & 0x0F) << 12) |
                                    ((static_cast<unsigned char>(s[i + 1]) & 0x3F) << 6) |
                                    (static_cast<unsigned char>(s[i + 2]) & 0x3F);
                     i += 3; return cp;
                 }
-                if ((c0 >> 3) == 0x1E && i + 3 < s.size()) { // 4-byte
+                if ((c0 >> 3) == 0x1E && i + 3 < s.size()) {
                     uint32_t cp = ((c0 & 0x07) << 18) |
                                    ((static_cast<unsigned char>(s[i + 1]) & 0x3F) << 12) |
                                    ((static_cast<unsigned char>(s[i + 2]) & 0x3F) << 6) |
                                    (static_cast<unsigned char>(s[i + 3]) & 0x3F);
                     i += 4; return cp;
                 }
-                // fallback: invalid byte, treat as single
                 i += 1; return c0;
             };
 
             auto char_width_for = [&](const uint32_t cp) {
-                if (cp < 0x80) { // ASCII
+                if (cp < 0x80) {
                     return metrics.ascii_width;
                 }
-                // Emoji / surrogate range -> wider
-                if (cp >= 0x1F300 || cp > 0xFFFF) {
+                if (cp >= 0x1F000) {
                     return metrics.chinese_width * 2;
                 }
-                // CJK Unified, Hangul, Hiragana, Katakana etc.
-                if ((cp >= 0x1100 && cp <= 0x11FF) || // Hangul Jamo
-                    (cp >= 0x2E80 && cp <= 0xA4CF) || // CJK, Kangxi, radicals, bopomofo
-                    (cp >= 0xAC00 && cp <= 0xD7AF)) { // Hangul syllables
+                if ((cp >= 0x1100 && cp <= 0x11FF) ||
+                    (cp >= 0x2E80 && cp <= 0xA4CF) ||
+                    (cp >= 0xAC00 && cp <= 0xD7AF)) {
                     return metrics.chinese_width;
                 }
-                // Latin extended, Greek, Cyrillic: use a slightly wider than ASCII
                 if ((cp >= 0x00A0 && cp <= 0x04FF) || (cp >= 0x1E00 && cp <= 0x1FFF)) {
                     return metrics.ascii_width + std::max(0, metrics.chinese_width - metrics.ascii_width) / 2;
                 }
-                // default fall back
                 return metrics.chinese_width;
             };
 
-            auto wrap_text = [&](const std::string& text) {
-                std::vector<std::string> lines;
-                if (text_area_width <= 0) return lines;
+            auto wrap_entry = [&](ConversationEntry& entry) {
+                entry.lines.clear();
+                entry.line_width_px.clear();
+                if (text_area_width <= 0) {
+                    entry.lines.emplace_back("");
+                    entry.line_width_px.emplace_back(0);
+                    return;
+                }
+                entry.lines.reserve(4);
+                entry.line_width_px.reserve(4);
+
                 std::string current;
+                current.reserve(std::min(entry.text.size(), static_cast<size_t>(256)));
                 int current_width = 0;
                 size_t idx = 0;
-                size_t last_space_byte = std::string::npos;
-                int last_space_width = 0;
+                size_t last_space_pos = std::string::npos;
+                int last_space_total_width = 0;
 
-                while (idx < text.size()) {
+                auto flush_current = [&]() {
+                    entry.lines.push_back(current);
+                    entry.line_width_px.push_back(current_width);
+                    current.clear();
+                    current_width = 0;
+                    last_space_pos = std::string::npos;
+                    last_space_total_width = 0;
+                };
+
+                while (idx < entry.text.size()) {
                     const size_t start = idx;
-                    const uint32_t cp = decode_utf8(text, idx);
+                    const uint32_t cp = decode_utf8(entry.text, idx);
+                    if (cp == '\r') {
+                        continue;
+                    }
+                    if (cp == '\n') {
+                        flush_current();
+                        if (entry.lines.empty() || !entry.lines.back().empty()) {
+                            entry.lines.emplace_back("");
+                            entry.line_width_px.emplace_back(0);
+                        }
+                        continue;
+                    }
+
                     const int cw = char_width_for(cp);
                     const bool is_space = (cp == ' ' || cp == '\t');
 
                     if (current_width + cw > text_area_width && !current.empty()) {
-                        if (last_space_byte != std::string::npos) {
-                            // wrap at last space
-                            lines.push_back(current.substr(0, last_space_byte));
-                            // remove space itself from new line
-                            std::string carry = current.substr(last_space_byte + 1);
-                            current.swap(carry);
+                        if (last_space_pos != std::string::npos) {
+                            entry.lines.push_back(current.substr(0, last_space_pos));
+                            entry.line_width_px.push_back(last_space_total_width);
+                            current.erase(0, last_space_pos + 1);
                             current_width = 0;
                             size_t tmp_idx = 0;
                             while (tmp_idx < current.size()) {
-                                const uint32_t cp2 = decode_utf8(current, tmp_idx);
-                                current_width += char_width_for(cp2);
+                                const uint32_t tmp_cp = decode_utf8(current, tmp_idx);
+                                current_width += char_width_for(tmp_cp);
                             }
                         } else {
-                            lines.push_back(current);
-                            current.clear();
-                            current_width = 0;
+                            flush_current();
                         }
-                        last_space_byte = std::string::npos;
-                        last_space_width = 0;
-                        // re-check after wrap if this char still doesn't fit alone
-                        if (cw > text_area_width && current.empty()) {
-                            // force break single wide char
-                            std::string tmp(text.substr(start, idx - start));
-                            lines.push_back(tmp);
-                            continue;
-                        }
+                        last_space_pos = std::string::npos;
+                        last_space_total_width = 0;
                     }
 
-                    current.append(text, start, idx - start);
+                    current.append(entry.text, start, idx - start);
                     current_width += cw;
                     if (is_space) {
-                        last_space_byte = current.size() - (idx - start);
-                        last_space_width = current_width;
+                        last_space_pos = current.size() - (idx - start);
+                        last_space_total_width = current_width - cw;
                     }
                 }
-                if (!current.empty()) lines.push_back(current);
-                return lines;
-            };
 
-            std::unordered_map<const ConversationEntry*, std::vector<std::string>> wrap_cache;
-            auto get_lines = [&](const ConversationEntry& entry) -> const std::vector<std::string>& {
-                auto it = wrap_cache.find(&entry);
-                if (it != wrap_cache.end()) return it->second;
-                auto lines = wrap_text(entry.text);
-                auto res = wrap_cache.emplace(&entry, std::move(lines));
-                return res.first->second;
+                if (!current.empty()) {
+                    flush_current();
+                } else if (entry.lines.empty()) {
+                    entry.lines.emplace_back("");
+                    entry.line_width_px.push_back(0);
+                }
             };
 
             auto count_lines = [&](const ConversationEntry& entry) {
-                int lines = (int)get_lines(entry).size();
-                return std::max(lines, 1); // 至少一行
+                return std::max(1, (int)entry.lines.size());
             };
 
-            // 记录新消息
-            conversation_history_.push_back({cmd.is_user, cmd.text});
+            conversation_history_.emplace_back();
+            auto& new_entry = conversation_history_.back();
+            new_entry.is_user = cmd.is_user;
+            new_entry.text = cmd.text;
+            wrap_entry(new_entry);
 
-            // 历史按总行数截断
             int total_lines = 0;
             for (const auto& e : conversation_history_) total_lines += count_lines(e);
+            while (conversation_history_.size() > max_message_entries) {
+                total_lines -= count_lines(conversation_history_.front());
+                conversation_history_.pop_front();
+            }
             while (total_lines > max_history_lines && !conversation_history_.empty()) {
                 total_lines -= count_lines(conversation_history_.front());
-                conversation_history_.erase(conversation_history_.begin());
+                conversation_history_.pop_front();
             }
 
             struct RenderItem {
-                bool is_user;
-                std::vector<std::string> lines;
-                int text_height;
-                int bubble_height;
+                size_t index = 0;
+                int text_height = 0;
+                int bubble_height = 0;
             };
 
             std::vector<RenderItem> render_items;
 
-            // 从最新向上收集，保证显示区域内展示最新消息（滚动到最新）
+            render_items.reserve(conversation_history_.size());
+
             int used_height = 0;
             for (auto it = conversation_history_.rbegin(); it != conversation_history_.rend(); ++it) {
-                const auto& lines = get_lines(*it);
-                const int line_count = std::max(1, (int)lines.size());
+                const int line_count = std::max(1, (int)it->lines.size());
                 const int text_height = line_count * line_height;
                 const int avatar_h = it->is_user ? avatar_user_h : avatar_ai_h;
                 const int content_h = std::max(text_height, avatar_h);
                 const int bubble_height = bubble_padding_y * 2 + content_h;
                 const int needed = (render_items.empty() ? 0 : bubble_gap_y) + bubble_height;
                 if (used_height + needed > region_height - margin_y * 2) {
-                    break; // 已无空间，停止收集更旧消息
+                    break;
                 }
-                RenderItem item{it->is_user, lines, text_height, bubble_height};
-                render_items.push_back(std::move(item));
+                const auto dist = std::distance(conversation_history_.rbegin(), it);
+                const size_t idx = conversation_history_.size() - 1 - static_cast<size_t>(dist);
+                render_items.push_back({idx, text_height, bubble_height});
                 used_height += needed;
             }
 
-            // 反转回正序以正确绘制
             std::reverse(render_items.begin(), render_items.end());
-
-
 
             EpdRenderer::Clear();
             int cursor_y = margin_y;
             for (const auto& item : render_items) {
-                const bool is_user = item.is_user;
+                const auto& entry = conversation_history_[item.index];
+                const bool is_user = entry.is_user;
                 const int avatar_w = is_user ? avatar_user_w : avatar_ai_w;
                 const int avatar_h = is_user ? avatar_user_h : avatar_ai_h;
                 const int avatar_x = is_user ? (region_width - margin_x - avatar_w) : margin_x;
                 const int avatar_y = cursor_y + bubble_padding_y;
 
-                // Draw avatar if available
                 if (is_user) {
                     if (user_avatar_.ok && user_avatar_.data && user_avatar_.size > 0) {
                         EpdRenderer::DrawBitmap(user_avatar_.data, avatar_x, avatar_y, avatar_w, avatar_h, 0);
@@ -429,33 +438,26 @@ void EpdManager::ProcessCommand(Command& cmd) {
                     }
                 }
 
-                // Text alignment and wrapping boundaries
                 const int text_x_left = text_area_left;
                 const int text_x_right = text_area_right;
-                const int text_x_left_user = text_x_right - text_area_width; // 用户侧统一左对齐起点
+                const int text_x_left_user = text_x_right - text_area_width;
                 const int content_height = std::max(item.text_height, avatar_h);
                 int text_y = avatar_y + std::max(0, (content_height - item.text_height) / 2);
 
-                const bool single_line_user = is_user && item.lines.size() <= 1;
+                const auto& lines = entry.lines;
+                const auto& widths = entry.line_width_px;
+                const bool single_line_user = is_user && lines.size() <= 1;
 
-                for (const auto& ln : item.lines) {
-                    int line_px = 0;
-                    size_t idx = 0;
-                    while (idx < ln.size()) {
-                        const size_t start = idx;
-                        const uint32_t cp = decode_utf8(ln, idx);
-                        (void)start;
-                        line_px += char_width_for(cp);
-                    }
+                for (size_t line_index = 0; line_index < lines.size(); ++line_index) {
+                    const auto& ln = lines[line_index];
+                    int line_px = widths[line_index];
                     line_px = std::min(line_px, text_area_width);
 
                     int text_x;
                     if (is_user) {
                         if (single_line_user) {
-                            // 单行用户：右对齐，过宽则落到左起点
                             text_x = std::max(text_x_left_user, text_x_right - line_px);
                         } else {
-                            // 多行用户：左对齐
                             text_x = text_x_left_user;
                         }
                     } else {
@@ -470,7 +472,7 @@ void EpdManager::ProcessCommand(Command& cmd) {
             }
 
             int window_height = std::min(region_height, cursor_y + margin_y);
-            EpdRenderer::DisplayWindow(0, 0, region_width, window_height, true);
+            EpdRenderer::DisplayWindow(0, 0, region_width, region_height, true);
             ESP_LOGW(TAG, "DisplayWindow");
             break;
         }

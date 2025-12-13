@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,8 @@ private:
     struct ConversationEntry {
         bool is_user = false;
         std::string text;
+        std::vector<std::string> lines;
+        std::vector<int> line_width_px;
     };
 
     struct AvatarData {
@@ -52,7 +55,7 @@ private:
 
     int active_screen_ = 0;
     std::array<std::string, kButtonCount> button_hints_ = {"", "", "", "", "", ""};
-    std::vector<ConversationEntry> conversation_history_;
+    std::deque<ConversationEntry> conversation_history_;
 
     AvatarData user_avatar_;
     AvatarData ai_avatar_;
