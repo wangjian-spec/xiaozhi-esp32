@@ -43,6 +43,7 @@ list(APPEND SOURCES "ui/epd_manager.cc"
                      "input/button_manager.cc"
                      "audio/audio_manager.cc"
                      "ui/epd_renderer.cc"
+                     "ui/bdf_font.cc"
                      "services/word_practice.cc"
                      "services/free_conversation.cc"
                      "services/scene_conversation.cc"
@@ -75,6 +76,9 @@ endfunction()
 # Set default BUILTIN_TEXT_FONT and BUILTIN_ICON_FONT
 set(BUILTIN_TEXT_FONT font_puhui_14_1)
 set(BUILTIN_ICON_FONT font_awesome_14_1)
+
+# Optional extra assets directories (repeatable)
+set(DEFAULT_ASSETS_EXTRA_FILES)
 
 # Add board files according to BOARD_TYPE
 # Set default assets if the board uses partition table V2
@@ -220,7 +224,7 @@ elseif(CONFIG_BOARD_TYPE_ESP_SPOT_C5)
 elseif(CONFIG_BOARD_TYPE_ESP_HI)
     set(BOARD_TYPE "esp-hi")
     # Set ESP_HI emoji directory for DEFAULT_ASSETS_EXTRA_FILES
-    set(DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_BINARY_DIR}/emoji")
+    list(APPEND DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_BINARY_DIR}/emoji")
 elseif(CONFIG_BOARD_TYPE_ECHOEAR)
     set(BOARD_TYPE "echoear")
     set(BUILTIN_TEXT_FONT font_puhui_20_4)
@@ -582,6 +586,24 @@ elseif(CONFIG_BOARD_TYPE_HU_087)
     set(BUILTIN_ICON_FONT font_awesome_14_1)
 endif()
 
+# If Wenquanyi BDF fonts are present locally, include them in default assets.
+# Drop files like wenquanyi_9pt.bin ... wenquanyi_13pt.bin into ${PROJECT_DIR}/assets/u8g2_wqy/
+set(WENQUANYI_BDF_DIR "${PROJECT_DIR}/assets/u8g2_wqy")
+if(EXISTS "${WENQUANYI_BDF_DIR}")
+    list(APPEND DEFAULT_ASSETS_EXTRA_FILES "${WENQUANYI_BDF_DIR}")
+
+    # Helpful warning if the directory exists but the expected font files are missing.
+    set(_wqy_missing_all TRUE)
+    foreach(_wqy_name IN ITEMS wenquanyi_9pt.bin wenquanyi_10pt.bin wenquanyi_11pt.bin wenquanyi_12pt.bin wenquanyi_13pt.bin)
+        if(EXISTS "${WENQUANYI_BDF_DIR}/${_wqy_name}")
+            set(_wqy_missing_all FALSE)
+        endif()
+    endforeach()
+    if(_wqy_missing_all)
+        message(WARNING "${WENQUANYI_BDF_DIR} exists but no wenquanyi_*pt.bin files were found. Chat BDF font rendering will fall back / log 'BDF font not found'.")
+    endif()
+endif()
+
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.c
@@ -831,7 +853,9 @@ function(build_default_assets_bin)
     
     # Add default assets extra files if defined
     if(DEFAULT_ASSETS_EXTRA_FILES)
-        list(APPEND BUILD_ARGS "--extra_files" "${DEFAULT_ASSETS_EXTRA_FILES}")
+        foreach(_extra_dir IN LISTS DEFAULT_ASSETS_EXTRA_FILES)
+            list(APPEND BUILD_ARGS "--extra_files" "${_extra_dir}")
+        endforeach()
     endif()
     
     list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")

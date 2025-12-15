@@ -1,5 +1,7 @@
 #include "esp_log.h"
 #include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 #include<driver_gt30l32s4w.h>
 #include<driver_gt30l32s4w_basic.h>
 #include<driver_gt30l32s4w_interface.h>
@@ -7,6 +9,229 @@
 #include <GxEPD2_BW.h>
 #include <SPI.h>
 #include "DrawMixedString.h"
+
+namespace {
+
+#pragma pack(push, 1)
+struct BdfFontHeaderBin {
+    char magic[4];      // "BDFB"
+    uint8_t version;
+    uint16_t ascent;
+    uint16_t descent;
+    uint32_t glyph_count;
+    int16_t bbox_w, bbox_h, bbox_x, bbox_y;
+};
+
+struct BdfGlyphEntryBin {
+    uint32_t codepoint;
+    uint16_t width;
+    uint16_t height;
+    int16_t x_offset;
+    int16_t y_offset;
+    uint16_t advance;
+    uint32_t bitmap_offset; // bytes from bitmap base
+};
+#pragma pack(pop)
+
+static uint16_t ReadLE16(const uint8_t* p) {
+    return static_cast<uint16_t>(p[0] | (static_cast<uint16_t>(p[1]) << 8));
+}
+static int16_t ReadLE16S(const uint8_t* p) {
+    return static_cast<int16_t>(ReadLE16(p));
+}
+static uint32_t ReadLE32(const uint8_t* p) {
+    return static_cast<uint32_t>(p[0] |
+                                (static_cast<uint32_t>(p[1]) << 8) |
+                                (static_cast<uint32_t>(p[2]) << 16) |
+                                (static_cast<uint32_t>(p[3]) << 24));
+}
+
+static uint16_t ReadBE16(const uint8_t* p) {
+    return static_cast<uint16_t>((static_cast<uint16_t>(p[0]) << 8) | p[1]);
+}
+static int16_t ReadBE16S(const uint8_t* p) {
+    return static_cast<int16_t>(ReadBE16(p));
+}
+static uint32_t ReadBE32(const uint8_t* p) {
+    return static_cast<uint32_t>((static_cast<uint32_t>(p[0]) << 24) |
+                                (static_cast<uint32_t>(p[1]) << 16) |
+                                (static_cast<uint32_t>(p[2]) << 8) |
+                                 static_cast<uint32_t>(p[3]));
+}
+
+static size_t BitmapBytesFor(uint16_t w, uint16_t h) {
+    const size_t row_bytes = (static_cast<size_t>(w) + 7u) / 8u;
+    return row_bytes * static_cast<size_t>(h);
+}
+
+class BdfFontBin {
+public:
+    bool Load(const void* data, size_t size) {
+        data_ = nullptr;
+        size_ = 0;
+        entries_ = nullptr;
+        bitmap_base_ = nullptr;
+        bitmap_size_ = 0;
+        glyph_count_ = 0;
+        if (!data || size < sizeof(BdfFontHeaderBin)) {
+            return false;
+        }
+        const uint8_t* bytes = static_cast<const uint8_t*>(data);
+        if (memcmp(bytes, "BDFB", 4) != 0) {
+            return false;
+        }
+
+        // Auto-detect endianness: some generators write big-endian numeric fields.
+        const uint32_t glyph_count_le = ReadLE32(bytes + 9);
+        const uint32_t glyph_count_be = ReadBE32(bytes + 9);
+
+        const uint64_t table_bytes_le = static_cast<uint64_t>(sizeof(BdfFontHeaderBin)) +
+                                        static_cast<uint64_t>(glyph_count_le) * static_cast<uint64_t>(sizeof(BdfGlyphEntryBin));
+        const uint64_t table_bytes_be = static_cast<uint64_t>(sizeof(BdfFontHeaderBin)) +
+                                        static_cast<uint64_t>(glyph_count_be) * static_cast<uint64_t>(sizeof(BdfGlyphEntryBin));
+
+        // Plausibility checks: table must fit, glyph count must be non-zero.
+        const bool le_ok = (glyph_count_le > 0) && (table_bytes_le <= size);
+        const bool be_ok = (glyph_count_be > 0) && (table_bytes_be <= size);
+
+        if (!le_ok && !be_ok) {
+            return false;
+        }
+
+        big_endian_ = (!le_ok && be_ok);
+        glyph_count_ = big_endian_ ? glyph_count_be : glyph_count_le;
+
+        const uint64_t table_bytes = big_endian_ ? table_bytes_be : table_bytes_le;
+        entries_ = bytes + sizeof(BdfFontHeaderBin);
+        bitmap_base_ = bytes + static_cast<size_t>(table_bytes);
+        bitmap_size_ = size - static_cast<size_t>(table_bytes);
+
+        // validate sorted entries and bitmap bounds
+        uint32_t prev_cp = 0;
+        bool have_prev = false;
+        for (uint32_t i = 0; i < glyph_count_; ++i) {
+            const uint8_t* ep = entries_ + static_cast<size_t>(i) * sizeof(BdfGlyphEntryBin);
+            const uint32_t cp = big_endian_ ? ReadBE32(ep + 0) : ReadLE32(ep + 0);
+            const uint16_t w = big_endian_ ? ReadBE16(ep + 4) : ReadLE16(ep + 4);
+            const uint16_t h = big_endian_ ? ReadBE16(ep + 6) : ReadLE16(ep + 6);
+            const uint32_t off = big_endian_ ? ReadBE32(ep + 14) : ReadLE32(ep + 14);
+            if (have_prev && cp <= prev_cp) {
+                return false;
+            }
+            have_prev = true;
+            prev_cp = cp;
+            const size_t bytes_needed = BitmapBytesFor(w, h);
+            if (static_cast<uint64_t>(off) + static_cast<uint64_t>(bytes_needed) > bitmap_size_) {
+                return false;
+            }
+        }
+
+        data_ = bytes;
+        size_ = size;
+
+        return true;
+    }
+
+    bool IsLoaded() const { return data_ != nullptr; }
+
+    bool FindGlyph(uint32_t codepoint, BdfGlyphEntryBin& out) const {
+        if (!IsLoaded() || glyph_count_ == 0) {
+            return false;
+        }
+        size_t lo = 0;
+        size_t hi = static_cast<size_t>(glyph_count_);
+        while (lo < hi) {
+            const size_t mid = lo + (hi - lo) / 2;
+            const uint8_t* ep = entries_ + mid * sizeof(BdfGlyphEntryBin);
+            const uint32_t mid_cp = big_endian_ ? ReadBE32(ep + 0) : ReadLE32(ep + 0);
+            if (mid_cp == codepoint) {
+                out.codepoint = mid_cp;
+                out.width = big_endian_ ? ReadBE16(ep + 4) : ReadLE16(ep + 4);
+                out.height = big_endian_ ? ReadBE16(ep + 6) : ReadLE16(ep + 6);
+                out.x_offset = big_endian_ ? ReadBE16S(ep + 8) : ReadLE16S(ep + 8);
+                out.y_offset = big_endian_ ? ReadBE16S(ep + 10) : ReadLE16S(ep + 10);
+                out.advance = big_endian_ ? ReadBE16(ep + 12) : ReadLE16(ep + 12);
+                out.bitmap_offset = big_endian_ ? ReadBE32(ep + 14) : ReadLE32(ep + 14);
+                return true;
+            }
+            if (mid_cp < codepoint) lo = mid + 1;
+            else hi = mid;
+        }
+        return false;
+    }
+
+    const uint8_t* BitmapPtr(const BdfGlyphEntryBin& g) const {
+        if (!IsLoaded()) return nullptr;
+        const size_t need = BitmapBytesFor(g.width, g.height);
+        const uint64_t end = static_cast<uint64_t>(g.bitmap_offset) + static_cast<uint64_t>(need);
+        if (end > bitmap_size_) return nullptr;
+        return bitmap_base_ + g.bitmap_offset;
+    }
+
+private:
+    const uint8_t* data_ = nullptr;
+    size_t size_ = 0;
+    const uint8_t* entries_ = nullptr;
+    const uint8_t* bitmap_base_ = nullptr;
+    size_t bitmap_size_ = 0;
+    uint32_t glyph_count_ = 0;
+    bool big_endian_ = false;
+};
+
+static BdfFontBin g_bdf_font;
+
+static uint32_t DecodeUtf8Simple(const char* buf, size_t size, size_t& i) {
+    if (i >= size) return 0;
+    const unsigned char c0 = static_cast<unsigned char>(buf[i]);
+    if (c0 < 0x80) { i += 1; return c0; }
+    if ((c0 >> 5) == 0x6 && i + 1 < size) {
+        const unsigned char c1 = static_cast<unsigned char>(buf[i + 1]);
+        if ((c1 & 0xC0) != 0x80) { i += 1; return c0; }
+        const uint32_t cp = ((c0 & 0x1F) << 6) | (c1 & 0x3F);
+        i += 2;
+        return cp;
+    }
+    if ((c0 >> 4) == 0xE && i + 2 < size) {
+        const unsigned char c1 = static_cast<unsigned char>(buf[i + 1]);
+        const unsigned char c2 = static_cast<unsigned char>(buf[i + 2]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80)) { i += 1; return c0; }
+        const uint32_t cp = ((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0x3F);
+        i += 3;
+        return cp;
+    }
+    if ((c0 >> 3) == 0x1E && i + 3 < size) {
+        const unsigned char c1 = static_cast<unsigned char>(buf[i + 1]);
+        const unsigned char c2 = static_cast<unsigned char>(buf[i + 2]);
+        const unsigned char c3 = static_cast<unsigned char>(buf[i + 3]);
+        if (((c1 & 0xC0) != 0x80) || ((c2 & 0xC0) != 0x80) || ((c3 & 0xC0) != 0x80)) { i += 1; return c0; }
+        const uint32_t cp = ((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+        i += 4;
+        return cp;
+    }
+    i += 1;
+    return c0;
+}
+
+static int DrawBdfGlyphInternal(uint32_t codepoint, int x, int baseline_y, int color) {
+    if (!g_bdf_font.IsLoaded()) {
+        return 0;
+    }
+    BdfGlyphEntryBin g{};
+    if (!g_bdf_font.FindGlyph(codepoint, g)) {
+        return 0;
+    }
+    const uint8_t* bmp = g_bdf_font.BitmapPtr(g);
+    if (!bmp) {
+        return 0;
+    }
+
+    const int draw_x = x + static_cast<int>(g.x_offset);
+    const int draw_y = baseline_y - (static_cast<int>(g.y_offset) + static_cast<int>(g.height));
+    display.drawBitmap(draw_x, draw_y, bmp, static_cast<int>(g.width), static_cast<int>(g.height), color);
+    return static_cast<int>(g.advance);
+}
+
+} // namespace
 
 static const char *TAG = "EPD_DEMO";
 static gt30l32s4w_handle_t gs_handle;        /**< gt30l32s4w handle */
@@ -377,5 +602,63 @@ extern "C" {
         ESP_LOGI(TAG, "drawMixedString_selectFastFullUpdate: enable=%d", enable);
         // call selectFastFullUpdate on the contained epd2 instance (safe straight call)
         display.epd2.selectFastFullUpdate(enable);
+    }
+
+    bool drawMixedString_bdfLoadFont(const void* data, size_t size)
+    {
+        const bool ok = g_bdf_font.Load(data, size);
+        if (!ok) {
+            ESP_LOGW(TAG, "BDF font load failed");
+        }
+        return ok;
+    }
+
+    bool drawMixedString_bdfIsLoaded()
+    {
+        return g_bdf_font.IsLoaded();
+    }
+
+    int drawMixedString_bdfDrawGlyph(uint32_t codepoint, int x, int baseline_y, int color)
+    {
+        return DrawBdfGlyphInternal(codepoint, x, baseline_y, color);
+    }
+
+    int drawMixedString_bdfGlyphAdvance(uint32_t codepoint, int fallback_advance)
+    {
+        if (!g_bdf_font.IsLoaded()) {
+            return fallback_advance;
+        }
+        BdfGlyphEntryBin g{};
+        if (!g_bdf_font.FindGlyph(codepoint, g)) {
+            return fallback_advance;
+        }
+        return static_cast<int>(g.advance);
+    }
+
+    int drawMixedString_bdfDrawUtf8N(const char* utf8, size_t utf8_size, int x, int baseline_y, int color)
+    {
+        if (!utf8 || !g_bdf_font.IsLoaded()) {
+            return x;
+        }
+        size_t i = 0;
+        while (i < utf8_size) {
+            const uint32_t cp = DecodeUtf8Simple(utf8, utf8_size, i);
+            if (cp == 0) {
+                break;
+            }
+            if (cp == '\n' || cp == '\r') {
+                continue;
+            }
+            x += DrawBdfGlyphInternal(cp, x, baseline_y, color);
+        }
+        return x;
+    }
+
+    int drawMixedString_bdfDrawUtf8(const char* utf8, int x, int baseline_y, int color)
+    {
+        if (!utf8) {
+            return x;
+        }
+        return drawMixedString_bdfDrawUtf8N(utf8, strlen(utf8), x, baseline_y, color);
     }
 }

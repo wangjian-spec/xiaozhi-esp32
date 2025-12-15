@@ -1,5 +1,6 @@
 #include <Display_EPD_W21_spi.h>
 #include "driver_gt30l32s4w.h"
+#include <stddef.h>
 #define GxEPD2_DISPLAY_CLASS GxEPD2_BW
 #define GxEPD2_DRIVER_CLASS GxEPD2_420_GDEY042T81 
 #ifndef EPD_CS
@@ -98,6 +99,19 @@ void drawMixedString_firstPage();
 bool drawMixedString_nextPage();
 void drawMixedString_setCursor(int x, int y);
 void drawMixedString_print(const char* s);
+
+// BDF binary font support (custom 1-bit bitmap font)
+// Coordinates use (x, baseline_y).
+bool drawMixedString_bdfLoadFont(const void* data, size_t size);
+bool drawMixedString_bdfIsLoaded();
+// Returns advance in pixels; returns 0 if glyph missing or font not loaded.
+int drawMixedString_bdfDrawGlyph(uint32_t codepoint, int x, int baseline_y, int color);
+// Returns glyph advance in pixels without drawing. If glyph is missing or font not loaded,
+// returns fallback_advance.
+int drawMixedString_bdfGlyphAdvance(uint32_t codepoint, int fallback_advance);
+// Returns final x after drawing.
+int drawMixedString_bdfDrawUtf8(const char* utf8, int x, int baseline_y, int color);
+int drawMixedString_bdfDrawUtf8N(const char* utf8, size_t utf8_size, int x, int baseline_y, int color);
 #ifdef __cplusplus
 }
 #endif

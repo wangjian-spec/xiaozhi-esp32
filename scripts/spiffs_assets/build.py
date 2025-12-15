@@ -86,6 +86,30 @@ def process_text_font(text_font_file, assets_dir):
     return font_filename
 
 
+def process_extra_bin_dirs(extra_bin_dirs, assets_dir):
+    """Copy all .bin files from extra directories into assets_dir (flattened).
+
+    Note: spiffs_assets_gen.py packs only the top-level files in assets_dir (no subdirs).
+    """
+    if not extra_bin_dirs:
+        return
+
+    for src_dir in extra_bin_dirs:
+        if not src_dir:
+            continue
+        if not os.path.exists(src_dir):
+            print(f"Warning: extra bin dir does not exist: {src_dir}")
+            continue
+
+        for root, dirs, files in os.walk(src_dir):
+            for file in files:
+                if not file.lower().endswith('.bin'):
+                    continue
+                src_file = os.path.join(root, file)
+                dst_file = os.path.join(assets_dir, file)
+                copy_file(src_file, dst_file)
+
+
 def process_emoji_collection(emoji_collection_dir, assets_dir):
     """Process emoji_collection parameter"""
     if not emoji_collection_dir:
@@ -343,6 +367,10 @@ def main():
     parser.add_argument('--text_font', help='Path to text font file')
     parser.add_argument('--emoji_collection', help='Path to emoji collection directory')
 
+    # Copy extra .bin assets (e.g. BDF fonts) into the assets image.
+    # You can pass this flag multiple times.
+    parser.add_argument('--extra_bin_dir', action='append', default=[], help='Path to directory containing additional .bin files to pack into assets.bin')
+
     parser.add_argument('--res_path', help='Path to res directory')
     parser.add_argument('--target_board', help='Path to target board directory')
     
@@ -366,6 +394,9 @@ def main():
     # Process each parameter
     srmodels = process_wakenet_model(args.wakenet_model, build_dir, assets_dir)
     text_font = process_text_font(args.text_font, assets_dir)
+
+    # Copy extra .bin files (flattened into assets root)
+    process_extra_bin_dirs(args.extra_bin_dir, assets_dir)
 
     if(args.target_board):
         emoji_collection, icon_collection, layout_json = process_board_collection(args.target_board, args.res_path, assets_dir)

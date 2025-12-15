@@ -242,33 +242,46 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
     return emoji_list
 
 
-def process_extra_files(extra_files_dir, assets_dir):
-    """Process default_assets_extra_files parameter"""
-    if not extra_files_dir:
+def process_extra_files(extra_files_dirs, assets_dir):
+    """Process one or more extra files directories to be included in assets."""
+    if not extra_files_dirs:
         return []
-    
-    if not os.path.exists(extra_files_dir):
-        print(f"Warning: Extra files directory not found: {extra_files_dir}")
-        return []
-    
+
+    # Back-compat: allow a single string.
+    if isinstance(extra_files_dirs, str):
+        extra_files_dirs = [extra_files_dirs]
+
     extra_files_list = []
-    
-    # Copy each file from input directory to build/assets directory
-    for root, dirs, files in os.walk(extra_files_dir):
-        for file in files:
-            # Skip hidden files and directories
-            if file.startswith('.'):
-                continue
-                
-            # Copy file
-            src_file = os.path.join(root, file)
-            dst_file = os.path.join(assets_dir, file)
-            if copy_file(src_file, dst_file):
-                extra_files_list.append(file)
-    
-    if extra_files_list:
-        print(f"Processed {len(extra_files_list)} extra files from: {extra_files_dir}")
-    
+    seen = set()
+
+    for extra_files_dir in extra_files_dirs:
+        if not extra_files_dir:
+            continue
+
+        if not os.path.exists(extra_files_dir):
+            print(f"Warning: Extra files directory not found: {extra_files_dir}")
+            continue
+
+        copied_this_dir = 0
+
+        # Copy each file from input directory to build/assets directory (flattened)
+        for root, dirs, files in os.walk(extra_files_dir):
+            for file in files:
+                # Skip hidden files and directories
+                if file.startswith('.'):
+                    continue
+
+                src_file = os.path.join(root, file)
+                dst_file = os.path.join(assets_dir, file)
+                if copy_file(src_file, dst_file):
+                    copied_this_dir += 1
+                    if file not in seen:
+                        seen.add(file)
+                        extra_files_list.append(file)
+
+        if copied_this_dir:
+            print(f"Processed {copied_this_dir} extra files from: {extra_files_dir}")
+
     return extra_files_list
 
 
@@ -767,7 +780,7 @@ def main():
     parser.add_argument('--output', required=True, help='Output path for assets.bin')
     parser.add_argument('--esp_sr_model_path', help='Path to ESP-SR model directory')
     parser.add_argument('--xiaozhi_fonts_path', help='Path to xiaozhi-fonts component directory')
-    parser.add_argument('--extra_files', help='Path to extra files directory to be included in assets')
+    parser.add_argument('--extra_files', action='append', help='Path to extra files directory to be included in assets (repeatable)')
     
     args = parser.parse_args()
     
@@ -831,7 +844,7 @@ def main():
     emoji_collection_path = get_emoji_collection_path(args.emoji_collection, args.xiaozhi_fonts_path)
     
     # Get extra files path if provided
-    extra_files_path = args.extra_files
+    extra_files_path = args.extra_files or []
     
     # Read custom wake word configuration
     custom_wake_word_config = read_custom_wake_word_from_sdkconfig(args.sdkconfig)
@@ -869,7 +882,7 @@ def main():
         return
     
     # Build the assets
-    success = build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path, 
+    success = build_assets_integrated(wakenet_model_paths, multinet_model_paths, text_font_path, emoji_collection_path,
                                      extra_files_path, args.output, multinet_model_info)
     
     if not success:
