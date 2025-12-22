@@ -1,11 +1,11 @@
 tmp/
-components/
+# components/
 managed_components/
 build/
 .vscode/
 .devcontainer/
 sdkconfig.old
-sdkconfig
+# sdkconfig
 dependencies.lock
 .env
 releases/

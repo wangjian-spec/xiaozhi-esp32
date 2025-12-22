@@ -114,7 +114,7 @@ endchoice
 
 choice BOARD_TYPE
     prompt "Board Type"
-    default BOARD_TYPE_BREAD_COMPACT_WIFI
+    default BOARD_TYPE_English_Teacher
     help
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -435,6 +435,9 @@ choice BOARD_TYPE
     config BOARD_TYPE_YUNLIAO_S3
         bool "小智云聊-S3"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_English_Teacher
+        bool "english-teacher"
+        depends on IDF_TARGET_ESP32S3
     config BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S
         bool "Wireless-Tag WTP4C5MP07S"
         depends on IDF_TARGET_ESP32P4
@@ -477,7 +480,7 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
 endchoice
 
 choice DISPLAY_OLED_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_English_Teacher
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help

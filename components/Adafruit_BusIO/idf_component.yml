@@ -1,0 +1,3 @@
+## IDF Component Manager Manifest File
+dependencies:
+  arduino-esp32: ">=2.0.5"
