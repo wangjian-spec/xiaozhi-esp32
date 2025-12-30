@@ -558,6 +558,11 @@ elseif(CONFIG_BOARD_TYPE_YUNLIAO_S3)
     set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+elseif(CONFIG_BOARD_TYPE_English_Teacher)
+    set(BOARD_TYPE "EnglishTeacher")
+    # EnglishTeacher 专用：使用 Arduino 生态库（SdFat / GxEPD2），其初始化在 boards/EnglishTeacher/english-teacher.cc 内完成
+    list(APPEND SOURCES
+    )
 elseif(CONFIG_BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S)
     set(BOARD_TYPE "wireless-tag-wtp4c5mp07s")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -718,9 +723,17 @@ if(CONFIG_IDF_TARGET_ESP32)
                              )
 endif()
 
+# Component dependencies (keep minimal; add only when needed by a board)
+set(MAIN_REQUIRES "")
+if(CONFIG_BOARD_TYPE_English_Teacher)
+    # SdFat / GxEPD2 are Arduino libraries vendored as IDF components.
+    list(APPEND MAIN_REQUIRES arduino-esp32 SdFat GxEPD2)
+endif()
+
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
+                    REQUIRES ${MAIN_REQUIRES}
                     WHOLE_ARCHIVE
                     )
 

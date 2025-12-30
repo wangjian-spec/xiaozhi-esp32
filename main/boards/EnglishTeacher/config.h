@@ -2,6 +2,23 @@
 #define _BOARD_CONFIG_H_
 
 #include <driver/gpio.h>
+//配置墨水屏和SD卡SPI通讯引脚
+#define SPI_PIN_NUM_MOSI GPIO_NUM_14     //EPS32S3 DEMO
+#define SPI_PIN_NUM_CLK  GPIO_NUM_17     //EPS32S3 DEMO
+#define EPD_PIN_NUM_CS   GPIO_NUM_45     //EPS32S3 DEMO
+#define EPD_PIN_NUM_DC   GPIO_NUM_46     //EPS32S3 DEMO
+#define EPD_PIN_NUM_RST  GPIO_NUM_47     //EPS32S3 DEMO
+#define EPD_PIN_NUM_BUSY GPIO_NUM_48     //EPS32S3 DEMO
+#define SPI_PIN_NUM_MISO   GPIO_NUM_13     //ESP32S3 DEMO
+
+//SD卡片选引脚
+#define SD_PIN_NUM_CS GPIO_NUM_10       //ESP32S3 DEMO
+
+// -------------------- EPD 面板型号选择（GxEPD2 必需） --------------------
+// GxEPD2 必须在编译期选择具体屏幕驱动型号，否则无法实例化 display 对象。
+// 如你的硬件不是 4.2" GDEY042T81，请把下面宏改为对应型号，并同步修改
+// EPD 面板选择与驱动 include / using 在 boards/EnglishTeacher/english-teacher.cc 中。
+#define ENGLISH_TEACHER_EPD_PANEL_GDEY042T81 1
 
 #define AUDIO_INPUT_SAMPLE_RATE 16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
@@ -48,6 +65,8 @@
 // Reuse legacy names to minimize code changes
 #define BOOT_BUTTON_GPIO BUTTON_A_GPIO
 #define TOUCH_BUTTON_GPIO BUTTON_B_GPIO
+
+// Volume buttons
 #define VOLUME_UP_BUTTON_GPIO GPIO_NUM_41
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_42
 

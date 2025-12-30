@@ -3,9 +3,7 @@
 #include "board.h"
 #include "display.h"
 #include "eteacher/app_manager/app_manager.h"
-#include "eteacher/epd_manager/epd_manager.h"
-#include "eteacher/epd_manager/epd_renderer.h"
-#include "eteacher/epd_manager/screen.h"
+#include "eteacher/app_manager/screen.h"
 
 static const char *TAG = "AppManager";
 
@@ -44,20 +42,22 @@ void AppManager::Init()
     Register(std::make_shared<ActionApp>("word_practice", "Word Practice", []()
                                          {
         ButtonManager::GetInstance().SetActiveScreen(ScreenId::WORD_PRACTICE);
-        EpdManager::GetInstance().SetActiveScreen(static_cast<int>(ScreenId::WORD_PRACTICE));
-        EpdManager::GetInstance().ShowMainMenu(); }, []()
+        // NOTE:
+        // EPD UI 的渲染/菜单逻辑建议作为独立模块接入；AppManager 只负责“业务状态切换”。
+    }, []()
                                          {
         ButtonManager::GetInstance().SetActiveScreen(ScreenId::MAIN);
-        EpdManager::GetInstance().SetActiveScreen(static_cast<int>(ScreenId::MAIN)); }));
+    }));
 
     Register(std::make_shared<ActionApp>("free_conversation", "Free Conversation", []()
                                          {
         ButtonManager::GetInstance().SetActiveScreen(ScreenId::FREE_CONVERSATION);
-        EpdManager::GetInstance().SetActiveScreen(static_cast<int>(ScreenId::FREE_CONVERSATION));
-        EpdManager::GetInstance().ShowMainMenu(); }, []()
+        // NOTE:
+        // EPD UI 的渲染/菜单逻辑建议作为独立模块接入；AppManager 只负责“业务状态切换”。
+    }, []()
                                          {
         ButtonManager::GetInstance().SetActiveScreen(ScreenId::MAIN);
-        EpdManager::GetInstance().SetActiveScreen(static_cast<int>(ScreenId::MAIN)); }));
+    }));
 
     Register(std::make_shared<ActionApp>("settings", "Settings", []()
                                          {
