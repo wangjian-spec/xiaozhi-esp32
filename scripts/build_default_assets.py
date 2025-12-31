@@ -252,12 +252,26 @@ def process_extra_files(extra_files_dir, assets_dir):
         return []
     
     extra_files_list = []
+
+    # Extra files are meant to be runtime assets. If the directory also contains
+    # source files (e.g., *.cc/*.h), skip them to avoid wasting assets partition.
+    skip_exts = {
+        ".c", ".cc", ".cpp", ".cxx",
+        ".h", ".hh", ".hpp",
+        ".py", ".cmake",
+        ".md", ".txt",
+        ".in",
+    }
     
     # Copy each file from input directory to build/assets directory
     for root, dirs, files in os.walk(extra_files_dir):
         for file in files:
             # Skip hidden files and directories
             if file.startswith('.'):
+                continue
+
+            _, ext = os.path.splitext(file)
+            if ext.lower() in skip_exts:
                 continue
                 
             # Copy file

@@ -563,6 +563,9 @@ elseif(CONFIG_BOARD_TYPE_English_Teacher)
     # EnglishTeacher 专用：使用 Arduino 生态库（SdFat / GxEPD2），其初始化在 boards/EnglishTeacher/english-teacher.cc 内完成
     list(APPEND SOURCES
     )
+    # EnglishTeacher：字库体积较大，不打进固件镜像；随默认 assets.bin 一起写入 assets 分区。
+    # build_default_assets.py 会把该目录下的文件复制到 assets.bin 根目录。
+    set(DEFAULT_ASSETS_EXTRA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/eteacher/font_manager")
 elseif(CONFIG_BOARD_TYPE_WIRELESS_TAG_WTP4C5MP07S)
     set(BOARD_TYPE "wireless-tag-wtp4c5mp07s")
     set(BUILTIN_TEXT_FONT font_puhui_basic_30_4)
@@ -728,6 +731,12 @@ set(MAIN_REQUIRES "")
 if(CONFIG_BOARD_TYPE_English_Teacher)
     # SdFat / GxEPD2 are Arduino libraries vendored as IDF components.
     list(APPEND MAIN_REQUIRES arduino-esp32 SdFat GxEPD2)
+endif()
+
+if(CONFIG_BOARD_TYPE_English_Teacher)
+    list(APPEND SOURCES
+        "eteacher/font_manager/font_manager.cc"
+    )
 endif()
 
 idf_component_register(SRCS ${SOURCES}

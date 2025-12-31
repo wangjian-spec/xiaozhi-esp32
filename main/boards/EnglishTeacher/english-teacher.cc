@@ -2,108 +2,52 @@
 #include <Arduino.h>
 #include "wifi_board.h"
 #include "codecs/no_audio_codec.h"
-#include "display/oled_display.h"
-#include "system_reset.h"
 #include "application.h"
 #include "config.h"
-#include "mcp_server.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 
-// EnglishTeacher 专用按钮， 使板级初始化逻辑集中在一个地方，便于维护与裁剪。
-#include <driver/gpio.h>
 #include "button.h"
 
 // EnglishTeacher 板级：SD 与 EPD 共用同一条 SPI 总线
 #include <SPI.h>
-// 仅 EnglishTeacher 板级需要这些 Arduino 生态库的初始化实现
-#include <SdFat.h>
+// SD：封装在 custom_sd_fat.h / .cc 中（基于 SdFat）
+#include "custom_sd_fat.h"
 
-// EPD：统一封装在 custom_epd_display.*，对外提供 GxEPD2 原生 API（Raw()）
+// EPD：统一封装在 custom_epd_display.h / .cc 中
 #include "custom_epd_display.h"
 
 #include <esp_log.h>
-#include <driver/i2c_master.h>
-#include <esp_lcd_panel_ops.h>
-#include <esp_lcd_panel_vendor.h>
-
-#ifdef SH1106
-#include <esp_lcd_panel_sh1106.h>
-#endif
 
 #define TAG "EnglishTeacherBoard"
-
-// -----------------------------------------------------------------------------
-// EnglishTeacher：将 SD/EPD 的初始化集中到板级文件：
-// - 真实硬件是 SD 与 EPD 共享同一条 SPI 总线
-// - SPI.begin(...) 的参数与调用时序应由板级统一维护
-// - SdFat/GxEPD2 属于 Arduino 生态库，初始化路径也更贴近 board bring-up
-// -----------------------------------------------------------------------------
-
-namespace {
-constexpr const char* kSdTag = "EnglishTeacherSd";
-constexpr const char* kEpdTag = "EnglishTeacherEpd";
-constexpr const char* kBtnTag = "EnglishTeacherButton";
+// -----------------------------------------------------------------
 
 // iot_button 建议配置短按/长按阈值，0 可能导致部分事件不触发或表现不稳定。
 constexpr uint16_t kBtnLongPressMs = 2000;
 constexpr uint16_t kBtnShortPressMs = 50;
 
-bool InitSdCardOnSharedSpi(SPIClass& spi, int cs_pin, uint32_t max_sck_hz) {
-    // 用函数内 static 避免全局 new：
-    // - 只初始化一次
-    // - 不引入堆碎片问题
-    static SdFat sd;
-    static bool ready = false;
+constexpr uint32_t kSharedSpiHz = 20 * 1000 * 1000;
 
-    if (ready) {
-        return true;
-    }
+namespace {
 
-    if (cs_pin < 0) {
-        ESP_LOGW(kSdTag, "SD init skipped: invalid CS pin");
-        return false;
-    }
-
-    // 关键点：SD 与 EPD 共用 SPI，总线初始化(引脚/host)由板级统一 SPI.begin() 负责。
-    // 这里仅确保 SD 的 CS 处于非选中态，避免上电后总线被 SD 误占用。
-    pinMode(cs_pin, OUTPUT);
-    digitalWrite(cs_pin, HIGH);
-
-    const uint32_t max_sck = (max_sck_hz != 0) ? max_sck_hz : SD_SCK_MHZ(20);
-
-    // SHARED_SPI：明确告诉 SdFat 该 SPI 总线会被其它外设共享。
-    SdSpiConfig spi_cfg(cs_pin, SHARED_SPI, max_sck, &spi);
-
-    ready = sd.begin(spi_cfg);
-    if (!ready) {
-        ESP_LOGW(kSdTag, "SdFat begin failed");
-        return false;
-    }
-
-    ESP_LOGI(kSdTag, "SD init OK (SdFat, shared SPI)");
-    return true;
-}
-
-bool InitEpdOnSharedSpi() {
-    // 只保留一份 EPD 对象：由 CustomEpdDisplay 单例持有。
-    // 这样后续其它模块若要画图，可以直接 english_teacher::CustomEpdDisplay::GetEpd().Raw() 拿到 GxEPD2 对象。
-    auto& epd = english_teacher::CustomEpdDisplay::GetEpd();
-    const bool ok = epd.Init(0, true, 2, false, false);
-    if (ok) {
-        ESP_LOGI(kEpdTag, "EPD init OK (GxEPD2, shared SPI)");
-    }
-    return ok;
+void BindLogOnlyButton(Button& button, const char* name) {
+    button.OnPressDown([name]() { ESP_LOGW(TAG, "%s: PressDown", name); });
+    button.OnPressUp([name]() { ESP_LOGW(TAG, "%s: PressUp", name); });
+    button.OnClick([name]() { ESP_LOGW(TAG, "%s: Click", name); });
+    button.OnLongPress([name]() { ESP_LOGW(TAG, "%s: LongPress", name); });
 }
 } // namespace
 
 class EnglishTeacherBoard : public WifiBoard {
 private:
-    i2c_master_bus_handle_t display_i2c_bus_ = nullptr;
-    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
-    esp_lcd_panel_handle_t panel_ = nullptr;
-    Display* display_ = nullptr;
+    CustomEpdDisplay display_ = CustomEpdDisplay({
+        (int8_t)EPD_PIN_NUM_CS,
+        (int8_t)EPD_PIN_NUM_DC,
+        (int8_t)EPD_PIN_NUM_RST,
+        (int8_t)EPD_PIN_NUM_BUSY,
+    });
+    CustomSdFat sd_;
 
     // EnglishTeacher 的全部物理按键直接作为成员对象持有：
     // - 初始化更直观（无需 ButtonManager 中转）
@@ -122,129 +66,58 @@ private:
     Button volume_down_button_;
 
     void InitializeArduinoAndSharedSpi() {
-        // 统一复用 CustomEpdDisplay 的 helper，避免同一逻辑在多处维护。
-        // 注：SdFat 也依赖 Arduino core + SPI，因此这里在 SD/EPD 之前执行。
-        english_teacher::CustomEpdDisplay::EnsureArduinoCore();
-        english_teacher::CustomEpdDisplay::EnsureSharedSpi();
+        // Arduino framework is required by SdFat / GxEPD2 (vendored as IDF components).
+        // Ensure it's initialized exactly once.
+        static bool arduino_inited = false;
+        if (!arduino_inited) {
+            initArduino();
+            arduino_inited = true;
+        }
+
+        // Configure shared-SPI devices' control pins early.
+        // GxEPD2 may call digitalWrite() during init; on ESP32-Arduino the pin must
+        // be configured with pinMode() first, otherwise __digitalWrite() logs errors.
+        pinMode((int)SD_PIN_NUM_CS, OUTPUT);
+        digitalWrite((int)SD_PIN_NUM_CS, HIGH);
+
+        pinMode((int)EPD_PIN_NUM_CS, OUTPUT);
+        pinMode((int)EPD_PIN_NUM_DC, OUTPUT);
+        pinMode((int)EPD_PIN_NUM_RST, OUTPUT);
+        pinMode((int)EPD_PIN_NUM_BUSY, INPUT);
+
+        digitalWrite((int)EPD_PIN_NUM_CS, HIGH);
+        digitalWrite((int)EPD_PIN_NUM_DC, HIGH);
+        digitalWrite((int)EPD_PIN_NUM_RST, HIGH);
+
+        // ESP32 Arduino SPI.begin(sck, miso, mosi) signature.
+        SPI.begin((int)SPI_PIN_NUM_CLK, (int)SPI_PIN_NUM_MISO, (int)SPI_PIN_NUM_MOSI);
+        ESP_LOGI(TAG, "Shared SPI ready: SCK=%d MISO=%d MOSI=%d", (int)SPI_PIN_NUM_CLK, (int)SPI_PIN_NUM_MISO, (int)SPI_PIN_NUM_MOSI);
     }
 
     void InitializeSdCard() {
-        // max_sck_hz=0 表示使用 SdFat 推荐默认值（当前为 20MHz）。
-        // 需要更保守/更激进的频率时，可把 0 改为 SD_SCK_MHZ(x)。
-        InitSdCardOnSharedSpi(SPI, (int)SD_PIN_NUM_CS, 0);
+        SdSpiConfig cfg((int)SD_PIN_NUM_CS, SHARED_SPI, kSharedSpiHz, &SPI);
+        if (!sd_.Begin(cfg)) {
+            ESP_LOGE(TAG, "SD init failed (CS=%d)", (int)SD_PIN_NUM_CS);
+        } else {
+            ESP_LOGI(TAG, "SD init OK (CS=%d)", (int)SD_PIN_NUM_CS);
+        }
     }
 
     void InitializeEpd() {
-        InitEpdOnSharedSpi();
+        bool ok = display_.Begin(SPI, kSharedSpiHz);
+        ESP_LOGI(TAG, "EPD init %s", ok ? "OK" : "FAILED");
     }
-
-    void InitializeDisplayI2c() {
-        i2c_master_bus_config_t bus_config = {
-            .i2c_port = (i2c_port_t)0,
-            .sda_io_num = DISPLAY_SDA_PIN,
-            .scl_io_num = DISPLAY_SCL_PIN,
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .glitch_ignore_cnt = 7,
-            .intr_priority = 0,
-            .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
-        };
-        ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &display_i2c_bus_));
-    }
-
-    void InitializeSsd1306Display() {
-        // SSD1306 config
-        esp_lcd_panel_io_i2c_config_t io_config = {
-            .dev_addr = 0x3C,
-            .on_color_trans_done = nullptr,
-            .user_ctx = nullptr,
-            .control_phase_bytes = 1,
-            .dc_bit_offset = 6,
-            .lcd_cmd_bits = 8,
-            .lcd_param_bits = 8,
-            .flags = {
-                .dc_low_on_data = 0,
-                .disable_control_phase = 0,
-            },
-            .scl_speed_hz = 400 * 1000,
-        };
-
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c_v2(display_i2c_bus_, &io_config, &panel_io_));
-
-        ESP_LOGI(TAG, "Install SSD1306 driver");
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = -1;
-        panel_config.bits_per_pixel = 1;
-
-        esp_lcd_panel_ssd1306_config_t ssd1306_config = {
-            .height = static_cast<uint8_t>(DISPLAY_HEIGHT),
-        };
-        panel_config.vendor_config = &ssd1306_config;
-
-#ifdef SH1106
-        ESP_ERROR_CHECK(esp_lcd_new_panel_sh1106(panel_io_, &panel_config, &panel_));
-#else
-        ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(panel_io_, &panel_config, &panel_));
-#endif
-        ESP_LOGI(TAG, "SSD1306 driver installed");
-
-        // Reset the display
-        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
-        if (esp_lcd_panel_init(panel_) != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize display");
-            display_ = new NoDisplay();
-            return;
-        }
-        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, false));
-
-        // Set the display to on
-        ESP_LOGI(TAG, "Turning display on");
-        ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
-
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-    }
-
     void InitializeButtons() {
-        // 按键逻辑尽量直观：直接对成员 Button 绑定回调。
-
-        // 确保按键日志可见：即使全局日志级别偏高，也至少让本 tag 输出。
-        esp_log_level_set(kBtnTag, ESP_LOG_VERBOSE);
-
-        ESP_LOGW(kBtnTag,
-                 "Buttons init: UP=%d LEFT=%d DOWN=%d RIGHT=%d A=%d B=%d C=%d D=%d SEL=%d START=%d VUP=%d VDOWN=%d",
-                 (int)BUTTON_UP_GPIO, (int)BUTTON_LEFT_GPIO, (int)BUTTON_DOWN_GPIO, (int)BUTTON_RIGHT_GPIO,
-                 (int)BOOT_BUTTON_GPIO, (int)TOUCH_BUTTON_GPIO, (int)BUTTON_C_GPIO, (int)BUTTON_D_GPIO,
-                 (int)BUTTON_SELECT_GPIO, (int)BUTTON_START_GPIO,
-                 (int)VOLUME_UP_BUTTON_GPIO, (int)VOLUME_DOWN_BUTTON_GPIO);
-
-        // 方向键：当前不绑定业务逻辑，仅打印事件
-        up_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "UP: PressDown"); });
-        up_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "UP: PressUp"); });
-        up_button_.OnClick([]() { ESP_LOGW(kBtnTag, "UP: Click"); });
-        up_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "UP: LongPress"); });
-
-        left_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "LEFT: PressDown"); });
-        left_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "LEFT: PressUp"); });
-        left_button_.OnClick([]() { ESP_LOGW(kBtnTag, "LEFT: Click"); });
-        left_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "LEFT: LongPress"); });
-
-        down_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "DOWN: PressDown"); });
-        down_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "DOWN: PressUp"); });
-        down_button_.OnClick([]() { ESP_LOGW(kBtnTag, "DOWN: Click"); });
-        down_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "DOWN: LongPress"); });
-
-        right_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "RIGHT: PressDown"); });
-        right_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "RIGHT: PressUp"); });
-        right_button_.OnClick([]() { ESP_LOGW(kBtnTag, "RIGHT: Click"); });
-        right_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "RIGHT: LongPress"); });
+        BindLogOnlyButton(up_button_, "UP");
+        BindLogOnlyButton(left_button_, "LEFT");
+        BindLogOnlyButton(down_button_, "DOWN");
+        BindLogOnlyButton(right_button_, "RIGHT");
 
         // BOOT_BUTTON_GPIO 复用 A 键：单击切换聊天/配网
-        boot_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "BOOT(A): PressDown"); });
-        boot_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "BOOT(A): PressUp"); });
+        boot_button_.OnPressDown([]() { ESP_LOGW(TAG, "BOOT(A): PressDown"); });
+        boot_button_.OnPressUp([]() { ESP_LOGW(TAG, "BOOT(A): PressUp"); });
         boot_button_.OnClick([this]() {
-            ESP_LOGW(kBtnTag, "BOOT(A): Click");
+            ESP_LOGW(TAG, "BOOT(A): Click");
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting) {
                 EnterWifiConfigMode();
@@ -255,46 +128,31 @@ private:
 
         // 长按 BOOT：直接进入配网模式（不依赖其它模块的 WiFi 状态 API）
         boot_button_.OnLongPress([this]() {
-            ESP_LOGW(kBtnTag, "BOOT(A): LongPress");
+            ESP_LOGW(TAG, "BOOT(A): LongPress");
             EnterWifiConfigMode();
         });
 
         // TOUCH_BUTTON_GPIO 复用 B 键：按下开始说话，抬起结束
         touch_button_.OnPressDown([]() {
-            ESP_LOGW(kBtnTag, "TOUCH(B): PressDown");
+            ESP_LOGW(TAG, "TOUCH(B): PressDown");
             Application::GetInstance().StartListening();
         });
         touch_button_.OnPressUp([]() {
-            ESP_LOGW(kBtnTag, "TOUCH(B): PressUp");
+            ESP_LOGW(TAG, "TOUCH(B): PressUp");
             Application::GetInstance().StopListening();
         });
 
         // C/D/Start/Select：当前不绑定业务逻辑，仅打印事件
-        c_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "C: PressDown"); });
-        c_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "C: PressUp"); });
-        c_button_.OnClick([]() { ESP_LOGW(kBtnTag, "C: Click"); });
-        c_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "C: LongPress"); });
-
-        d_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "D: PressDown"); });
-        d_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "D: PressUp"); });
-        d_button_.OnClick([]() { ESP_LOGW(kBtnTag, "D: Click"); });
-        d_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "D: LongPress"); });
-
-        select_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "SELECT: PressDown"); });
-        select_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "SELECT: PressUp"); });
-        select_button_.OnClick([]() { ESP_LOGW(kBtnTag, "SELECT: Click"); });
-        select_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "SELECT: LongPress"); });
-
-        start_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "START: PressDown"); });
-        start_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "START: PressUp"); });
-        start_button_.OnClick([]() { ESP_LOGW(kBtnTag, "START: Click"); });
-        start_button_.OnLongPress([]() { ESP_LOGW(kBtnTag, "START: LongPress"); });
+        BindLogOnlyButton(c_button_, "C");
+        BindLogOnlyButton(d_button_, "D");
+        BindLogOnlyButton(select_button_, "SELECT");
+        BindLogOnlyButton(start_button_, "START");
 
         // 音量：单击 +/-10，长按到极值
-        volume_up_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "VOLUME_UP: PressDown"); });
-        volume_up_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "VOLUME_UP: PressUp"); });
+        volume_up_button_.OnPressDown([]() { ESP_LOGW(TAG, "VOLUME_UP: PressDown"); });
+        volume_up_button_.OnPressUp([]() { ESP_LOGW(TAG, "VOLUME_UP: PressUp"); });
         volume_up_button_.OnClick([this]() {
-            ESP_LOGW(kBtnTag, "VOLUME_UP: Click");
+            ESP_LOGW(TAG, "VOLUME_UP: Click");
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -304,15 +162,15 @@ private:
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
         volume_up_button_.OnLongPress([this]() {
-            ESP_LOGW(kBtnTag, "VOLUME_UP: LongPress");
+            ESP_LOGW(TAG, "VOLUME_UP: LongPress");
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
-        volume_down_button_.OnPressDown([]() { ESP_LOGW(kBtnTag, "VOLUME_DOWN: PressDown"); });
-        volume_down_button_.OnPressUp([]() { ESP_LOGW(kBtnTag, "VOLUME_DOWN: PressUp"); });
+        volume_down_button_.OnPressDown([]() { ESP_LOGW(TAG, "VOLUME_DOWN: PressDown"); });
+        volume_down_button_.OnPressUp([]() { ESP_LOGW(TAG, "VOLUME_DOWN: PressUp"); });
         volume_down_button_.OnClick([this]() {
-            ESP_LOGW(kBtnTag, "VOLUME_DOWN: Click");
+            ESP_LOGW(TAG, "VOLUME_DOWN: Click");
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -322,12 +180,11 @@ private:
             GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
         });
         volume_down_button_.OnLongPress([this]() {
-            ESP_LOGW(kBtnTag, "VOLUME_DOWN: LongPress");
+            ESP_LOGW(TAG, "VOLUME_DOWN: LongPress");
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
 
-        // 注：目前仅打印日志；后续若绑定业务逻辑，保留日志即可更方便排查。
     }
 
     // 物联网初始化，逐步迁移到 MCP 协议
@@ -350,17 +207,17 @@ public:
         , start_button_(BUTTON_START_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
         , volume_up_button_(VOLUME_UP_BUTTON_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
         , volume_down_button_(VOLUME_DOWN_BUTTON_GPIO, false, kBtnLongPressMs, kBtnShortPressMs) {
-        // InitializeDisplayI2c();
-        // InitializeSsd1306Display();
-        display_ = new NoDisplay(); // Disable display for English Teacher Board
+
         InitializeButtons();
         InitializeTools();
-
-        // SPI 外设初始化（SD + EPD）：对现有 OLED/I2C 逻辑零侵入
         InitializeArduinoAndSharedSpi();
         InitializeSdCard();
         InitializeEpd();
     }
+
+    // Expose EPD and SD to other modules.
+    CustomEpdDisplay& GetEpdDisplay() { return display_; }
+    CustomSdFat& GetSd() { return sd_; }
 
     virtual Led* GetLed() override {
         static SingleLed led(BUILTIN_LED_GPIO);
@@ -389,7 +246,7 @@ public:
     }
 
     virtual Display* GetDisplay() override {
-        return display_;
+        return &display_;
     }
 };
 
