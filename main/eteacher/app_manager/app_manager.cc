@@ -1,11 +1,6 @@
-#include <esp_log.h>
-#include "application.h"
-#include "board.h"
 #include "display.h"
 #include "eteacher/app_manager/app_manager.h"
-#include "eteacher/app_manager/screen.h"
-
-static const char *TAG = "AppManager";
+#include "boards/EnglishTeacher/custom_epd_display.h"
 
 AppManager &AppManager::GetInstance()
 {
@@ -13,65 +8,16 @@ AppManager &AppManager::GetInstance()
     return inst;
 }
 
-void AppManager::Init()
+void AppManager::Init(Board &board)
 {
-    if (inited_)
-    {
-        return;
-    }
-    inited_ = true;
-
-    auto &buttons = ButtonManager::GetInstance();
-    buttons.RegisterCallback(ButtonId::MENU_UP, []()
-                             { AppManager::GetInstance().HandleButton(ButtonId::MENU_UP); });
-    buttons.RegisterCallback(ButtonId::MENU_DOWN, []()
-                             { AppManager::GetInstance().HandleButton(ButtonId::MENU_DOWN); });
-    buttons.RegisterCallback(ButtonId::SELECT, []()
-                             { AppManager::GetInstance().HandleButton(ButtonId::SELECT); });
-    buttons.RegisterCallback(ButtonId::BACK, []()
-                             { AppManager::GetInstance().HandleButton(ButtonId::BACK); });
-
-    // Built-in apps adapted from the reference project layout.
-    Register(std::make_shared<ActionApp>("ai_chat", "AI Chat", []()
-                                         {
-        auto display = Board::GetInstance().GetDisplay();
-        display->SetStatus("AI Chat");
-        display->SetEmotion("neutral");
-        display->SetChatMessage("system", "Press PTT or wake word to talk."); }));
-
-    Register(std::make_shared<ActionApp>("word_practice", "Word Practice", []()
-                                         {
-        ButtonManager::GetInstance().SetActiveScreen(ScreenId::WORD_PRACTICE);
-        // NOTE:
-        // EPD UI 的渲染/菜单逻辑建议作为独立模块接入；AppManager 只负责“业务状态切换”。
-    }, []()
-                                         {
-        ButtonManager::GetInstance().SetActiveScreen(ScreenId::MAIN);
-    }));
-
-    Register(std::make_shared<ActionApp>("free_conversation", "Free Conversation", []()
-                                         {
-        ButtonManager::GetInstance().SetActiveScreen(ScreenId::FREE_CONVERSATION);
-        // NOTE:
-        // EPD UI 的渲染/菜单逻辑建议作为独立模块接入；AppManager 只负责“业务状态切换”。
-    }, []()
-                                         {
-        ButtonManager::GetInstance().SetActiveScreen(ScreenId::MAIN);
-    }));
-
-    Register(std::make_shared<ActionApp>("settings", "Settings", []()
-                                         {
-        auto display = Board::GetInstance().GetDisplay();
-        display->SetStatus("Settings");
-        display->SetChatMessage("system", "Use Up/Down to select items."); }));
-
-    ShowHome();
-    EnsureUiTask();
+    static AppContext ctx(board);
+    ctx_ = &ctx;
+    ShowMenu();
 }
 
-void AppManager::Register(std::shared_ptr<AppBase> app)
+void AppManager::Register(std::unique_ptr<AppBase> app)
 {
-    if (!app || !app->show_in_list())
+    if (!app || !app->show_in_menu())
     {
         return;
     }
@@ -84,165 +30,187 @@ void AppManager::Register(std::shared_ptr<AppBase> app)
     {
         selected_index_ = static_cast<int>(apps_.size()) - 1;
     }
+    RenderMenu();
 }
 
-void AppManager::ShowHome()
+void AppManager::ShowMenu()
 {
-    RenderHome();
+    running_ = nullptr;
+    RenderMenu();
 }
 
-void AppManager::HandleButton(ButtonId id)
+void AppManager::HandleButton(const ButtonEvent &event)
 {
-    if (apps_.empty())
+    if (!ctx_ || apps_.empty())
     {
         return;
     }
 
-    if (current_)
+    if (running_)
     {
-        if (id == ButtonId::BACK)
+        if (event.id == AppButton::Back)
         {
             ExitCurrent();
+            return;
         }
+        running_->OnButton(*ctx_, event);
         return;
     }
 
-    switch (id)
+    switch (event.id)
     {
-    case ButtonId::MENU_UP:
-    {
-        selected_index_ = (selected_index_ - 1 + static_cast<int>(apps_.size())) % static_cast<int>(apps_.size());
-        RenderHome();
+    case AppButton::Up:
+        MoveSelection(-1);
         break;
-    }
-    case ButtonId::MENU_DOWN:
-    {
-        selected_index_ = (selected_index_ + 1) % static_cast<int>(apps_.size());
-        RenderHome();
+    case AppButton::Down:
+        MoveSelection(1);
         break;
-    }
-    case ButtonId::SELECT:
-    {
-        EnterSelected();
+    case AppButton::Select:
+        EnterCurrent();
         break;
-    }
     default:
         break;
     }
 }
 
-void AppManager::EnsureUiTask()
+void AppManager::Tick(uint32_t delta_ms)
 {
-    if (task_handle_)
+    if (running_ && ctx_)
+    {
+        running_->OnTick(*ctx_, delta_ms);
+    }
+}
+
+void AppManager::EnterCurrent()
+{
+    if (!ctx_ || apps_.empty())
     {
         return;
     }
-
-    BaseType_t res = xTaskCreate(&AppManager::UiTask, "ui_shell", 4096, this, 3, &task_handle_);
-    if (res != pdPASS)
-    {
-        ESP_LOGE(TAG, "Failed to create UI task (%d)", res);
-        task_handle_ = nullptr;
-    }
-}
-
-void AppManager::UiTask(void *arg)
-{
-    auto *self = static_cast<AppManager *>(arg);
-    if (self)
-    {
-        self->UiLoop();
-    }
-    vTaskDelete(nullptr);
-}
-
-void AppManager::UiLoop()
-{
-    const TickType_t delay_ticks = pdMS_TO_TICKS(100);
-    while (true)
-    {
-        if (current_)
-        {
-            current_->OnTick(100);
-        }
-        vTaskDelay(delay_ticks);
-    }
-}
-
-void AppManager::EnterSelected()
-{
-    if (apps_.empty())
-    {
-        return;
-    }
-    current_ = apps_[selected_index_];
-    if (current_)
-    {
-        current_->OnEnter();
-        RenderStatus("Running", current_->title());
-    }
+    running_ = apps_[selected_index_].get();
+    running_->OnEnter(*ctx_);
+    RenderStatus("Running", running_->GetMenuMeta().title);
 }
 
 void AppManager::ExitCurrent()
 {
-    if (!current_)
+    if (!running_ || !ctx_)
     {
         return;
     }
-    current_->OnExit();
-    current_.reset();
-    RenderHome();
+    running_->OnExit(*ctx_);
+    running_ = nullptr;
+    RenderMenu();
 }
 
-void AppManager::RenderHome()
+void AppManager::MoveSelection(int step)
 {
     if (apps_.empty())
     {
         return;
     }
+    const int size = static_cast<int>(apps_.size());
+    selected_index_ = (selected_index_ + step + size) % size;
+    RenderMenu();
+}
 
-    if (EpdRenderer::Available())
+void AppManager::RenderMenu()
+{
+    if (!ctx_ || apps_.empty())
     {
-        EpdRenderer::Clear();
-        EpdRenderer::DrawText("Apps", 8, 20, EpdRenderer::FontSize::k16);
-        int y = 44;
-        for (size_t i = 0; i < apps_.size(); ++i)
-        {
-            std::string line = (static_cast<int>(i) == selected_index_) ? "> " : "  ";
-            line += apps_[i]->title();
-            EpdRenderer::DrawText(line.c_str(), 10, y, EpdRenderer::FontSize::k16);
-            y += 22;
-        }
-        EpdRenderer::Display(false);
+        return;
     }
-    else
+
+    // Prefer native EPD render when available
+    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
     {
-        auto display = Board::GetInstance().GetDisplay();
-        std::string buf = "Apps:\n";
-        for (size_t i = 0; i < apps_.size(); ++i)
+        DisplayLockGuard guard(epd);
+        auto &gfx = epd->Epd();
+        gfx.setFullWindow();
+        gfx.firstPage();
+        do
         {
-            buf += (static_cast<int>(i) == selected_index_) ? "> " : "  ";
-            buf += apps_[i]->title();
-            if (i + 1 < apps_.size())
-                buf += "\n";
-        }
-        display->SetChatMessage("system", buf.c_str());
+            gfx.fillScreen(GxEPD_WHITE);
+            gfx.setTextColor(GxEPD_BLACK);
+            gfx.setFont(nullptr);
+            gfx.setTextSize(1);
+
+            int16_t x = 8;
+            int16_t y = 20;
+            gfx.setCursor(x, y);
+            gfx.print("Apps");
+            y += 20;
+
+            for (size_t i = 0; i < apps_.size(); ++i)
+            {
+                gfx.setCursor(x, y);
+                if (static_cast<int>(i) == selected_index_)
+                {
+                    gfx.print("> ");
+                }
+                else
+                {
+                    gfx.print("  ");
+                }
+                gfx.print(apps_[i]->GetMenuMeta().title.c_str());
+                if (!apps_[i]->GetMenuMeta().subtitle.empty())
+                {
+                    gfx.print(" - ");
+                    gfx.print(apps_[i]->GetMenuMeta().subtitle.c_str());
+                }
+                y += 18;
+                if (y > epd->height() - 16)
+                {
+                    break;
+                }
+            }
+        } while (gfx.nextPage());
+        return;
     }
+
+    auto display = ctx_->board.GetDisplay();
+    std::string buf = "Apps:\n";
+    for (size_t i = 0; i < apps_.size(); ++i)
+    {
+        buf += (static_cast<int>(i) == selected_index_) ? "> " : "  ";
+        buf += apps_[i]->GetMenuMeta().title;
+        if (!apps_[i]->GetMenuMeta().subtitle.empty())
+        {
+            buf += " - " + apps_[i]->GetMenuMeta().subtitle;
+        }
+        if (i + 1 < apps_.size())
+            buf += "\n";
+    }
+    display->SetChatMessage("system", buf.c_str());
 }
 
 void AppManager::RenderStatus(const std::string &headline, const std::string &detail)
 {
-    if (EpdRenderer::Available())
+    if (!ctx_)
     {
-        EpdRenderer::Clear();
-        EpdRenderer::DrawText(headline.c_str(), 8, 24, EpdRenderer::FontSize::k16);
-        EpdRenderer::DrawText(detail.c_str(), 8, 48, EpdRenderer::FontSize::k16);
-        EpdRenderer::Display(false);
+        return;
     }
-    else
+    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
     {
-        auto display = Board::GetInstance().GetDisplay();
-        std::string msg = headline + "\n" + detail;
-        display->SetChatMessage("system", msg.c_str());
+        DisplayLockGuard guard(epd);
+        auto &gfx = epd->Epd();
+        gfx.setFullWindow();
+        gfx.firstPage();
+        do
+        {
+            gfx.fillScreen(GxEPD_WHITE);
+            gfx.setTextColor(GxEPD_BLACK);
+            gfx.setFont(nullptr);
+            gfx.setTextSize(1);
+            gfx.setCursor(8, 24);
+            gfx.print(headline.c_str());
+            gfx.setCursor(8, 44);
+            gfx.print(detail.c_str());
+        } while (gfx.nextPage());
+        return;
     }
+
+    auto display = ctx_->board.GetDisplay();
+    std::string msg = headline + "\n" + detail;
+    display->SetChatMessage("system", msg.c_str());
 }

@@ -7,8 +7,16 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <memory>
+
 #include "application.h"
 #include "system_info.h"
+#include "board.h"
+#include "display.h"
+#include "eteacher/app_manager/app_manager.h"
+#include "eteacher/apps/free_conversation.h"
+#include "eteacher/apps/scene_conversation.h"
+#include "eteacher/apps/word_practice.h"
 
 #define TAG "main"
 
@@ -23,8 +31,18 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
+    // Initialize Board singleton early so AppManager can render menu
+    auto& board = Board::GetInstance();
+
+    // Initialize AppManager and register demo apps
+    auto& app_mgr = AppManager::GetInstance();
+    app_mgr.Init(board);
+    app_mgr.Register(MakeFreeConversationApp());
+    app_mgr.Register(MakeSceneConversationApp());
+    app_mgr.Register(MakeWordPracticeApp());
+
     // Initialize and run the application
-    auto& app = Application::GetInstance();
-    app.Initialize();
-    app.Run();  // This function runs the main event loop and never returns
+    // auto& app = Application::GetInstance();
+    // app.Initialize();
+    // app.Run();  // This function runs the main event loop and never returns
 }

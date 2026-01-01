@@ -1,12 +1,27 @@
 #pragma once
+
+#include <memory>
+#include <vector>
 #include <string>
 
-class SceneConversationService {
+#include "eteacher/app_manager/app_base.h"
+
+// Demo app: choose a scene and answer.
+class SceneConversationApp : public AppBase {
 public:
-    static SceneConversationService& GetInstance();
-    void Init();
-    void StartScene(const std::string& scene_id);
-    void Answer(const std::string& user_audio_or_text);
+    SceneConversationApp();
+
+    MenuMeta GetMenuMeta() const override;
+    void OnEnter(AppContext &ctx) override;
+    void OnExit(AppContext &ctx) override;
+    void OnButton(AppContext &ctx, const ButtonEvent &event) override;
+
 private:
-    SceneConversationService() = default;
+    void Render(AppContext &ctx);
+
+    std::vector<std::string> scenes_;
+    int index_ = 0;
+    bool running_ = false;
 };
+
+std::unique_ptr<AppBase> MakeSceneConversationApp();
