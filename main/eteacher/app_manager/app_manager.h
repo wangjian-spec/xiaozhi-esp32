@@ -21,6 +21,7 @@ public:
     void ShowMenu();
 
     // 外部按键事件入口。
+    void HandleButton(AppButton id, bool long_press = false) { HandleButton(ButtonEvent{id, long_press}); }
     void HandleButton(const ButtonEvent &event);
 
     // 主动驱动 tick，可由定时器或循环调用。
@@ -31,6 +32,7 @@ private:
 
     void EnterCurrent();
     void ExitCurrent();
+    void EnsureSelectionValid();
     void MoveSelection(int step);
     void RenderMenu();
     void RenderStatus(const std::string &headline, const std::string &detail);

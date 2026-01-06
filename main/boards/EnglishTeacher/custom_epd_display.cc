@@ -15,9 +15,8 @@ bool Epd::Begin(SPIClass& spi, uint32_t spi_hz, uint16_t reset_ms) {
 		spi,
 		SPISettings(spi_hz, MSBFIRST, SPI_MODE0));
 
-	// Typical portrait setup for 4.2" 400x300.
-	// Adjust rotation in your app code if needed.
-	gfx_.setRotation(1);
+	// Portrait orientation: rotate to 'up' (0 = default, 1=90cw, 2=180, 3=270cw).
+	gfx_.setRotation(0);
 
 	begun_ = true;
 	Clear(false);
