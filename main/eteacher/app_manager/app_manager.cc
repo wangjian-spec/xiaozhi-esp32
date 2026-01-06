@@ -1,6 +1,9 @@
 #include "display.h"
 #include "eteacher/app_manager/app_manager.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
+#include <esp_log.h>
+
+static const char *TAG = "AppManager";
 
 AppManager &AppManager::GetInstance()
 {
@@ -22,14 +25,7 @@ void AppManager::Register(std::unique_ptr<AppBase> app)
         return;
     }
     apps_.push_back(std::move(app));
-    if (selected_index_ < 0)
-    {
-        selected_index_ = 0;
-    }
-    if (selected_index_ >= static_cast<int>(apps_.size()))
-    {
-        selected_index_ = static_cast<int>(apps_.size()) - 1;
-    }
+    EnsureSelectionValid();
     RenderMenu();
 }
 
@@ -67,6 +63,9 @@ void AppManager::HandleButton(const ButtonEvent &event)
         break;
     case AppButton::Select:
         EnterCurrent();
+        break;
+    case AppButton::Back:
+        RenderMenu();
         break;
     default:
         break;
@@ -111,7 +110,25 @@ void AppManager::MoveSelection(int step)
     }
     const int size = static_cast<int>(apps_.size());
     selected_index_ = (selected_index_ + step + size) % size;
+    ESP_LOGI(TAG, "Menu select %d/%d", selected_index_, size);
     RenderMenu();
+}
+
+void AppManager::EnsureSelectionValid()
+{
+    if (apps_.empty())
+    {
+        selected_index_ = 0;
+        return;
+    }
+    if (selected_index_ < 0)
+    {
+        selected_index_ = 0;
+    }
+    if (selected_index_ >= static_cast<int>(apps_.size()))
+    {
+        selected_index_ = static_cast<int>(apps_.size()) - 1;
+    }
 }
 
 void AppManager::RenderMenu()

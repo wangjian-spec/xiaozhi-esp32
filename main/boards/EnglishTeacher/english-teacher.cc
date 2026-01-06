@@ -9,6 +9,7 @@
 #include "assets/lang_config.h"
 
 #include "button.h"
+#include "eteacher/app_manager/app_manager.h"
 
 // EnglishTeacher 板级：SD 与 EPD 共用同一条 SPI 总线
 #include <SPI.h>
@@ -108,10 +109,24 @@ private:
         ESP_LOGI(TAG, "EPD init %s", ok ? "OK" : "FAILED");
     }
     void InitializeButtons() {
-        BindLogOnlyButton(up_button_, "UP");
-        BindLogOnlyButton(left_button_, "LEFT");
-        BindLogOnlyButton(down_button_, "DOWN");
-        BindLogOnlyButton(right_button_, "RIGHT");
+        auto &app_mgr = AppManager::GetInstance();
+
+        up_button_.OnClick([&]() {
+            ESP_LOGW(TAG, "UP: Click");
+            app_mgr.HandleButton(AppButton::Up);
+        });
+        left_button_.OnClick([&]() {
+            ESP_LOGW(TAG, "LEFT: Click");
+            app_mgr.HandleButton(AppButton::Back);
+        });
+        down_button_.OnClick([&]() {
+            ESP_LOGW(TAG, "DOWN: Click");
+            app_mgr.HandleButton(AppButton::Down);
+        });
+        right_button_.OnClick([&]() {
+            ESP_LOGW(TAG, "RIGHT: Click");
+            app_mgr.HandleButton(AppButton::Select);
+        });
 
         // BOOT_BUTTON_GPIO 复用 A 键：单击切换聊天/配网
         boot_button_.OnPressDown([]() { ESP_LOGW(TAG, "BOOT(A): PressDown"); });
@@ -133,56 +148,44 @@ private:
         });
 
         // TOUCH_BUTTON_GPIO 复用 B 键：按下开始说话，抬起结束
-        touch_button_.OnPressDown([]() {
+        touch_button_.OnPressDown([&]() {
             ESP_LOGW(TAG, "TOUCH(B): PressDown");
-            Application::GetInstance().StartListening();
+            AppManager::GetInstance().HandleButton(AppButton::Ptt);
         });
-        touch_button_.OnPressUp([]() {
+        touch_button_.OnPressUp([&]() {
             ESP_LOGW(TAG, "TOUCH(B): PressUp");
-            Application::GetInstance().StopListening();
+            AppManager::GetInstance().HandleButton(AppButton::Ptt);
         });
 
         // C/D/Start/Select：当前不绑定业务逻辑，仅打印事件
         BindLogOnlyButton(c_button_, "C");
         BindLogOnlyButton(d_button_, "D");
-        BindLogOnlyButton(select_button_, "SELECT");
-        BindLogOnlyButton(start_button_, "START");
+        select_button_.OnClick([&]() {
+            ESP_LOGW(TAG, "SELECT: Click");
+            AppManager::GetInstance().HandleButton(AppButton::Select);
+        });
+        start_button_.OnClick([&]() {
+            ESP_LOGW(TAG, "START: Click");
+            AppManager::GetInstance().HandleButton(AppButton::Back);
+        });
 
         // 音量：单击 +/-10，长按到极值
-        volume_up_button_.OnPressDown([]() { ESP_LOGW(TAG, "VOLUME_UP: PressDown"); });
-        volume_up_button_.OnPressUp([]() { ESP_LOGW(TAG, "VOLUME_UP: PressUp"); });
-        volume_up_button_.OnClick([this]() {
+        volume_up_button_.OnClick([&]() {
             ESP_LOGW(TAG, "VOLUME_UP: Click");
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() + 10;
-            if (volume > 100) {
-                volume = 100;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+            AppManager::GetInstance().HandleButton(AppButton::Up);
         });
-        volume_up_button_.OnLongPress([this]() {
+        volume_up_button_.OnLongPress([&]() {
             ESP_LOGW(TAG, "VOLUME_UP: LongPress");
-            GetAudioCodec()->SetOutputVolume(100);
-            GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
+            AppManager::GetInstance().HandleButton(AppButton::Up, true);
         });
 
-        volume_down_button_.OnPressDown([]() { ESP_LOGW(TAG, "VOLUME_DOWN: PressDown"); });
-        volume_down_button_.OnPressUp([]() { ESP_LOGW(TAG, "VOLUME_DOWN: PressUp"); });
-        volume_down_button_.OnClick([this]() {
+        volume_down_button_.OnClick([&]() {
             ESP_LOGW(TAG, "VOLUME_DOWN: Click");
-            auto codec = GetAudioCodec();
-            auto volume = codec->output_volume() - 10;
-            if (volume < 0) {
-                volume = 0;
-            }
-            codec->SetOutputVolume(volume);
-            GetDisplay()->ShowNotification(Lang::Strings::VOLUME + std::to_string(volume));
+            AppManager::GetInstance().HandleButton(AppButton::Down);
         });
-        volume_down_button_.OnLongPress([this]() {
+        volume_down_button_.OnLongPress([&]() {
             ESP_LOGW(TAG, "VOLUME_DOWN: LongPress");
-            GetAudioCodec()->SetOutputVolume(0);
-            GetDisplay()->ShowNotification(Lang::Strings::MUTED);
+            AppManager::GetInstance().HandleButton(AppButton::Down, true);
         });
 
     }
