@@ -734,14 +734,16 @@ if(CONFIG_BOARD_TYPE_English_Teacher)
 endif()
 
 if(CONFIG_BOARD_TYPE_English_Teacher)
-    list(APPEND SOURCES
-        "eteacher/app_manager/app_base.cc"
-        "eteacher/app_manager/app_manager.cc"
-        "eteacher/apps/free_conversation.cc"
-        "eteacher/apps/scene_conversation.cc"
-        "eteacher/apps/word_practice.cc"
-        "eteacher/font_manager/font_manager.cc"
+    file(GLOB_RECURSE ETEACHER_SOURCES CONFIGURE_DEPENDS
+        "eteacher/*.c"
+        "eteacher/*.cc"
+        "eteacher/*.cpp"
+        "eteacher/*.cxx"
+        "eteacher/*.S"
+        "eteacher/*.s"
     )
+    list(APPEND SOURCES ${ETEACHER_SOURCES})
+    list(APPEND INCLUDE_DIRS "eteacher")
 endif()
 
 idf_component_register(SRCS ${SOURCES}

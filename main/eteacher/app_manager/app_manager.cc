@@ -125,7 +125,7 @@ void AppManager::RenderMenu()
     if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
     {
         DisplayLockGuard guard(epd);
-        auto &gfx = epd->Epd();
+        auto &gfx = epd->Driver();
         gfx.setFullWindow();
         gfx.firstPage();
         do
@@ -193,7 +193,7 @@ void AppManager::RenderStatus(const std::string &headline, const std::string &de
     if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
     {
         DisplayLockGuard guard(epd);
-        auto &gfx = epd->Epd();
+        auto &gfx = epd->Driver();
         gfx.setFullWindow();
         gfx.firstPage();
         do
