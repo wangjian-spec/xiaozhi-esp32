@@ -19,80 +19,35 @@ bool Epd::Begin(SPIClass& spi, uint32_t spi_hz, uint16_t reset_ms) {
 	gfx_.setRotation(0);
 
 	begun_ = true;
-	Clear(false);
-	return true;
-}
-
-void Epd::Clear(bool partial) {
-	if (!begun_) {
-		return;
-	}
-
-	if (partial) {
-		gfx_.setPartialWindow(0, 0, gfx_.width(), gfx_.height());
-	} else {
-		gfx_.setFullWindow();
-	}
-
-	gfx_.firstPage();
-	do {
-		gfx_.fillScreen(GxEPD_WHITE);
-	} while (gfx_.nextPage());
-}
-
-void Epd::DrawText(int16_t x, int16_t y, const char* text, Color color, Color bg, uint8_t text_size) {
-	if (!begun_ || text == nullptr) {
-		return;
-	}
-	gfx_.setTextSize(text_size);
-	gfx_.setTextColor(color, bg);
-	gfx_.setCursor(x, y);
-	gfx_.print(text);
-}
-
-void Epd::DrawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, Color color) {
-	if (!begun_ || bitmap == nullptr) {
-		return;
-	}
-	gfx_.drawBitmap(x, y, bitmap, w, h, color);
-}
-
-bool Epd::FullRefresh(DrawCallback cb, void* ctx, Color bg) {
-	if (!begun_) {
-		return false;
-	}
+	// Clear full screen once.
+	// NOTE: In GxEPD2, `display(false)` means full update waveform.
 	gfx_.setFullWindow();
-	gfx_.firstPage();
-	do {
-		gfx_.fillScreen(bg);
-		if (cb) {
-			cb(gfx_, ctx);
-		}
-	} while (gfx_.nextPage());
+	gfx_.fillScreen(GxEPD_WHITE);
+	gfx_.display(false);
 	return true;
 }
 
-bool Epd::PartialRefresh(int16_t x, int16_t y, int16_t w, int16_t h, DrawCallback cb, void* ctx, Color bg) {
+int16_t Epd::DrawUtf8(int16_t x,
+					 int16_t baseline_y,
+					 std::string_view utf8,
+					 std::string_view font_name,
+					 Color color) {
 	if (!begun_) {
-		return false;
+		return x;
 	}
-	gfx_.setPartialWindow(x, y, w, h);
-	gfx_.firstPage();
-	do {
-		gfx_.fillScreen(bg);
-		if (cb) {
-			cb(gfx_, ctx);
-		}
-	} while (gfx_.nextPage());
-	return true;
+	const auto* font = eteacher::font_manager::GetBuiltinFont(font_name);
+	if (!font || !font->Ready()) {
+		return x;
+	}
+	return font->DrawUtf8(gfx_, x, baseline_y, utf8, color);
 }
 
-void Epd::Sleep() {
-	if (!begun_) {
-		return;
+int16_t Epd::MeasureUtf8Width(std::string_view utf8, std::string_view font_name) const {
+	const auto* font = eteacher::font_manager::GetBuiltinFont(font_name);
+	if (!font || !font->Ready()) {
+		return 0;
 	}
-	// Put panel into lowest power state.
-	gfx_.hibernate();
+	return font->MeasureUtf8Width(utf8);
 }
 
 CustomEpdDisplay::CustomEpdDisplay(Epd::Pins pins)

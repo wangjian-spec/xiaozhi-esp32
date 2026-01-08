@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include <string_view>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -10,6 +12,8 @@
 #include "display/display.h"
 
 #include <Adafruit_GFX.h>
+
+#include "eteacher/font_manager/font_manager.h"
 
 // GxEPD2 core
 #include <GxEPD2_BW.h>
@@ -24,6 +28,7 @@ class Epd {
 public:
 	using Color = uint16_t;
 	using DrawCallback = void (*)(Adafruit_GFX& gfx, void* ctx);
+	using Panel = GxEPD2_420_GDEY042T81;
 
 	struct Pins {
 		int8_t cs;
@@ -47,35 +52,30 @@ public:
 	auto& Driver() { return gfx_; }
 	const auto& Driver() const { return gfx_; }
 
-	// Clear screen; when partial=true use partial update mode.
-	void Clear(bool partial = false);
+	// Draw UTF-8 text (Chinese/English) using eteacher/font_manager built-in fonts.
+	// - font_name: "wenquanyi_9pt" / "wenquanyi_11pt" (see font_manager)
+	// - baseline_y: baseline Y coordinate
+	// Returns: next x after drawing.
+	int16_t DrawUtf8(int16_t x,
+					 int16_t baseline_y,
+					 std::string_view utf8,
+					 std::string_view font_name = "wenquanyi_11pt",
+					 Color color = GxEPD_BLACK);
 
-	// Full refresh interface: set full update window.
-	void SetFullRefresh() { gfx_.setFullWindow(); }
-
-	// Partial refresh interface: set partial update window.
-	void SetPartialRefresh(int16_t x, int16_t y, int16_t w, int16_t h) { gfx_.setPartialWindow(x, y, w, h); }
-
-	// Common drawing helpers (drawn into current page buffer).
-	void DrawText(int16_t x, int16_t y, const char* text, Color color = GxEPD_BLACK, Color bg = GxEPD_WHITE, uint8_t text_size = 1);
-	void DrawBitmap(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h, Color color = GxEPD_BLACK);
-
-	// Common refresh helpers (wrap firstPage()/nextPage() boilerplate).
-	// The callback should draw everything it needs for a single page.
-	bool FullRefresh(DrawCallback cb, void* ctx = nullptr, Color bg = GxEPD_WHITE);
-	bool PartialRefresh(int16_t x, int16_t y, int16_t w, int16_t h, DrawCallback cb, void* ctx = nullptr, Color bg = GxEPD_WHITE);
-
-	// Put panel into lowest power state.
-	void Sleep();
+	int16_t MeasureUtf8Width(std::string_view utf8, std::string_view font_name = "wenquanyi_11pt") const;
 
 private:
-	// Keep RAM usage predictable: smaller page height reduces peak buffer usage.
-	// 16 works well for large 4.2" panels while keeping updates reasonably fast.
-	static constexpr uint16_t kPageHeight = 16;
+	// Use full framebuffer height.
+	//
+	// Rationale:
+	// - EpdManager uses GxEPD2's `display(false)` (full) and `displayWindow(...)` (partial)
+	//   APIs. These APIs assume the framebuffer contains the whole screen content.
+	// - Keeping the full framebuffer makes refresh logic simpler, easier to maintain,
+	//   and avoids page-loop boilerplate scattered across business code.
+	static constexpr uint16_t kPageHeight = Panel::HEIGHT;
 
 	bool begun_ = false;
 
-	using Panel = GxEPD2_420_GDEY042T81;
 	GxEPD2_BW<Panel, kPageHeight> gfx_;
 };
 

@@ -8,6 +8,7 @@
 #include "codecs/no_audio_codec.h"
 #include "config.h"
 #include "eteacher/app_manager/app_manager.h"
+#include "eteacher/epd_manager/epd_manager.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 
@@ -138,6 +139,9 @@ void EnglishTeacherBoard::InitializeSdCard() {
 void EnglishTeacherBoard::InitializeEpd() {
 	bool ok = display_.Begin(SPI, kSharedSpiHz);
 	ESP_LOGI(kTag, "EPD init %s", ok ? "OK" : "FAILED");
+	if (ok) {
+		EpdManager::GetInstance().Init(&display_);
+	}
 }
 
 void EnglishTeacherBoard::InitializeButtons() {

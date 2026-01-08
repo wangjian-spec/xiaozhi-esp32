@@ -1,7 +1,62 @@
 #include "display.h"
 #include "eteacher/app_manager/app_manager.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/epd_manager/epd_manager.h"
 #include <esp_log.h>
+
+#include <string>
+#include <vector>
+
+namespace {
+
+struct MenuDrawCtx {
+    CustomEpdDisplay *epd;
+    int selected_index;
+    std::vector<MenuMeta> items;
+};
+
+void DrawMenuCb(Adafruit_GFX &gfx, void *ctx)
+{
+    auto *m = static_cast<MenuDrawCtx *>(ctx);
+    if (!m || !m->epd)
+    {
+        return;
+    }
+    // Window clear is handled by EpdManager before invoking this callback.
+    // Keep the callback focused on drawing only.
+
+    const int16_t x = 8;
+    int16_t baseline_y = 20;
+    m->epd->DrawUtf8(x, baseline_y, "Apps", "wenquanyi_11pt", GxEPD_BLACK);
+    baseline_y += 20;
+
+    for (size_t i = 0; i < m->items.size(); ++i)
+    {
+        if (baseline_y > m->epd->height() - 16)
+        {
+            break;
+        }
+
+        std::string row_text;
+        row_text.reserve(2 + m->items[i].title.size() + 3 + m->items[i].subtitle.size());
+        row_text += (static_cast<int>(i) == m->selected_index) ? "> " : "  ";
+        row_text += m->items[i].title;
+        if (!m->items[i].subtitle.empty())
+        {
+            row_text += " - ";
+            row_text += m->items[i].subtitle;
+        }
+        m->epd->DrawUtf8(x, baseline_y, row_text, "wenquanyi_11pt", GxEPD_BLACK);
+        baseline_y += 18;
+    }
+}
+
+void DeleteMenuCtx(void *ctx)
+{
+    delete static_cast<MenuDrawCtx *>(ctx);
+}
+
+} // namespace
 
 static const char* TAG = "AppManager";
 
@@ -141,47 +196,25 @@ void AppManager::RenderMenu()
     // Prefer native EPD render when available
     if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
     {
-        DisplayLockGuard guard(epd);
-        auto &gfx = epd->Driver();
-        gfx.setFullWindow();
-        gfx.firstPage();
-        do
+        // Render menu via EpdManager partial refresh:
+        // - non-blocking (runs in EpdManager task)
+        // - uses `displayWindow(...)` internally
+        // - text uses EPD UTF-8 API with WenQuanYi built-in fonts
+        auto *m = new MenuDrawCtx();
+        m->epd = epd;
+        m->selected_index = selected_index_;
+        m->items.reserve(apps_.size());
+        for (const auto &app : apps_)
         {
-            gfx.fillScreen(GxEPD_WHITE);
-            gfx.setTextColor(GxEPD_BLACK);
-            gfx.setFont(nullptr);
-            gfx.setTextSize(1);
+            m->items.push_back(app->GetMenuMeta());
+        }
 
-            int16_t x = 8;
-            int16_t y = 20;
-            gfx.setCursor(x, y);
-            gfx.print("Apps");
-            y += 20;
-
-            for (size_t i = 0; i < apps_.size(); ++i)
-            {
-                gfx.setCursor(x, y);
-                if (static_cast<int>(i) == selected_index_)
-                {
-                    gfx.print("> ");
-                }
-                else
-                {
-                    gfx.print("  ");
-                }
-                gfx.print(apps_[i]->GetMenuMeta().title.c_str());
-                if (!apps_[i]->GetMenuMeta().subtitle.empty())
-                {
-                    gfx.print(" - ");
-                    gfx.print(apps_[i]->GetMenuMeta().subtitle.c_str());
-                }
-                y += 18;
-                if (y > epd->height() - 16)
-                {
-                    break;
-                }
-            }
-        } while (gfx.nextPage());
+        EpdManager::GetInstance().Schedule(
+            EpdManager::TaskType::kPartial,
+            &DrawMenuCb,
+            m,
+            &DeleteMenuCtx,
+            EpdManager::Rect(0, 0, epd->width(), epd->height()));
         return;
     }
 
