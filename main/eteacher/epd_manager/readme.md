@@ -65,8 +65,9 @@ bool Schedule(TaskType type,
 
 ### 回调约定
 
-- `cb(Adafruit_GFX& gfx, void* ctx)` 只负责“绘制当前页内容”。
-- 不要在回调里调用 `firstPage()/nextPage()`；这些由 `EpdManager` 内部的 `FullRefresh/PartialRefresh` 统一封装。
+- `cb(Adafruit_GFX& gfx, void* ctx)` 负责“绘制完整画面内容”。
+- 不要在回调里调用 `firstPage()/nextPage()`；这些由 `EpdManager` 在内部统一封装。
+- 注意：因为内部使用 `firstPage()/nextPage()` 分页绘制，`cb` 可能会被调用多次（每页一次），因此回调应保持幂等、不要做有副作用的操作。
 
 ### ctx 生命周期
 

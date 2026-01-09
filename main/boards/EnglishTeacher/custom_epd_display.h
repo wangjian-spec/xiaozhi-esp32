@@ -68,10 +68,8 @@ private:
 	// Use full framebuffer height.
 	//
 	// Rationale:
-	// - EpdManager uses GxEPD2's `display(false)` (full) and `displayWindow(...)` (partial)
-	//   APIs. These APIs assume the framebuffer contains the whole screen content.
-	// - Keeping the full framebuffer makes refresh logic simpler, easier to maintain,
-	//   and avoids page-loop boilerplate scattered across business code.
+	// - EpdManager uses GxEPD2's paged drawing APIs (`firstPage()/nextPage()`), so business code
+	//   can submit refresh requests without handling the page loop.
 	static constexpr uint16_t kPageHeight = Panel::HEIGHT;
 
 	bool begun_ = false;

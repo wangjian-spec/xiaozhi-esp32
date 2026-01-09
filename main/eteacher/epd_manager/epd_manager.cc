@@ -175,36 +175,48 @@ void EpdManager::Run() {
 			case TaskType::kPartial:
 			{
 				// Partial refresh: update only a window.
-				// IMPORTANT: In GxEPD2, `displayWindow(...)` performs a partial update of the given area.
+				// Use GxEPD2 paged drawing (firstPage/nextPage) so we don't rely on full-framebuffer APIs.
 				// Requirement: use input x/y/w/h directly; no clamp/align logic here.
 				const Rect rect = item.rect;
 				if (rect.w > 0 && rect.h > 0) {
-					gfx.fillRect(rect.x, rect.y, rect.w, rect.h, GxEPD_WHITE);
-					item.cb(gfx, item.ctx);
-					gfx.displayWindow(rect.x, rect.y, rect.w, rect.h);
+					ESP_LOGW(TAG, "EPD partial refresh: x=%d y=%d w=%d h=%d", (int)rect.x, (int)rect.y, (int)rect.w, (int)rect.h);
+					gfx.epd2.selectFastFullUpdate(false);
+					gfx.setPartialWindow(rect.x, rect.y, rect.w, rect.h);
+					gfx.firstPage();
+					do {
+						gfx.fillRect(rect.x, rect.y, rect.w, rect.h, GxEPD_WHITE);
+						item.cb(gfx, item.ctx);
+					} while (gfx.nextPage());
 					ok = true;
 					partial_count_since_fast_++;
 				}
 			}
 				break;
 			case TaskType::kFast:
-				// Fast refresh: refresh whole screen but in "partial update mode".
-				// NOTE: The user's requirement is:
-				// - Full refresh uses `display(false)`
-				// - Fast refresh uses `display(true)`
+				ESP_LOGW(TAG, "EPD fast refresh (full screen, partial-update mode)");
+				// Fast refresh: full-screen refresh using a "faster" waveform policy.
+				// Implemented via GxEPD2 paged drawing (firstPage/nextPage).
+				gfx.epd2.selectFastFullUpdate(true);
 				gfx.setFullWindow();
-				gfx.fillScreen(GxEPD_WHITE);
-				item.cb(gfx, item.ctx);
-				gfx.display(true);
+				gfx.firstPage();
+				do {
+					gfx.fillScreen(GxEPD_WHITE);
+					item.cb(gfx, item.ctx);
+				} while (gfx.nextPage());
 				ok = true;
 				partial_count_since_fast_ = 0;
 				break;
 			case TaskType::kFull:
+				ESP_LOGW(TAG, "EPD full refresh (full update waveform)");
 				// Full refresh: whole screen, full update waveform.
+				// Implemented via GxEPD2 paged drawing (firstPage/nextPage).
+				gfx.epd2.selectFastFullUpdate(false);
 				gfx.setFullWindow();
-				gfx.fillScreen(GxEPD_WHITE);
-				item.cb(gfx, item.ctx);
-				gfx.display(false);
+				gfx.firstPage();
+				do {
+					gfx.fillScreen(GxEPD_WHITE);
+					item.cb(gfx, item.ctx);
+				} while (gfx.nextPage());
 				ok = true;
 				partial_count_since_fast_ = 0;
 				break;

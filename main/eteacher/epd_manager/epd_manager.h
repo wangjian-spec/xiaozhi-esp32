@@ -39,7 +39,8 @@ public:
 	// Schedule a refresh task.
 	// - For kPartial: rect is used (partial window)
 	// - For kFast/kFull: rect is ignored (full screen)
-	// cb should draw into gfx for a single page; do NOT call firstPage/nextPage.
+	// cb should draw the full content; it may be called multiple times (once per page)
+	// inside EpdManager-managed firstPage()/nextPage() loops. Do NOT call firstPage/nextPage in cb.
 	// ctx_deleter will be called (in EpdManager task) after execution.
 	bool Schedule(TaskType type,
 			  Epd::DrawCallback cb,
