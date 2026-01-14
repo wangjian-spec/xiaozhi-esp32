@@ -2705,13 +2705,6 @@ CONFIG_ADC_MIC_TASK_CORE=-1
 # end of ADC Mic
 
 #
-# IMU Sensor Selection
-#
-# CONFIG_SENSOR_BMI220 is not set
-CONFIG_SENSOR_BMI270=y
-# end of IMU Sensor Selection
-
-#
 # IoT Button
 #
 CONFIG_BUTTON_PERIOD_TIME_MS=5

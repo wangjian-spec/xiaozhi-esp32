@@ -744,6 +744,14 @@ if(CONFIG_BOARD_TYPE_English_Teacher)
     )
     list(APPEND SOURCES ${ETEACHER_SOURCES})
     list(APPEND INCLUDE_DIRS "eteacher")
+
+    # EnglishTeacher provides its own Assets implementation under eteach sources.
+    # Exclude the common Assets implementation to avoid duplicate symbols.
+    list(REMOVE_ITEM SOURCES "assets.cc")
+
+    # EnglishTeacher uses a customized AFSK demodulator (AppService-based).
+    # Exclude the common AFSK demodulator (Application-based) to avoid duplicate symbols.
+    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/afsk_demod.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}

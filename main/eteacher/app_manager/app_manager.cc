@@ -242,21 +242,36 @@ void AppManager::RenderStatus(const std::string &headline, const std::string &de
     }
     if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
     {
-        DisplayLockGuard guard(epd);
-        auto &gfx = epd->Driver();
-        gfx.setFullWindow();
-        gfx.firstPage();
-        do
-        {
+        struct StatusDrawCtx {
+            CustomEpdDisplay *epd;
+            std::string headline;
+            std::string detail;
+        };
+
+        auto *s = new StatusDrawCtx();
+        s->epd = epd;
+        s->headline = headline;
+        s->detail = detail;
+
+        auto draw = [](Adafruit_GFX &gfx, void *ctx) {
+            auto *st = static_cast<StatusDrawCtx *>(ctx);
+            if (!st || !st->epd)
+            {
+                return;
+            }
             gfx.fillScreen(GxEPD_WHITE);
-            gfx.setTextColor(GxEPD_BLACK);
-            gfx.setFont(nullptr);
-            gfx.setTextSize(1);
-            gfx.setCursor(8, 24);
-            gfx.print(headline.c_str());
-            gfx.setCursor(8, 44);
-            gfx.print(detail.c_str());
-        } while (gfx.nextPage());
+            st->epd->DrawUtf8(8, 24, st->headline, "wenquanyi_11pt", GxEPD_BLACK);
+            st->epd->DrawUtf8(8, 48, st->detail, "wenquanyi_11pt", GxEPD_BLACK);
+        };
+
+        auto del = [](void *ctx) { delete static_cast<StatusDrawCtx *>(ctx); };
+
+        EpdManager::GetInstance().Schedule(
+            EpdManager::TaskType::kPartial,
+            draw,
+            s,
+            del,
+            EpdManager::Rect(0, 0, epd->width(), epd->height()));
         return;
     }
 

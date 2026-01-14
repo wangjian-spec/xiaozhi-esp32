@@ -18,7 +18,7 @@ constexpr int64_t kFastMinIntervalUs = 1500000;
 constexpr int64_t kFullMinIntervalUs = 3000000;
 
 constexpr uint32_t kTaskStack = 4096;
-constexpr UBaseType_t kTaskPrio = 5;
+constexpr UBaseType_t kTaskPrio = 1;
 
 TickType_t DelayTicksFromUs(int64_t us) {
 	if (us <= 0) {

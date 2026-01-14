@@ -3,7 +3,7 @@
 
 #include "english-teacher.h"
 
-#include "application.h"
+#include "eteacher/app_service/app_service.h"
 #include "assets/lang_config.h"
 #include "codecs/no_audio_codec.h"
 #include "config.h"
@@ -169,8 +169,8 @@ void EnglishTeacherBoard::InitializeButtons() {
 	boot_button_.OnPressUp([]() { ESP_LOGW(kTag, "BOOT(A): PressUp"); });
 	boot_button_.OnClick([this]() {
 		ESP_LOGW(kTag, "BOOT(A): Click");
-		auto& app = Application::GetInstance();
-		if (app.GetDeviceState() == kDeviceStateStarting) {
+		auto& app = AppService::GetInstance();
+		if (app.GetDeviceState() == kEteacherStateStarting) {
 			EnterWifiConfigMode();
 			return;
 		}

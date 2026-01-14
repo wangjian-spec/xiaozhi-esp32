@@ -1,11 +1,11 @@
 #pragma once
 
-#include "wifi_board.h"
+#include "custom_wifi_board.h"
 #include "button.h"
 #include "custom_epd_display.h"
 #include "custom_sd_fat.h"
 
-class EnglishTeacherBoard : public WifiBoard {
+class EnglishTeacherBoard : public CustomWifiBoard {
 private:
     CustomEpdDisplay display_;
     CustomSdFat sd_;

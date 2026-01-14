@@ -9,14 +9,17 @@
 
 #include <memory>
 
-#include "application.h"
+
+#include "eteacher/app_service/app_service.h"
 #include "system_info.h"
 #include "board.h"
 #include "display.h"
 #include "eteacher/app_manager/app_manager.h"
 #include "eteacher/apps/free_conversation.h"
+#include "eteacher/apps/device_setting.h"
 #include "eteacher/apps/scene_conversation.h"
 #include "eteacher/apps/word_practice.h"
+#include "eteacher/apps/image_cast.h"
 
 #define TAG "main"
 
@@ -37,12 +40,19 @@ extern "C" void app_main(void)
     // Initialize AppManager and register demo apps
     auto& app_mgr = AppManager::GetInstance();
     app_mgr.Init(board);
+    app_mgr.Register(MakeDeviceSettingApp());
     app_mgr.Register(MakeFreeConversationApp());
     app_mgr.Register(MakeSceneConversationApp());
     app_mgr.Register(MakeWordPracticeApp());
+    app_mgr.Register(MakeImageCastApp());
 
     // Initialize and run the application
     // auto& app = Application::GetInstance();
     // app.Initialize();
     // app.Run();  // This function runs the main event loop and never returns
+
+     auto& app = AppService::GetInstance();
+     app.Initialize();
+     app.Run();  // This function runs the main event loop and never returns
+
 }

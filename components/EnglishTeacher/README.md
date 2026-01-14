@@ -18,6 +18,10 @@ EnglishTeacher(产品)是一个基于eps32s3芯片开发的便携墨水屏设备
     设置Englishboard编译路径
     elseif(CONFIG_BOARD_TYPE_English_Teacher)
     set(BOARD_TYPE "EnglishTeacher")
+    添加当配置，移除common AFSK文件编译，避免与自建custom_afsk重复定义冲突
+
+修改 main/idf_component.yml
+    添加arduino-esp32 最新版本组件3.3.5"，解决于ESP-IDF V5.5.1版本兼容性问题
 
 新增 components/EnglishTeacher
     EnglishTeacher核心组件,将不依赖原main组件接口的内容保存到这里.
