@@ -4,6 +4,7 @@ EnglishTeacher(产品)是一个基于eps32s3芯片开发的便携墨水屏设备
 修改.gitignore
     注释components,以便导入外部组件
     注释sdkconfig,以便持久化sdk配置
+    去掉.bin
 
 修改sdkconfig
     首先修改device target为esp32s3,等待esp-idf自动修改sdkconfig,然后修改参数CONFIG_FREERTOS_HZ=1000,
