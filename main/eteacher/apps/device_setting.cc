@@ -275,7 +275,7 @@ void DrawOtaCb(Adafruit_GFX &gfx, void *ctx)
         o->epd->DrawUtf8(8, y, std::string("URL: ") + o->url, "wenquanyi_11pt", GxEPD_BLACK);
     }
 
-    o->epd->DrawUtf8(8, 290, "Select 返回菜单 / Back 退出 app", "wenquanyi_11pt", GxEPD_BLACK);
+    o->epd->DrawUtf8(8, 290, "Start 返回菜单 / Select 退出 app", "wenquanyi_11pt", GxEPD_BLACK);
 }
 
 void DeleteOtaCtx(void *ctx)
@@ -310,7 +310,7 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event)
 {
     if (view_ == View::kWifiQr)
     {
-        if (event.id == AppButton::Select)
+        if (event.id == AppButton::Start)
         {
             view_ = View::kMenu;
             Render(ctx);
@@ -320,9 +320,9 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event)
 
     if (view_ == View::kWifiStatus)
     {
-        if (event.id == AppButton::Select)
+        if (event.id == AppButton::Start)
         {
-            if (event.long_press)
+            if (event.action == ButtonAction::LongPress)
             {
                 view_ = View::kMenu;
                 Render(ctx);
@@ -337,7 +337,7 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event)
 
     if (view_ == View::kOta)
     {
-        if (event.id == AppButton::Select)
+        if (event.id == AppButton::Start)
         {
             view_ = View::kMenu;
             Render(ctx);
@@ -359,7 +359,7 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event)
         return;
     }
 
-    if (event.id == AppButton::Select)
+    if (event.id == AppButton::Start)
     {
         switch (selected_index_)
         {
@@ -481,7 +481,7 @@ void DeviceSettingApp::RenderMenu(AppContext &ctx)
             msg += "\n";
         }
     }
-    msg += "\nSelect to enter, Back to exit";
+    msg += "\nStart to enter, Select to exit";
     display->SetChatMessage("system", msg.c_str());
 }
 

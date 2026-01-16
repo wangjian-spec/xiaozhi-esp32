@@ -17,8 +17,8 @@ private:
     Button left_button_;
     Button down_button_;
     Button right_button_;
-    Button boot_button_;        // 复用 A
-    Button touch_button_;       // 复用 B
+    Button a_button_;       
+    Button b_button_;       
     Button c_button_;
     Button d_button_;
     Button select_button_;

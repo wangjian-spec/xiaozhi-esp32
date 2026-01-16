@@ -37,15 +37,11 @@ void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event)
 		Render(ctx);
 		return;
 	}
-	if (event.id == AppButton::Select)
+	if (event.id == AppButton::Start)
 	{
 		std::string msg = "Practice: " + words_[index_];
 		ctx.board.GetDisplay()->SetChatMessage("system", msg.c_str());
 		return;
-	}
-	if (event.id == AppButton::Ptt || event.id == AppButton::PttAlt)
-	{
-		ctx.board.GetDisplay()->SetChatMessage("system", "Recorded answer.");
 	}
 }
 

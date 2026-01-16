@@ -325,6 +325,7 @@ struct CalendarDrawCtx {
 	DateInfo today;
 	DateInfo selected;
 	bool focus_calendar = true;
+	bool edit_mode = false;
 	int selected_todo = 0;
 	std::string url;
 	std::string countdown;
@@ -404,7 +405,15 @@ static void DrawCalendarCb(Adafruit_GFX &gfx, void *ctx)
 	// Todo section
 	const int16_t todo_x = calendar_x + calendar_w + 8;
 	int16_t todo_y = 20;
-		std::string todo_title = d->focus_calendar ? "  Todo" : "> Todo";
+		std::string todo_title;
+		if (d->focus_calendar)
+		{
+			todo_title = "  Todo";
+		}
+		else
+		{
+			todo_title = d->edit_mode ? "> Todo(编辑)" : "> Todo";
+		}
 	d->epd->DrawUtf8(todo_x, todo_y, todo_title, "wenquanyi_11pt", GxEPD_BLACK);
 	todo_y += 20;
 
@@ -450,7 +459,7 @@ static void DrawCalendarCb(Adafruit_GFX &gfx, void *ctx)
 
 		if (d->todos.empty())
 	{
-		d->epd->DrawUtf8(todo_x, todo_y, "(空)  PTT 新建", "wenquanyi_9pt", GxEPD_BLACK);
+		d->epd->DrawUtf8(todo_x, todo_y, "(空)  B 新建", "wenquanyi_9pt", GxEPD_BLACK);
 	}
 }
 
@@ -460,7 +469,7 @@ class CalendarScheduleApp : public AppBase {
 public:
 	MenuMeta GetMenuMeta() const override
 	{
-		return MenuMeta{"calendar_schedule", "Calendar & Todo", "Up/Down 切换"};
+		return MenuMeta{"calendar_schedule", "Calendar & Todo", "方向键/ABCD/Start"};
 	}
 
 	void OnEnter(AppContext &ctx) override
@@ -489,50 +498,106 @@ public:
 		switch (event.id)
 		{
 		case AppButton::Up:
-			if (focus_ == Focus::Calendar)
+			if (edit_mode_)
 			{
-				MoveSelectedDay(-1);
-			}
-			else
-			{
-				MoveSelection(-1);
-			}
-			Render(ctx);
-			break;
-		case AppButton::Down:
-			if (focus_ == Focus::Calendar)
-			{
-				MoveSelectedDay(1);
-			}
-			else
-			{
-				MoveSelection(1);
-			}
-			Render(ctx);
-			break;
-		case AppButton::Select:
-			if (event.long_press)
-			{
-				focus_ = (focus_ == Focus::Calendar) ? Focus::Todo : Focus::Calendar;
-				Render(ctx);
-				break;
-			}
-			if (focus_ == Focus::Todo)
-			{
-				ToggleTodoDone();
+				AdjustSelectedTodoStart(-15);
 				SaveTodos();
 			}
 			else
 			{
-				focus_ = Focus::Todo;
+				focus_ = Focus::Calendar;
+				MoveSelectedDay(-7);
 			}
 			Render(ctx);
 			break;
-		case AppButton::Ptt:
-		case AppButton::PttAlt:
+		case AppButton::Down:
+			if (edit_mode_)
+			{
+				AdjustSelectedTodoStart(15);
+				SaveTodos();
+			}
+			else
+			{
+				focus_ = Focus::Calendar;
+				MoveSelectedDay(7);
+			}
+			Render(ctx);
+			break;
+		case AppButton::Left:
+			if (edit_mode_)
+			{
+				AdjustSelectedTodoEnd(-15);
+				SaveTodos();
+			}
+			else
+			{
+				focus_ = Focus::Calendar;
+				MoveSelectedDay(-1);
+			}
+			Render(ctx);
+			break;
+		case AppButton::Right:
+			if (edit_mode_)
+			{
+				AdjustSelectedTodoEnd(15);
+				SaveTodos();
+			}
+			else
+			{
+				focus_ = Focus::Calendar;
+				MoveSelectedDay(1);
+			}
+			Render(ctx);
+			break;
+		case AppButton::A:
+			focus_ = Focus::Todo;
+			edit_mode_ = false;
+			MoveSelection(-1);
+			Render(ctx);
+			break;
+		case AppButton::C:
+			focus_ = Focus::Todo;
+			edit_mode_ = false;
+			MoveSelection(1);
+			Render(ctx);
+			break;
+		case AppButton::B:
+			focus_ = Focus::Todo;
+			edit_mode_ = false;
 			AddQuickTodo();
 			SaveTodos();
 			Render(ctx);
+			break;
+		case AppButton::D:
+			focus_ = Focus::Todo;
+			edit_mode_ = false;
+			DeleteSelectedTodo();
+			SaveTodos();
+			Render(ctx);
+			break;
+		case AppButton::Start:
+			if (event.action == ButtonAction::LongPress)
+			{
+				if (focus_ == Focus::Todo)
+				{
+					ToggleTodoDone();
+					SaveTodos();
+					Render(ctx);
+				}
+				break;
+			}
+			if (focus_ != Focus::Todo)
+			{
+				focus_ = Focus::Todo;
+				edit_mode_ = false;
+				Render(ctx);
+				break;
+			}
+			if (HasSelectedTodo())
+			{
+				edit_mode_ = !edit_mode_;
+				Render(ctx);
+			}
 			break;
 		default:
 			break;
@@ -763,6 +828,7 @@ private:
 		ctx->today = today;
 		ctx->selected = selected_date_;
 		ctx->focus_calendar = (focus_ == Focus::Calendar);
+		ctx->edit_mode = edit_mode_;
 		ctx->selected_todo = selected_todo_;
 		ctx->todos = GetTodosForDate(selected_date_);
 		ctx->countdown = GetCountdownString(today, selected_date_);
@@ -820,10 +886,14 @@ private:
 		}
 
 		oss << "Todo:\n";
+		if (focus_ == Focus::Todo && edit_mode_)
+		{
+			oss << "  [编辑模式] 上下改开始时间，左右改结束时间\n";
+		}
 		auto todos = GetTodosForDate(selected_date_);
 		if (todos.empty())
 		{
-			oss << "  (空) 按 PTT 新建\n";
+			oss << "  (空) 按 B 新建\n";
 		}
 		else
 		{
@@ -938,6 +1008,71 @@ private:
 		selected_date_.month = tm_date.tm_mon + 1;
 		selected_date_.day = tm_date.tm_mday;
 		selected_todo_ = 0;
+	}
+
+	bool HasSelectedTodo() const
+	{
+		std::lock_guard<std::mutex> lock(todo_mutex_);
+		auto indices = GetTodoIndicesForDateLocked(selected_date_);
+		return !indices.empty() && selected_todo_ >= 0 && selected_todo_ < static_cast<int>(indices.size());
+	}
+
+	void DeleteSelectedTodo()
+	{
+		std::lock_guard<std::mutex> lock(todo_mutex_);
+		auto indices = GetTodoIndicesForDateLocked(selected_date_);
+		if (indices.empty() || selected_todo_ < 0 || selected_todo_ >= static_cast<int>(indices.size()))
+		{
+			return;
+		}
+		int idx = indices[static_cast<size_t>(selected_todo_)];
+		if (idx < 0 || idx >= static_cast<int>(todos_.size()))
+		{
+			return;
+		}
+		todos_.erase(todos_.begin() + idx);
+		auto after = GetTodoIndicesForDateLocked(selected_date_);
+		if (after.empty())
+		{
+			selected_todo_ = 0;
+		}
+		else if (selected_todo_ >= static_cast<int>(after.size()))
+		{
+			selected_todo_ = static_cast<int>(after.size()) - 1;
+		}
+		AppService::GetInstance().PlaySound(Lang::Sounds::OGG_POPUP);
+	}
+
+	void AdjustSelectedTodoStart(int delta_min)
+	{
+		std::lock_guard<std::mutex> lock(todo_mutex_);
+		auto indices = GetTodoIndicesForDateLocked(selected_date_);
+		if (indices.empty() || selected_todo_ < 0 || selected_todo_ >= static_cast<int>(indices.size()))
+		{
+			return;
+		}
+		auto &item = todos_[indices[static_cast<size_t>(selected_todo_)]];
+		item.start_min = ClampMinute(item.start_min + delta_min);
+		if (item.end_min < item.start_min)
+		{
+			item.end_min = item.start_min;
+		}
+	}
+
+	void AdjustSelectedTodoEnd(int delta_min)
+	{
+		std::lock_guard<std::mutex> lock(todo_mutex_);
+		auto indices = GetTodoIndicesForDateLocked(selected_date_);
+		if (indices.empty() || selected_todo_ < 0 || selected_todo_ >= static_cast<int>(indices.size()))
+		{
+			return;
+		}
+		auto &item = todos_[indices[static_cast<size_t>(selected_todo_)]];
+		item.end_min = ClampMinute(item.end_min + delta_min);
+		if (item.start_min > item.end_min)
+		{
+			item.start_min = item.end_min;
+		}
 	}
 
 	void ToggleTodoDone()
@@ -1170,6 +1305,7 @@ private:
 	}
 
 	Focus focus_ = Focus::Calendar;
+	bool edit_mode_ = false;
 	DateInfo selected_date_{};
 	int selected_todo_ = 0;
 	std::vector<TodoItem> todos_;

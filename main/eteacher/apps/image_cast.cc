@@ -284,7 +284,7 @@ public:
 
     void OnButton(AppContext &ctx, const ButtonEvent &event) override
     {
-        if (event.id == AppButton::Select)
+        if (event.id == AppButton::Start)
         {
             EnsureWifiMode();
             Render(ctx);

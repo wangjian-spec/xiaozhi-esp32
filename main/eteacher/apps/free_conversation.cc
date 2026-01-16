@@ -3,7 +3,7 @@
 #include "display.h"
 
 static constexpr const char *kTitle = "Free Conversation";
-static constexpr const char *kSubtitle = "Hold PTT to talk";
+static constexpr const char *kSubtitle = "Start to talk";
 
 FreeConversationApp::FreeConversationApp() = default;
 
@@ -16,7 +16,7 @@ void FreeConversationApp::OnEnter(AppContext &ctx)
 {
     auto display = ctx.board.GetDisplay();
     display->SetStatus(kTitle);
-    display->SetChatMessage("system", "Press/hold PTT to talk. Back to exit.");
+    display->SetChatMessage("system", "Press Start to talk. Select to exit.");
     listening_ = false;
 }
 
@@ -32,14 +32,14 @@ void FreeConversationApp::OnExit(AppContext &ctx)
 void FreeConversationApp::OnButton(AppContext &ctx, const ButtonEvent &event)
 {
     auto display = ctx.board.GetDisplay();
-    if (event.id == AppButton::Ptt || event.id == AppButton::PttAlt)
+    if (event.id == AppButton::Start)
     {
         listening_ = !listening_;
         display->SetChatMessage("system", listening_ ? "Listening..." : "Stopped.");
         return;
     }
 
-    // Other buttons ignored; Back handled by AppManager.
+    // Other buttons ignored; Select handled by AppManager.
 }
 
 std::unique_ptr<AppBase> MakeFreeConversationApp()

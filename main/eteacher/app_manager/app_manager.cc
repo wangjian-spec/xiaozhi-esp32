@@ -99,7 +99,7 @@ void AppManager::HandleButton(const ButtonEvent &event)
 
     if (running_)
     {
-        if (event.id == AppButton::Back)
+        if (event.id == AppButton::Select)
         {
             ExitCurrent();
             return;
@@ -111,16 +111,15 @@ void AppManager::HandleButton(const ButtonEvent &event)
     switch (event.id)
     {
     case AppButton::Up:
+    case AppButton::VolumeUp:
         MoveSelection(-1);
         break;
     case AppButton::Down:
+    case AppButton::VolumeDown:
         MoveSelection(1);
         break;
-    case AppButton::Select:
+    case AppButton::Start:
         EnterCurrent();
-        break;
-    case AppButton::Back:
-        RenderMenu();
         break;
     default:
         break;
@@ -143,7 +142,6 @@ void AppManager::EnterCurrent()
     }
     running_ = apps_[selected_index_].get();
     running_->OnEnter(*ctx_);
-    RenderStatus("Running", running_->GetMenuMeta().title);
 }
 
 void AppManager::ExitCurrent()

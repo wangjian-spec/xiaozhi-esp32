@@ -3,7 +3,6 @@
 
 #include "english-teacher.h"
 
-#include "eteacher/app_service/app_service.h"
 #include "assets/lang_config.h"
 #include "codecs/no_audio_codec.h"
 #include "config.h"
@@ -16,24 +15,13 @@
 
 #include <esp_log.h>
 
-namespace {
-
-constexpr const char* kTag = "EnglishTeacherBoard";
+static constexpr const char* kTag = "EnglishTeacherBoard";
 
 // iot_button 建议配置短按/长按阈值，0 可能导致部分事件不触发或表现不稳定。
-constexpr uint16_t kBtnLongPressMs = 2000;
-constexpr uint16_t kBtnShortPressMs = 50;
+static constexpr uint16_t kBtnLongPressMs = 2000;
+static constexpr uint16_t kBtnShortPressMs = 100;
 
-constexpr uint32_t kSharedSpiHz = 20 * 1000 * 1000;
-
-void BindLogOnlyButton(Button& button, const char* name) {
-	button.OnPressDown([name]() { ESP_LOGW(kTag, "%s: PressDown", name); });
-	button.OnPressUp([name]() { ESP_LOGW(kTag, "%s: PressUp", name); });
-	button.OnClick([name]() { ESP_LOGW(kTag, "%s: Click", name); });
-	button.OnLongPress([name]() { ESP_LOGW(kTag, "%s: LongPress", name); });
-}
-
-} // namespace
+static constexpr uint32_t kSharedSpiHz = 20 * 1000 * 1000;
 
 EnglishTeacherBoard::EnglishTeacherBoard()
 	// 注意：active_high 默认为 false（按下=低电平）。若你硬件是“按下=高电平”，需要把这里的 false 改成 true。
@@ -47,8 +35,8 @@ EnglishTeacherBoard::EnglishTeacherBoard()
 	, left_button_(BUTTON_LEFT_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
 	, down_button_(BUTTON_DOWN_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
 	, right_button_(BUTTON_RIGHT_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
-	, boot_button_(BOOT_BUTTON_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
-	, touch_button_(TOUCH_BUTTON_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
+	, a_button_(BUTTON_A_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
+	, b_button_(BUTTON_B_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
 	, c_button_(BUTTON_C_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
 	, d_button_(BUTTON_D_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
 	, select_button_(BUTTON_SELECT_GPIO, false, kBtnLongPressMs, kBtnShortPressMs)
@@ -149,80 +137,93 @@ void EnglishTeacherBoard::InitializeButtons() {
 
 	up_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "UP: Click");
-		app_mgr.HandleButton(AppButton::Up);
+		app_mgr.HandleButton(ButtonEvent{AppButton::Up});
 	});
 	left_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "LEFT: Click");
-		app_mgr.HandleButton(AppButton::Back);
+		app_mgr.HandleButton(ButtonEvent{AppButton::Left});
 	});
 	down_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "DOWN: Click");
-		app_mgr.HandleButton(AppButton::Down);
+		app_mgr.HandleButton(ButtonEvent{AppButton::Down});
 	});
 	right_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "RIGHT: Click");
-		app_mgr.HandleButton(AppButton::Select);
+		app_mgr.HandleButton(ButtonEvent{AppButton::Right});
 	});
 
-	// BOOT_BUTTON_GPIO 复用 A 键：单击切换聊天/配网
-	boot_button_.OnPressDown([]() { ESP_LOGW(kTag, "BOOT(A): PressDown"); });
-	boot_button_.OnPressUp([]() { ESP_LOGW(kTag, "BOOT(A): PressUp"); });
-	boot_button_.OnClick([this]() {
-		ESP_LOGW(kTag, "BOOT(A): Click");
-		auto& app = AppService::GetInstance();
-		if (app.GetDeviceState() == kEteacherStateStarting) {
-			EnterWifiConfigMode();
-			return;
-		}
-		app.ToggleChatState();
-	});
 
-	// 长按 BOOT：直接进入配网模式（不依赖其它模块的 WiFi 状态 API）
-	boot_button_.OnLongPress([this]() {
+	a_button_.OnPressDown([&]() {
+		ESP_LOGW(kTag, "BOOT(A): PressDown");
+		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::PressDown});
+	});
+	a_button_.OnPressUp([&]() {
+		ESP_LOGW(kTag, "BOOT(A): PressUp");
+		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::PressUp});
+	});
+	a_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "BOOT(A): LongPress");
-		EnterWifiConfigMode();
+		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::LongPress});
+	});
+	a_button_.OnClick([&]() {
+		ESP_LOGW(kTag, "BOOT(A): Click");
+		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::Click});
+	});
+	a_button_.OnDoubleClick([&]() {
+		ESP_LOGW(kTag, "BOOT(A): DoubleClick");
+		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::DoubleClick, 2});
+	});
+	a_button_.OnMultipleClick([&]() {
+		ESP_LOGW(kTag, "BOOT(A): MultipleClick");
+		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::MultipleClick, 3});
+	}, 3);
+
+	// B: Click -> AppButton::B
+	b_button_.OnClick([&]() {
+		ESP_LOGW(kTag, "TOUCH(B): Click");
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::B});
 	});
 
-	// TOUCH_BUTTON_GPIO 复用 B 键：按下开始说话，抬起结束
-	touch_button_.OnPressDown([&]() {
-		ESP_LOGW(kTag, "TOUCH(B): PressDown");
-		AppManager::GetInstance().HandleButton(AppButton::Ptt);
+	// C/D
+	c_button_.OnClick([&]() {
+		ESP_LOGW(kTag, "C: Click");
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::C});
 	});
-	touch_button_.OnPressUp([&]() {
-		ESP_LOGW(kTag, "TOUCH(B): PressUp");
-		AppManager::GetInstance().HandleButton(AppButton::Ptt);
+	d_button_.OnClick([&]() {
+		ESP_LOGW(kTag, "D: Click");
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::D});
 	});
-
-	// C/D：当前不绑定业务逻辑，仅打印事件
-	BindLogOnlyButton(c_button_, "C");
-	BindLogOnlyButton(d_button_, "D");
 
 	select_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "SELECT: Click");
-		AppManager::GetInstance().HandleButton(AppButton::Select);
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::Select});
 	});
 	start_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "START: Click");
-		AppManager::GetInstance().HandleButton(AppButton::Back);
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::Start});
+	});
+	start_button_.OnLongPress([&]() {
+		ESP_LOGW(kTag, "START: LongPress");
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::Start, ButtonAction::LongPress});
 	});
 
-	// 音量键作为导航键：单击 +/-1，长按视为持续导航
+	
 	volume_up_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "VOLUME_UP: Click");
-		AppManager::GetInstance().HandleButton(AppButton::Up);
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeUp});
 	});
 	volume_up_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_UP: LongPress");
-		AppManager::GetInstance().HandleButton(AppButton::Up, true);
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeUp, ButtonAction::LongPress});
 	});
 
 	volume_down_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "VOLUME_DOWN: Click");
-		AppManager::GetInstance().HandleButton(AppButton::Down);
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeDown});
 	});
 	volume_down_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_DOWN: LongPress");
-		AppManager::GetInstance().HandleButton(AppButton::Down, true);
+		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeDown, ButtonAction::LongPress});
 	});
 }
 

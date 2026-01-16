@@ -42,9 +42,9 @@ extern "C" void app_main(void)
     auto& app_mgr = AppManager::GetInstance();
     app_mgr.Init(board);
     app_mgr.Register(MakeDeviceSettingApp());
-    app_mgr.Register(MakeFreeConversationApp());
-    app_mgr.Register(MakeSceneConversationApp());
-    app_mgr.Register(MakeWordPracticeApp());
+    //app_mgr.Register(MakeFreeConversationApp());
+    //app_mgr.Register(MakeSceneConversationApp());
+    //app_mgr.Register(MakeWordPracticeApp());
     app_mgr.Register(MakeImageCastApp());
     app_mgr.Register(MakeCalendarScheduleApp());
 

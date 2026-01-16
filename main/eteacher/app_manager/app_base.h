@@ -15,15 +15,31 @@ struct AppContext {
 enum class AppButton {
     Up,
     Down,
+    Left,
+    Right,
+    A,
+    B,
+    C,
+    D,
     Select,
-    Back,
-    Ptt,
-    PttAlt,
+    Start,
+    VolumeUp,
+    VolumeDown,
+};
+
+enum class ButtonAction {
+    PressDown,
+    PressUp,
+    Click,
+    LongPress,
+    DoubleClick,
+    MultipleClick,
 };
 
 struct ButtonEvent {
     AppButton id;
-    bool long_press = false;
+    ButtonAction action = ButtonAction::Click;
+    uint8_t click_count = 1;
 };
 
 struct MenuMeta {

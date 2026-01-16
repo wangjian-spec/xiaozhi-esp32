@@ -7,7 +7,7 @@ namespace {
 
 static const char* TAG = "EpdManager";
 
-constexpr uint32_t kQueueLength = 8;
+constexpr uint32_t kQueueLength = 3;
 
 // Min refresh interval constraints (seconds):
 // - Partial: 0.3s
@@ -92,13 +92,12 @@ bool EpdManager::Schedule(TaskType type,
 
 	TaskItem item{type, rect, cb, ctx, ctx_deleter};
 
-	// Keep UI responsive: if the queue is full, drop one oldest item.
-	if (uxQueueSpacesAvailable(queue_) == 0) {
-		TaskItem dropped;
-		(void)xQueueReceive(queue_, &dropped, 0);
-		if (dropped.ctx_deleter && dropped.ctx) {
-			dropped.ctx_deleter(dropped.ctx);
+	// Reject input when queue already holds the maximum number of tasks.
+	if (uxQueueMessagesWaiting(queue_) >= kQueueLength) {
+		if (ctx_deleter && ctx) {
+			ctx_deleter(ctx);
 		}
+		return false;
 	}
 
 	if (xQueueSend(queue_, &item, 0) != pdTRUE) {

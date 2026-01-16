@@ -38,15 +38,11 @@ void SceneConversationApp::OnButton(AppContext &ctx, const ButtonEvent &event)
         Render(ctx);
         return;
     }
-    if (event.id == AppButton::Select)
+    if (event.id == AppButton::Start)
     {
         running_ = true;
-        ctx.board.GetDisplay()->SetChatMessage("system", ("Scene: " + scenes_[index_] + "\nSpeak or PTT").c_str());
+        ctx.board.GetDisplay()->SetChatMessage("system", ("Scene: " + scenes_[index_] + "\nTap Start to start").c_str());
         return;
-    }
-    if ((event.id == AppButton::Ptt || event.id == AppButton::PttAlt) && running_)
-    {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Answering...");
     }
 }
 
