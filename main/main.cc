@@ -20,6 +20,7 @@
 #include "eteacher/apps/scene_conversation.h"
 #include "eteacher/apps/word_practice.h"
 #include "eteacher/apps/image_cast.h"
+#include "eteacher/apps/calendar_schedule.h"
 
 #define TAG "main"
 
@@ -45,6 +46,7 @@ extern "C" void app_main(void)
     app_mgr.Register(MakeSceneConversationApp());
     app_mgr.Register(MakeWordPracticeApp());
     app_mgr.Register(MakeImageCastApp());
+    app_mgr.Register(MakeCalendarScheduleApp());
 
     // Initialize and run the application
     // auto& app = Application::GetInstance();

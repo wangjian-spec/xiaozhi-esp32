@@ -342,7 +342,7 @@ void AppService::CheckAssetsVersion() {
 
     auto& board = Board::GetInstance();
     auto display = board.GetDisplay();
-    auto& assets = Assets::GetInstance();
+    auto& assets = EteacherAssets::GetInstance();
 
     if (!assets.partition_valid()) {
         ESP_LOGW(TAG, "Assets partition is disabled for board %s", BOARD_NAME);

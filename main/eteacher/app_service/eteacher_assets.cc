@@ -1,4 +1,4 @@
-#include "assets.h"
+#include "eteacher_assets.h"
 #include "board.h"
 #include "display.h"
 #include "app_service.h"
@@ -14,7 +14,7 @@
 #include <cbin_font.h>
 
 
-#define TAG "Assets"
+#define TAG "EteacherAssets"
 
 struct mmap_assets_table {
     char asset_name[32];          /*!< Name of the asset */
@@ -25,18 +25,18 @@ struct mmap_assets_table {
 };
 
 
-Assets::Assets() {
+EteacherAssets::EteacherAssets() {
     // Initialize the partition
     InitializePartition();
 }
 
-Assets::~Assets() {
+EteacherAssets::~EteacherAssets() {
     if (mmap_handle_ != 0) {
         esp_partition_munmap(mmap_handle_);
     }
 }
 
-uint32_t Assets::CalculateChecksum(const char* data, uint32_t length) {
+uint32_t EteacherAssets::CalculateChecksum(const char* data, uint32_t length) {
     uint32_t checksum = 0;
     for (uint32_t i = 0; i < length; i++) {
         checksum += data[i];
@@ -44,7 +44,7 @@ uint32_t Assets::CalculateChecksum(const char* data, uint32_t length) {
     return checksum & 0xFFFF;
 }
 
-bool Assets::InitializePartition() {
+bool EteacherAssets::InitializePartition() {
     partition_valid_ = false;
     checksum_valid_ = false;
     assets_.clear();
@@ -95,7 +95,7 @@ bool Assets::InitializePartition() {
 
     for (uint32_t i = 0; i < stored_files; i++) {
         auto item = (const mmap_assets_table*)(mmap_root_ + 12 + i * sizeof(mmap_assets_table));
-        auto asset = Asset{
+        auto asset = EteacherAsset{
             .size = static_cast<size_t>(item->asset_size),
             .offset = static_cast<size_t>(12 + sizeof(mmap_assets_table) * stored_files + item->asset_offset)
         };
@@ -104,7 +104,7 @@ bool Assets::InitializePartition() {
     return checksum_valid_;
 }
 
-bool Assets::Apply() {
+bool EteacherAssets::Apply() {
     void* ptr = nullptr;
     size_t size = 0;
     if (!GetAssetData("index.json", ptr, size)) {
@@ -382,7 +382,7 @@ bool Assets::Apply() {
     return true;
 }
 
-bool Assets::Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback) {
+bool EteacherAssets::Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback) {
     ESP_LOGI(TAG, "Downloading new version of assets from %s", url.c_str());
     
     // 取消当前资源分区的内存映射
@@ -515,7 +515,7 @@ bool Assets::Download(std::string url, std::function<void(int progress, size_t s
     return true;
 }
 
-bool Assets::GetAssetData(const std::string& name, void*& ptr, size_t& size) {
+bool EteacherAssets::GetAssetData(const std::string& name, void*& ptr, size_t& size) {
     auto asset = assets_.find(name);
     if (asset == assets_.end()) {
         return false;

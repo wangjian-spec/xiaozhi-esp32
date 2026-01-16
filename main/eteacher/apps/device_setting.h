@@ -18,6 +18,7 @@ public:
 private:
     enum class View {
         kMenu,
+        kWifiStatus,
         kWifiQr,
         kOta,
     };
@@ -43,10 +44,11 @@ private:
 
     void Render(AppContext &ctx);
     void RenderMenu(AppContext &ctx);
+    void RenderWifiStatus(AppContext &ctx);
     void RenderWifiQr(AppContext &ctx);
     void RenderOta(AppContext &ctx);
 
-    void EnterWifiQr(AppContext &ctx);
+    void EnterWifiQr(AppContext &ctx, bool force_config);
     void CycleLanguage(AppContext &ctx);
     void EnterOta(AppContext &ctx);
 };

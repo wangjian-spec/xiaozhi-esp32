@@ -1,5 +1,5 @@
-#ifndef ASSETS_H
-#define ASSETS_H
+#ifndef ETEACHER_ASSETS_H
+#define ETEACHER_ASSETS_H
 
 #include <map>
 #include <string>
@@ -10,18 +10,18 @@
 #include <model_path.h>
 
 
-struct Asset {
+struct EteacherAsset {
     size_t size;
     size_t offset;
 };
 
-class Assets {
+class EteacherAssets {
 public:
-    static Assets& GetInstance() {
-        static Assets instance;
+    static EteacherAssets& GetInstance() {
+        static EteacherAssets instance;
         return instance;
     }
-    ~Assets();
+    ~EteacherAssets();
 
     bool Download(std::string url, std::function<void(int progress, size_t speed)> progress_callback);
     bool Apply();
@@ -32,9 +32,9 @@ public:
     inline std::string default_assets_url() const { return default_assets_url_; }
 
 private:
-    Assets();
-    Assets(const Assets&) = delete;
-    Assets& operator=(const Assets&) = delete;
+    EteacherAssets();
+    EteacherAssets(const EteacherAssets&) = delete;
+    EteacherAssets& operator=(const EteacherAssets&) = delete;
 
     bool InitializePartition();
     uint32_t CalculateChecksum(const char* data, uint32_t length);
@@ -46,7 +46,7 @@ private:
     bool checksum_valid_ = false;
     std::string default_assets_url_;
     srmodel_list_t* models_list_ = nullptr;
-    std::map<std::string, Asset> assets_;
+    std::map<std::string, EteacherAsset> assets_;
 };
 
 #endif

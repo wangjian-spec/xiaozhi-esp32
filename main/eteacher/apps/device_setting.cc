@@ -143,6 +143,12 @@ struct WifiQrDrawCtx {
     std::string qr_text;
 };
 
+struct WifiStatusDrawCtx {
+    CustomEpdDisplay *epd;
+    std::string ssid;
+    std::string ip;
+};
+
 void DrawWifiQrCb(Adafruit_GFX &gfx, void *ctx)
 {
     auto *w = static_cast<WifiQrDrawCtx *>(ctx);
@@ -199,6 +205,40 @@ void DrawWifiQrCb(Adafruit_GFX &gfx, void *ctx)
 void DeleteWifiQrCtx(void *ctx)
 {
     delete static_cast<WifiQrDrawCtx *>(ctx);
+}
+
+void DrawWifiStatusCb(Adafruit_GFX &gfx, void *ctx)
+{
+    auto *w = static_cast<WifiStatusDrawCtx *>(ctx);
+    if (!w || !w->epd)
+    {
+        return;
+    }
+
+    gfx.fillScreen(GxEPD_WHITE);
+
+    const int16_t x = 8;
+    int16_t baseline_y = 20;
+    w->epd->DrawUtf8(x, baseline_y, "WiFi 已连接", "wenquanyi_11pt", GxEPD_BLACK);
+    baseline_y += 22;
+
+    std::string line1 = "SSID: " + (w->ssid.empty() ? std::string("-") : w->ssid);
+    w->epd->DrawUtf8(x, baseline_y, line1, "wenquanyi_11pt", GxEPD_BLACK);
+    baseline_y += 20;
+
+    if (!w->ip.empty())
+    {
+        std::string line2 = "IP: " + w->ip;
+        w->epd->DrawUtf8(x, baseline_y, line2, "wenquanyi_11pt", GxEPD_BLACK);
+        baseline_y += 20;
+    }
+
+    w->epd->DrawUtf8(x, 290, "Select 切换网络 / 长按Select 返回菜单", "wenquanyi_11pt", GxEPD_BLACK);
+}
+
+void DeleteWifiStatusCtx(void *ctx)
+{
+    delete static_cast<WifiStatusDrawCtx *>(ctx);
 }
 
 struct OtaDrawCtx {
@@ -278,6 +318,23 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event)
         return;
     }
 
+    if (view_ == View::kWifiStatus)
+    {
+        if (event.id == AppButton::Select)
+        {
+            if (event.long_press)
+            {
+                view_ = View::kMenu;
+                Render(ctx);
+            }
+            else
+            {
+                EnterWifiQr(ctx, true);
+            }
+        }
+        return;
+    }
+
     if (view_ == View::kOta)
     {
         if (event.id == AppButton::Select)
@@ -307,7 +364,7 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event)
         switch (selected_index_)
         {
         case 0:
-            EnterWifiQr(ctx);
+            EnterWifiQr(ctx, false);
             break;
         case 1:
             CycleLanguage(ctx);
@@ -325,11 +382,32 @@ void DeviceSettingApp::OnTick(AppContext &ctx, uint32_t /*delta_ms*/)
 {
     if (view_ == View::kWifiQr)
     {
-        bool now = WifiManager::GetInstance().IsConfigMode();
+        auto &wifi = WifiManager::GetInstance();
+        bool now = wifi.IsConfigMode();
         if (now != last_wifi_config_mode_)
         {
             last_wifi_config_mode_ = now;
             RenderWifiQr(ctx);
+        }
+
+        if (!wifi.IsConfigMode() && wifi.IsConnected())
+        {
+            view_ = View::kWifiStatus;
+            RenderWifiStatus(ctx);
+        }
+        else if (!wifi.IsConnected() && !wifi.IsConfigMode())
+        {
+            EnterWifiQr(ctx, false);
+        }
+        return;
+    }
+
+    if (view_ == View::kWifiStatus)
+    {
+        auto &wifi = WifiManager::GetInstance();
+        if (!wifi.IsConnected())
+        {
+            EnterWifiQr(ctx, false);
         }
     }
 }
@@ -340,6 +418,9 @@ void DeviceSettingApp::Render(AppContext &ctx)
     {
     case View::kMenu:
         RenderMenu(ctx);
+        break;
+    case View::kWifiStatus:
+        RenderWifiStatus(ctx);
         break;
     case View::kWifiQr:
         RenderWifiQr(ctx);
@@ -404,16 +485,56 @@ void DeviceSettingApp::RenderMenu(AppContext &ctx)
     display->SetChatMessage("system", msg.c_str());
 }
 
-void DeviceSettingApp::EnterWifiQr(AppContext &ctx)
+void DeviceSettingApp::EnterWifiQr(AppContext &ctx, bool force_config)
 {
 #if CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
-    WifiManager::GetInstance().StartConfigAp();
-    last_wifi_config_mode_ = WifiManager::GetInstance().IsConfigMode();
+    auto &wifi = WifiManager::GetInstance();
+    if (!force_config && wifi.IsConnected() && !wifi.IsConfigMode())
+    {
+        view_ = View::kWifiStatus;
+        RenderWifiStatus(ctx);
+        return;
+    }
+
+    wifi.StartConfigAp();
+    last_wifi_config_mode_ = wifi.IsConfigMode();
     view_ = View::kWifiQr;
     Render(ctx);
 #else
     ctx.board.GetDisplay()->SetChatMessage("system", "当前固件未启用热点配网 (CONFIG_USE_HOTSPOT_WIFI_PROVISIONING)");
 #endif
+}
+
+void DeviceSettingApp::RenderWifiStatus(AppContext &ctx)
+{
+    auto &wifi = WifiManager::GetInstance();
+    std::string ssid = wifi.GetSsid();
+    std::string ip = wifi.GetIpAddress();
+
+    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx.board.GetDisplay()))
+    {
+        auto *w = new WifiStatusDrawCtx();
+        w->epd = epd;
+        w->ssid = std::move(ssid);
+        w->ip = std::move(ip);
+
+        EpdManager::GetInstance().Schedule(
+            EpdManager::TaskType::kPartial,
+            &DrawWifiStatusCb,
+            w,
+            &DeleteWifiStatusCtx,
+            EpdManager::Rect(0, 0, epd->width(), epd->height()));
+        return;
+    }
+
+    std::string msg = "WiFi 已连接\n";
+    msg += "SSID: " + (ssid.empty() ? std::string("-") : ssid) + "\n";
+    if (!ip.empty())
+    {
+        msg += "IP: " + ip + "\n";
+    }
+    msg += "Select 切换网络 (长按Select 返回菜单)";
+    ctx.board.GetDisplay()->SetChatMessage("system", msg.c_str());
 }
 
 void DeviceSettingApp::RenderWifiQr(AppContext &ctx)
