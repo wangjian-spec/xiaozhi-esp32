@@ -2,58 +2,113 @@
 #include "eteacher/app_manager/app_manager.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/epd_manager/epd_manager.h"
+#include "audio/audio_codec.h"
 #include <esp_log.h>
+#include <esp_wifi.h>
+#include <wifi_manager.h>
 
 #include <string>
 #include <vector>
+#include <ctime>
 
 namespace {
 
 struct MenuDrawCtx {
     CustomEpdDisplay *epd;
+    const eteacher::app_menu::Menu *menu;
     int selected_index;
-    std::vector<MenuMeta> items;
+    std::vector<eteacher::app_menu::MenuItem> items;
+    eteacher::app_menu::MenuStatus status;
+    std::string footer_text;
 };
 
 void DrawMenuCb(Adafruit_GFX &gfx, void *ctx)
 {
     auto *m = static_cast<MenuDrawCtx *>(ctx);
-    if (!m || !m->epd)
+    if (!m || !m->epd || !m->menu)
     {
         return;
     }
     // Window clear is handled by EpdManager before invoking this callback.
     // Keep the callback focused on drawing only.
-
-    const int16_t x = 8;
-    int16_t baseline_y = 20;
-    m->epd->DrawUtf8(x, baseline_y, "Apps", "wenquanyi_11pt", GxEPD_BLACK);
-    baseline_y += 20;
-
-    for (size_t i = 0; i < m->items.size(); ++i)
-    {
-        if (baseline_y > m->epd->height() - 16)
-        {
-            break;
-        }
-
-        std::string row_text;
-        row_text.reserve(2 + m->items[i].title.size() + 3 + m->items[i].subtitle.size());
-        row_text += (static_cast<int>(i) == m->selected_index) ? "> " : "  ";
-        row_text += m->items[i].title;
-        if (!m->items[i].subtitle.empty())
-        {
-            row_text += " - ";
-            row_text += m->items[i].subtitle;
-        }
-        m->epd->DrawUtf8(x, baseline_y, row_text, "wenquanyi_11pt", GxEPD_BLACK);
-        baseline_y += 18;
-    }
+    m->menu->Draw(gfx, m->epd, m->items, m->selected_index, m->status, m->footer_text);
 }
 
 void DeleteMenuCtx(void *ctx)
 {
     delete static_cast<MenuDrawCtx *>(ctx);
+}
+
+std::string FormatTimeText()
+{
+    std::time_t now = std::time(nullptr);
+    if (now <= 0)
+    {
+        return "--:--";
+    }
+    std::tm local_tm{};
+    localtime_r(&now, &local_tm);
+    char buf[6] = {0};
+    std::strftime(buf, sizeof(buf), "%H:%M", &local_tm);
+    return std::string(buf);
+}
+
+int GetCurrentMinuteOfDay()
+{
+    std::time_t now = std::time(nullptr);
+    if (now <= 0)
+    {
+        return -1;
+    }
+    std::tm local_tm{};
+    localtime_r(&now, &local_tm);
+    return local_tm.tm_hour * 60 + local_tm.tm_min;
+}
+
+std::string FormatWifiText()
+{
+    auto &wifi = WifiManager::GetInstance();
+    if (wifi.IsConfigMode())
+    {
+        return "CFG";
+    }
+    if (!wifi.IsConnected())
+    {
+        return "OFF";
+    }
+    wifi_ap_record_t ap{};
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK)
+    {
+        return std::to_string(ap.rssi) + "dBm";
+    }
+    return "ON";
+}
+
+std::string FormatBatteryText(Board &board)
+{
+    int level = 0;
+    bool charging = false;
+    bool discharging = false;
+    if (!board.GetBatteryLevel(level, charging, discharging))
+    {
+        return "--";
+    }
+    std::string text = std::to_string(level) + "%";
+    if (charging)
+    {
+        text += "+";
+    }
+    return text;
+}
+
+std::string FormatVolumeText(Board &board)
+{
+    auto *codec = board.GetAudioCodec();
+    if (!codec)
+    {
+        return "--";
+    }
+    return std::to_string(codec->output_volume()) + "%";
 }
 
 } // namespace
@@ -70,7 +125,18 @@ void AppManager::Init(Board &board)
 {
     static AppContext ctx(board);
     ctx_ = &ctx;
-    ShowMenu();
+    running_ = nullptr;
+    menu_ready_ = false;
+
+    eteacher::app_menu::MenuStyle style;
+    style.top_height = 26;
+    style.bottom_height = 24;
+    style.icon_cell_w = 80;
+    style.icon_cell_h = 80;
+    style.col_gap = 12;
+    style.row_gap = 12;
+    style.icon_label_gap = 4;
+    menu_.SetStyle(style);
 }
 
 void AppManager::Register(std::unique_ptr<AppBase> app)
@@ -79,7 +145,25 @@ void AppManager::Register(std::unique_ptr<AppBase> app)
     {
         return;
     }
+    if (app->icon().empty())
+    {
+        const auto meta = app->GetMenuMeta();
+        if (!meta.key.empty())
+        {
+            app->SetIcon(meta.key + ".bin");
+        }
+    }
     apps_.push_back(std::move(app));
+    EnsureSelectionValid();
+    if (menu_ready_)
+    {
+        RenderMenu();
+    }
+}
+
+void AppManager::FinalizeRegistration()
+{
+    menu_ready_ = true;
     EnsureSelectionValid();
     RenderMenu();
 }
@@ -87,7 +171,19 @@ void AppManager::Register(std::unique_ptr<AppBase> app)
 void AppManager::ShowMenu()
 {
     running_ = nullptr;
-    RenderMenu();
+    if (menu_ready_)
+    {
+        RenderMenu();
+    }
+}
+
+void AppManager::SetMenuFooterText(std::string text)
+{
+    menu_footer_text_ = std::move(text);
+    if (menu_ready_ && !running_)
+    {
+        RenderMenu();
+    }
 }
 
 void AppManager::HandleButton(const ButtonEvent &event)
@@ -112,11 +208,16 @@ void AppManager::HandleButton(const ButtonEvent &event)
     {
     case AppButton::Up:
     case AppButton::VolumeUp:
-        MoveSelection(-1);
-        break;
     case AppButton::Down:
     case AppButton::VolumeDown:
-        MoveSelection(1);
+    case AppButton::Left:
+    case AppButton::Right:
+        if (menu_controller_.Move(event.id))
+        {
+            selected_index_ = menu_controller_.selected();
+            ESP_LOGI(TAG, "Menu select %d/%d", selected_index_, static_cast<int>(apps_.size()));
+            RenderMenu();
+        }
         break;
     case AppButton::Start:
         EnterCurrent();
@@ -131,6 +232,24 @@ void AppManager::Tick(uint32_t delta_ms)
     if (running_ && ctx_)
     {
         running_->OnTick(*ctx_, delta_ms);
+        return;
+    }
+    if (!ctx_ || !menu_ready_)
+    {
+        return;
+    }
+
+    menu_tick_accum_ += delta_ms;
+    if (menu_tick_accum_ < 1000)
+    {
+        return;
+    }
+    menu_tick_accum_ = 0;
+
+    const int minute_now = GetCurrentMinuteOfDay();
+    if (minute_now >= 0 && minute_now != last_time_minute_)
+    {
+        RenderMenu();
     }
 }
 
@@ -155,18 +274,6 @@ void AppManager::ExitCurrent()
     RenderMenu();
 }
 
-void AppManager::MoveSelection(int step)
-{
-    if (apps_.empty())
-    {
-        return;
-    }
-    const int size = static_cast<int>(apps_.size());
-    selected_index_ = (selected_index_ + step + size) % size;
-    ESP_LOGI(TAG, "Menu select %d/%d", selected_index_, size);
-    RenderMenu();
-}
-
 void AppManager::EnsureSelectionValid()
 {
     if (apps_.empty())
@@ -186,7 +293,7 @@ void AppManager::EnsureSelectionValid()
 
 void AppManager::RenderMenu()
 {
-    if (!ctx_ || apps_.empty())
+    if (!ctx_ || apps_.empty() || !menu_ready_)
     {
         return;
     }
@@ -198,14 +305,38 @@ void AppManager::RenderMenu()
         // - non-blocking (runs in EpdManager task)
         // - uses `displayWindow(...)` internally
         // - text uses EPD UTF-8 API with WenQuanYi built-in fonts
-        auto *m = new MenuDrawCtx();
-        m->epd = epd;
-        m->selected_index = selected_index_;
-        m->items.reserve(apps_.size());
+        std::vector<eteacher::app_menu::MenuItem> items;
+        items.reserve(apps_.size());
         for (const auto &app : apps_)
         {
-            m->items.push_back(app->GetMenuMeta());
+            auto meta = app->GetMenuMeta();
+            std::string icon = app->icon();
+            if (icon.empty() && !meta.key.empty())
+            {
+                icon = meta.key + ".bin";
+            }
+            items.push_back({meta, std::move(icon)});
         }
+
+        last_layout_ = menu_.ComputeLayout(epd->width(), epd->height(), items.size());
+        menu_controller_.SetLayout(last_layout_, static_cast<int>(items.size()));
+        menu_controller_.SetSelected(selected_index_);
+
+        eteacher::app_menu::MenuStatus status;
+        status.time_text = FormatTimeText();
+        status.wifi_text = FormatWifiText();
+        status.battery_text = FormatBatteryText(ctx_->board);
+        status.volume_text = FormatVolumeText(ctx_->board);
+
+        last_time_minute_ = GetCurrentMinuteOfDay();
+
+        auto *m = new MenuDrawCtx();
+        m->epd = epd;
+        m->menu = &menu_;
+        m->selected_index = selected_index_;
+        m->items = std::move(items);
+        m->status = std::move(status);
+        m->footer_text = menu_footer_text_;
 
         EpdManager::GetInstance().Schedule(
             EpdManager::TaskType::kPartial,

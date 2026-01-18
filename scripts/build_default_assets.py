@@ -243,14 +243,16 @@ def process_emoji_collection(emoji_collection_dir, assets_dir):
 
 
 def process_extra_files(extra_files_dir, assets_dir):
-    """Process default_assets_extra_files parameter"""
+    """Process default_assets_extra_files parameter (supports multiple paths)."""
     if not extra_files_dir:
         return []
-    
-    if not os.path.exists(extra_files_dir):
-        print(f"Warning: Extra files directory not found: {extra_files_dir}")
-        return []
-    
+
+    if isinstance(extra_files_dir, (list, tuple)):
+        extra_paths = list(extra_files_dir)
+    else:
+        # On Windows, os.pathsep is ';', which is safe for splitting multiple paths.
+        extra_paths = [p for p in str(extra_files_dir).split(os.pathsep) if p]
+
     extra_files_list = []
 
     # Extra files are meant to be runtime assets. If the directory also contains
@@ -262,28 +264,42 @@ def process_extra_files(extra_files_dir, assets_dir):
         ".md", ".txt",
         ".in",
     }
-    
-    # Copy each file from input directory to build/assets directory
-    for root, dirs, files in os.walk(extra_files_dir):
-        for file in files:
-            # Skip hidden files and directories
-            if file.startswith('.'):
-                continue
 
-            _, ext = os.path.splitext(file)
-            if ext.lower() in skip_exts:
-                continue
-                
-            # Copy file
-            src_file = os.path.join(root, file)
-            dst_file = os.path.join(assets_dir, file)
-            if copy_file(src_file, dst_file):
-                extra_files_list.append(file)
-    
-    if extra_files_list:
-        print(f"Processed {len(extra_files_list)} extra files from: {extra_files_dir}")
-    
-    return extra_files_list
+    for extra_dir in extra_paths:
+        if not os.path.exists(extra_dir):
+            print(f"Warning: Extra files directory not found: {extra_dir}")
+            continue
+
+        # Copy each file from input directory to build/assets directory
+        for root, dirs, files in os.walk(extra_dir):
+            for file in files:
+                # Skip hidden files and directories
+                if file.startswith('.'):
+                    continue
+
+                _, ext = os.path.splitext(file)
+                if ext.lower() in skip_exts:
+                    continue
+
+                # Copy file
+                src_file = os.path.join(root, file)
+                dst_file = os.path.join(assets_dir, file)
+                if copy_file(src_file, dst_file):
+                    extra_files_list.append(file)
+
+        if extra_files_list:
+            print(f"Processed {len(extra_files_list)} extra files from: {extra_dir}")
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_list = []
+    for name in extra_files_list:
+        if name in seen:
+            continue
+        seen.add(name)
+        unique_list.append(name)
+
+    return unique_list
 
 
 def generate_index_json(assets_dir, srmodels, text_font, emoji_collection, extra_files=None, multinet_model_info=None):
@@ -781,7 +797,7 @@ def main():
     parser.add_argument('--output', required=True, help='Output path for assets.bin')
     parser.add_argument('--esp_sr_model_path', help='Path to ESP-SR model directory')
     parser.add_argument('--xiaozhi_fonts_path', help='Path to xiaozhi-fonts component directory')
-    parser.add_argument('--extra_files', help='Path to extra files directory to be included in assets')
+    parser.add_argument('--extra_files', nargs='*', help='Path(s) to extra files directories to be included in assets')
     
     args = parser.parse_args()
     

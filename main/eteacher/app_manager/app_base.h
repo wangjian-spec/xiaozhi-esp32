@@ -55,6 +55,9 @@ public:
 
     virtual MenuMeta GetMenuMeta() const = 0;
 
+    const std::string& icon() const { return icon_; }
+    void SetIcon(std::string icon) { icon_ = std::move(icon); }
+
     // 生命周期
     virtual void OnEnter(AppContext &ctx) = 0;
     virtual void OnExit(AppContext &ctx) = 0;
@@ -65,6 +68,7 @@ public:
 
 protected:
     bool show_in_menu_ = true;
+    std::string icon_;
 };
 
 // 简单的回调式 App：只关心进入/退出/按键事件。
@@ -73,7 +77,8 @@ public:
     ActionApp(MenuMeta meta,
               std::function<void(AppContext &)> on_enter = {},
               std::function<void(AppContext &)> on_exit = {},
-              std::function<void(AppContext &, const ButtonEvent &)> on_button = {});
+              std::function<void(AppContext &, const ButtonEvent &)> on_button = {},
+              std::string icon = {});
 
     MenuMeta GetMenuMeta() const override { return meta_; }
     void OnEnter(AppContext &ctx) override;

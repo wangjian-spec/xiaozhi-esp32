@@ -3,8 +3,16 @@
 ActionApp::ActionApp(MenuMeta meta,
                      std::function<void(AppContext &)> on_enter,
                      std::function<void(AppContext &)> on_exit,
-                     std::function<void(AppContext &, const ButtonEvent &)> on_button)
-    : meta_(std::move(meta)), on_enter_(std::move(on_enter)), on_exit_(std::move(on_exit)), on_button_(std::move(on_button)) {}
+                     std::function<void(AppContext &, const ButtonEvent &)> on_button,
+                     std::string icon)
+    : meta_(std::move(meta)), on_enter_(std::move(on_enter)), on_exit_(std::move(on_exit)), on_button_(std::move(on_button))
+{
+    if (icon.empty())
+    {
+        icon = meta_.key + ".bin";
+    }
+    SetIcon(std::move(icon));
+}
 
 void ActionApp::OnEnter(AppContext &ctx)
 {
