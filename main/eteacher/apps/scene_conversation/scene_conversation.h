@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-#include "eteacher/app_manager/app_base.h"
+#include "app_manager/app_base.h"
 
 // Demo app: choose a scene and answer.
 class SceneConversationApp : public AppBase {

@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "eteacher/app_manager/app_base.h"
+#include "app_manager/app_base.h"
 
 class DeviceSettingApp : public AppBase {
 public:

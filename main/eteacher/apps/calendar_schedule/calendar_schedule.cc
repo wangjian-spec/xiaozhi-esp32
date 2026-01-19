@@ -1,5 +1,5 @@
 // Calendar & Todo app for E-Ink display
-#include "eteacher/apps/calendar_schedule.h"
+#include "calendar_schedule.h"
 
 #include "display.h"
 #include "settings.h"

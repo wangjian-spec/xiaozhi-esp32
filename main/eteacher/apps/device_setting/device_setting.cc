@@ -1,4 +1,4 @@
-#include "eteacher/apps/device_setting.h"
+#include "device_setting.h"
 
 #include "display.h"
 #include "ota.h"

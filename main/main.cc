@@ -15,13 +15,12 @@
 #include "board.h"
 #include "display.h"
 #include "eteacher/app_manager/app_manager.h"
-#include "eteacher/apps/free_conversation.h"
-#include "eteacher/apps/device_setting.h"
-#include "eteacher/apps/scene_conversation.h"
-#include "eteacher/apps/word_practice.h"
-#include "eteacher/apps/image_cast.h"
-#include "eteacher/apps/calendar_schedule.h"
-#include "eteacher/apps/app_demo.h"
+#include "eteacher/apps/free_conversation/free_conversation.h"
+#include "eteacher/apps/device_setting/device_setting.h"
+#include "eteacher/apps/scene_conversation/scene_conversation.h"
+#include "eteacher/apps/word_practice/word_practice.h"
+#include "eteacher/apps/calendar_schedule/calendar_schedule.h"
+
 
 #define TAG "main"
 
@@ -46,24 +45,7 @@ extern "C" void app_main(void)
     app_mgr.Register(MakeFreeConversationApp());
     app_mgr.Register(MakeSceneConversationApp());
     app_mgr.Register(MakeWordPracticeApp());
-    app_mgr.Register(MakeImageCastApp());
     app_mgr.Register(MakeCalendarScheduleApp());
-    app_mgr.Register(MakeAppDemo1App());
-    app_mgr.Register(MakeAppDemo2App());
-    app_mgr.Register(MakeAppDemo3App());
-    app_mgr.Register(MakeAppDemo4App());
-    app_mgr.Register(MakeAppDemo5App());
-    app_mgr.Register(MakeAppDemo6App());
-    app_mgr.Register(MakeAppDemo7App());
-    app_mgr.Register(MakeAppDemo8App());
-    app_mgr.Register(MakeAppDemo9App());
-    app_mgr.Register(MakeAppDemo10App());
-    app_mgr.Register(MakeAppDemo11App());
-    app_mgr.Register(MakeAppDemo12App());
-    app_mgr.Register(MakeAppDemo13App());
-    app_mgr.Register(MakeAppDemo14App());
-    app_mgr.Register(MakeAppDemo15App());
-    app_mgr.Register(MakeAppDemo16App());
     app_mgr.FinalizeRegistration();
 
     // Initialize and run the application

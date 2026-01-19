@@ -1,4 +1,4 @@
-#include "eteacher/apps/scene_conversation.h"
+#include "scene_conversation.h"
 
 #include "display.h"
 
