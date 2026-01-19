@@ -19,19 +19,21 @@ struct MenuItem {
 struct MenuStatus {
     std::string time_text;
     std::string wifi_text;
+    bool wifi_connected = false;
     std::string battery_text;
+    int battery_level = -1;
     std::string volume_text;
 };
 
 struct MenuStyle {
-    int16_t top_height = 24;
-    int16_t bottom_height = 24;
+    int16_t top_height = 20;
+    int16_t bottom_height = 16;
     int16_t padding = 8;
 
     int16_t icon_cell_w = 80;
     int16_t icon_cell_h = 80;
-    int16_t col_gap = 12;
-    int16_t row_gap = 12;
+    int16_t col_gap = 14;
+    int16_t row_gap = 14;
     int16_t icon_label_gap = 4;
     int16_t selection_border = 2;
 

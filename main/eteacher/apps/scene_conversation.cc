@@ -9,7 +9,7 @@ SceneConversationApp::SceneConversationApp()
 
 MenuMeta SceneConversationApp::GetMenuMeta() const
 {
-    return MenuMeta{"scene_conversation", "Scene Conversation", "Up/Down select"};
+    return MenuMeta{"scene_conversation", "情景对话", "上下选择"};
 }
 
 void SceneConversationApp::OnEnter(AppContext &ctx)

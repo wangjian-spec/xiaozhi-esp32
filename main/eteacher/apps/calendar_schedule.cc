@@ -469,7 +469,7 @@ class CalendarScheduleApp : public AppBase {
 public:
 	MenuMeta GetMenuMeta() const override
 	{
-		return MenuMeta{"calendar_schedule", "Calendar & Todo", "方向键/ABCD/Start"};
+		return MenuMeta{"calendar_schedule", "智能日历", "方向键/ABCD/Start"};
 	}
 
 	void OnEnter(AppContext &ctx) override

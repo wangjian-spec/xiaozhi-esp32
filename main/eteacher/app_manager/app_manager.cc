@@ -4,12 +4,12 @@
 #include "eteacher/epd_manager/epd_manager.h"
 #include "audio/audio_codec.h"
 #include <esp_log.h>
-#include <esp_wifi.h>
 #include <wifi_manager.h>
 
 #include <string>
 #include <vector>
 #include <ctime>
+#include <cstdio>
 
 namespace {
 
@@ -44,12 +44,26 @@ std::string FormatTimeText()
     std::time_t now = std::time(nullptr);
     if (now <= 0)
     {
-        return "--:--";
+        return "----年--月--日 星期-  --:--";
     }
     std::tm local_tm{};
     localtime_r(&now, &local_tm);
-    char buf[6] = {0};
-    std::strftime(buf, sizeof(buf), "%H:%M", &local_tm);
+    static const char *kWeekday[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
+    const char *weekday = "星期-";
+    if (local_tm.tm_wday >= 0 && local_tm.tm_wday < 7)
+    {
+        weekday = kWeekday[local_tm.tm_wday];
+    }
+    char buf[64] = {0};
+    std::snprintf(buf,
+                  sizeof(buf),
+                  "%04d年%02d月%02d日 %s  %02d:%02d",
+                  local_tm.tm_year + 1900,
+                  local_tm.tm_mon + 1,
+                  local_tm.tm_mday,
+                  weekday,
+                  local_tm.tm_hour,
+                  local_tm.tm_min);
     return std::string(buf);
 }
 
@@ -63,25 +77,6 @@ int GetCurrentMinuteOfDay()
     std::tm local_tm{};
     localtime_r(&now, &local_tm);
     return local_tm.tm_hour * 60 + local_tm.tm_min;
-}
-
-std::string FormatWifiText()
-{
-    auto &wifi = WifiManager::GetInstance();
-    if (wifi.IsConfigMode())
-    {
-        return "CFG";
-    }
-    if (!wifi.IsConnected())
-    {
-        return "OFF";
-    }
-    wifi_ap_record_t ap{};
-    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK)
-    {
-        return std::to_string(ap.rssi) + "dBm";
-    }
-    return "ON";
 }
 
 std::string FormatBatteryText(Board &board)
@@ -99,6 +94,26 @@ std::string FormatBatteryText(Board &board)
         text += "+";
     }
     return text;
+}
+
+int GetBatteryLevelPercent(Board &board)
+{
+    int level = 0;
+    bool charging = false;
+    bool discharging = false;
+    if (!board.GetBatteryLevel(level, charging, discharging))
+    {
+        return 50;
+    }
+    if (level < 0)
+    {
+        return 0;
+    }
+    if (level > 100)
+    {
+        return 100;
+    }
+    return level;
 }
 
 std::string FormatVolumeText(Board &board)
@@ -128,15 +143,7 @@ void AppManager::Init(Board &board)
     running_ = nullptr;
     menu_ready_ = false;
 
-    eteacher::app_menu::MenuStyle style;
-    style.top_height = 26;
-    style.bottom_height = 24;
-    style.icon_cell_w = 80;
-    style.icon_cell_h = 80;
-    style.col_gap = 12;
-    style.row_gap = 12;
-    style.icon_label_gap = 4;
-    menu_.SetStyle(style);
+    menu_.SetStyle(eteacher::app_menu::MenuStyle{});
 }
 
 void AppManager::Register(std::unique_ptr<AppBase> app)
@@ -193,6 +200,10 @@ void AppManager::HandleButton(const ButtonEvent &event)
         return;
     }
 
+    const bool is_volume_event = (event.id == AppButton::VolumeUp || event.id == AppButton::VolumeDown);
+    const bool is_volume_refresh = is_volume_event &&
+                                   (event.action == ButtonAction::Click || event.action == ButtonAction::LongPress);
+
     if (running_)
     {
         if (event.id == AppButton::Select)
@@ -203,6 +214,8 @@ void AppManager::HandleButton(const ButtonEvent &event)
         running_->OnButton(*ctx_, event);
         return;
     }
+
+    bool moved = false;
 
     switch (event.id)
     {
@@ -217,13 +230,31 @@ void AppManager::HandleButton(const ButtonEvent &event)
             selected_index_ = menu_controller_.selected();
             ESP_LOGI(TAG, "Menu select %d/%d", selected_index_, static_cast<int>(apps_.size()));
             RenderMenu();
+            moved = true;
+        }
+        if (!moved && is_volume_refresh)
+        {
+            RenderMenu();
         }
         break;
     case AppButton::Start:
         EnterCurrent();
         break;
+    case AppButton::Select:
+    case AppButton::A:
+    case AppButton::B:
+    case AppButton::C:
+    case AppButton::D:
     default:
         break;
+    }
+}
+
+void AppManager::RefreshMenu()
+{
+    if (menu_ready_ && !running_)
+    {
+        RenderMenu();
     }
 }
 
@@ -248,6 +279,23 @@ void AppManager::Tick(uint32_t delta_ms)
 
     const int minute_now = GetCurrentMinuteOfDay();
     if (minute_now >= 0 && minute_now != last_time_minute_)
+    {
+        RenderMenu();
+        return;
+    }
+
+    bool need_refresh = false;
+    const bool wifi_connected = WifiManager::GetInstance().IsConnected();
+    if (wifi_connected != last_wifi_connected_)
+    {
+        need_refresh = true;
+    }
+    const int battery_level = GetBatteryLevelPercent(ctx_->board);
+    if (battery_level != last_battery_level_)
+    {
+        need_refresh = true;
+    }
+    if (need_refresh)
     {
         RenderMenu();
     }
@@ -324,11 +372,15 @@ void AppManager::RenderMenu()
 
         eteacher::app_menu::MenuStatus status;
         status.time_text = FormatTimeText();
-        status.wifi_text = FormatWifiText();
+        status.wifi_text.clear();
+        status.wifi_connected = WifiManager::GetInstance().IsConnected();
         status.battery_text = FormatBatteryText(ctx_->board);
+        status.battery_level = GetBatteryLevelPercent(ctx_->board);
         status.volume_text = FormatVolumeText(ctx_->board);
 
         last_time_minute_ = GetCurrentMinuteOfDay();
+        last_wifi_connected_ = status.wifi_connected;
+        last_battery_level_ = status.battery_level;
 
         auto *m = new MenuDrawCtx();
         m->epd = epd;

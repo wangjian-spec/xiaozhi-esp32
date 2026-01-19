@@ -30,6 +30,9 @@ public:
     // 外部按键事件入口。
     void HandleButton(const ButtonEvent &event);
 
+    // 菜单显示时强制刷新一次。
+    void RefreshMenu();
+
     // 主动驱动 tick，可由定时器或循环调用。
     void Tick(uint32_t delta_ms);
 
@@ -53,5 +56,7 @@ private:
     eteacher::app_menu::MenuController menu_controller_;
     eteacher::app_menu::MenuLayout last_layout_;
     int last_time_minute_ = -1;
+    int last_battery_level_ = -1;
+    bool last_wifi_connected_ = false;
     uint32_t menu_tick_accum_ = 0;
 };

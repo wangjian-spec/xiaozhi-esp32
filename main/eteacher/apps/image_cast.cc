@@ -267,7 +267,7 @@ void DeleteBitmapCtx(void *ctx)
 
 class ImageCastApp : public AppBase {
 public:
-    MenuMeta GetMenuMeta() const override { return MenuMeta{"image_cast", "Image Cast", "WiFi photo -> EPD"}; }
+    MenuMeta GetMenuMeta() const override { return MenuMeta{"image_cast", "图像投影", "WiFi 照片 -> EPD"}; }
 
     void OnEnter(AppContext &ctx) override
     {

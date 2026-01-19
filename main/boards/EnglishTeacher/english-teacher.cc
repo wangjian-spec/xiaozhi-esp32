@@ -210,20 +210,48 @@ void EnglishTeacherBoard::InitializeButtons() {
 	
 	volume_up_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "VOLUME_UP: Click");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeUp});
+		auto *codec = GetAudioCodec();
+		if (!codec) {
+			return;
+		}
+		int volume = codec->output_volume() + 10;
+		if (volume > 100) {
+			volume = 100;
+		}
+		codec->SetOutputVolume(volume);
+		AppManager::GetInstance().RefreshMenu();
 	});
 	volume_up_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_UP: LongPress");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeUp, ButtonAction::LongPress});
+		auto *codec = GetAudioCodec();
+		if (!codec) {
+			return;
+		}
+		codec->SetOutputVolume(100);
+		AppManager::GetInstance().RefreshMenu();
 	});
 
 	volume_down_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "VOLUME_DOWN: Click");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeDown});
+		auto *codec = GetAudioCodec();
+		if (!codec) {
+			return;
+		}
+		int volume = codec->output_volume() - 10;
+		if (volume < 0) {
+			volume = 0;
+		}
+		codec->SetOutputVolume(volume);
+		AppManager::GetInstance().RefreshMenu();
 	});
 	volume_down_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_DOWN: LongPress");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::VolumeDown, ButtonAction::LongPress});
+		auto *codec = GetAudioCodec();
+		if (!codec) {
+			return;
+		}
+		codec->SetOutputVolume(0);
+		AppManager::GetInstance().RefreshMenu();
 	});
 }
 

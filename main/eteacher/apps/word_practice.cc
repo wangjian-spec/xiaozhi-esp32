@@ -10,7 +10,7 @@ WordPracticeApp::WordPracticeApp()
 
 MenuMeta WordPracticeApp::GetMenuMeta() const
 {
-	return MenuMeta{"word_practice", "Word Practice", "Up/Down to browse"};
+	return MenuMeta{"word_practice", "单词练习", "Up/Down to browse"};
 }
 
 void WordPracticeApp::OnEnter(AppContext &ctx)

@@ -9,14 +9,14 @@ FreeConversationApp::FreeConversationApp() = default;
 
 MenuMeta FreeConversationApp::GetMenuMeta() const
 {
-    return MenuMeta{ "free_conversation", kTitle, kSubtitle };
+    return MenuMeta{ "free_conversation", "自由对话", "开始对话" };
 }
 
 void FreeConversationApp::OnEnter(AppContext &ctx)
 {
     auto display = ctx.board.GetDisplay();
-    display->SetStatus(kTitle);
-    display->SetChatMessage("system", "Press Start to talk. Select to exit.");
+    display->SetStatus("自由对话");
+    display->SetChatMessage("system", "按 Start 开始对话。按 Select 退出。");
     listening_ = false;
 }
 

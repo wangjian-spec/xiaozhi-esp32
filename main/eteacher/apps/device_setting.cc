@@ -289,7 +289,7 @@ DeviceSettingApp::DeviceSettingApp() = default;
 
 MenuMeta DeviceSettingApp::GetMenuMeta() const
 {
-    return MenuMeta{"device_setting", "System Settings", "WiFi / Language / OTA"};
+    return MenuMeta{"device_setting", "系统设置", "WiFi / Language / OTA"};
 }
 
 void DeviceSettingApp::OnEnter(AppContext &ctx)
