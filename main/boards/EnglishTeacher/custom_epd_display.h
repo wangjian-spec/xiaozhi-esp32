@@ -79,15 +79,25 @@ private:
 
 class CustomEpdDisplay : public Display, public Epd {
 public:
+	class ChatMessageListener {
+	public:
+		virtual ~ChatMessageListener() = default;
+		virtual void OnChatMessage(const char* role, const char* content) = 0;
+	};
+
 	explicit CustomEpdDisplay(Epd::Pins pins);
 	~CustomEpdDisplay() override;
 
 	// Initialize panel and sync dimensions into Display.
 	bool Begin(SPIClass& spi, uint32_t spi_hz = 20 * 1000 * 1000, uint16_t reset_ms = 10);
 
+	void SetChatMessageListener(ChatMessageListener* listener);
+	void SetChatMessage(const char* role, const char* content) override;
+
 private:
 	bool Lock(int timeout_ms = 0) override;
 	void Unlock() override;
 
 	SemaphoreHandle_t mutex_ = nullptr;
+	ChatMessageListener* chat_listener_ = nullptr;
 };

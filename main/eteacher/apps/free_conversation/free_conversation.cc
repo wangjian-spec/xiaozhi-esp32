@@ -3,6 +3,7 @@
 #include <Adafruit_GFX.h>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
@@ -215,23 +216,30 @@ std::vector<std::string> WrapText(CustomEpdDisplay* epd, const std::string& text
 	return lines;
 }
 
-bool LooksLikeChinese(const std::string& text) {
-	for (unsigned char c : text) {
-		if (c & 0x80) {
-			return true;
+std::string EscapeJson(const std::string& s) {
+	std::string out;
+	out.reserve(s.size());
+	for (unsigned char c : s) {
+		switch (c) {
+		case '"': out += "\\\""; break;
+		case '\\': out += "\\\\"; break;
+		case '\b': out += "\\b"; break;
+		case '\f': out += "\\f"; break;
+		case '\n': out += "\\n"; break;
+		case '\r': out += "\\r"; break;
+		case '\t': out += "\\t"; break;
+		default:
+			if (c < 0x20) {
+				char buf[7];
+				std::snprintf(buf, sizeof(buf), "\\u%04x", c);
+				out += buf;
+			} else {
+				out.push_back(static_cast<char>(c));
+			}
+			break;
 		}
 	}
-	return false;
-}
-
-std::string PseudoTranslate(const std::string& text) {
-	if (text.empty()) {
-		return text;
-	}
-	if (LooksLikeChinese(text)) {
-		return "[EN] " + text;
-	}
-	return "[中文] " + text;
+	return out;
 }
 
 std::string FormatTimeText() {
@@ -340,30 +348,41 @@ struct RenderSnapshot {
 	int selected_entry_last_line = -1;
 	eteacher::app_menu::MenuStatus status;
 	std::string footer_text;
+	int slot_index = -1;
 };
 
-void DeleteSnapshot(void* ctx) {
-	delete static_cast<RenderSnapshot*>(ctx);
+static std::array<RenderSnapshot, 2> g_snapshots;
+static std::atomic_bool g_snapshot_in_use[2] = {false, false};
+
+static RenderSnapshot* AcquireSnapshot() {
+	for (int i = 0; i < static_cast<int>(g_snapshots.size()); ++i) {
+		bool expected = false;
+		if (g_snapshot_in_use[i].compare_exchange_strong(expected, true)) {
+			auto* snap = &g_snapshots[i];
+			snap->lines.clear();
+			snap->footer_text.clear();
+			snap->slot_index = i;
+			return snap;
+		}
+	}
+	return nullptr;
 }
 
-static ::FreeConversationApp* g_active_app = nullptr;
-
-class FreeConversationDisplayHook : public CustomEpdDisplay {
-public:
-	explicit FreeConversationDisplayHook(Epd::Pins pins) : CustomEpdDisplay(pins) {}
-
-	void SetChatMessage(const char* role, const char* content) override;
-};
-
-void FreeConversationDisplayHook::SetChatMessage(const char* role, const char* content) {
-	if (g_active_app) {
-		g_active_app->OnChatMessage(role, content);
+void DeleteSnapshot(void* ctx) {
+	auto* snap = static_cast<RenderSnapshot*>(ctx);
+	if (!snap) {
+		return;
+	}
+	if (snap->slot_index >= 0 && snap->slot_index < static_cast<int>(g_snapshots.size())) {
+		snap->lines.clear();
+		snap->footer_text.clear();
+		g_snapshot_in_use[snap->slot_index].store(false);
 	}
 }
 
 } // namespace
 
-struct FreeConversationApp::Impl {
+struct FreeConversationApp::Impl : public CustomEpdDisplay::ChatMessageListener {
 	AppContext* ctx = nullptr;
 	std::vector<ConversationEntry> entries;
 	std::vector<int> line_to_entry;
@@ -372,6 +391,10 @@ struct FreeConversationApp::Impl {
 	int view_line_offset = 0;
 	int visible_lines = 1;
 	uint32_t tick_accum_ms = 0;
+	bool line_index_dirty = true;
+	bool scroll_to_latest_pending = false;
+	int last_screen_w = 0;
+	int last_screen_h = 0;
 	bool recording = false;
 	bool avatars_loaded = false;
 	BinImage teacher_avatar;
@@ -382,10 +405,10 @@ struct FreeConversationApp::Impl {
 	bool last_wifi_connected = false;
 	int last_battery_level = -1;
 	std::string last_volume_text;
+	std::shared_ptr<ConversationTranslator> translator;
+	std::shared_ptr<int> alive_token = std::make_shared<int>(0);
 
-	bool display_hooked = false;
 	CustomEpdDisplay* hooked_epd = nullptr;
-	void** original_vtable = nullptr;
 
 	void EnsureAvatarsLoaded() {
 		if (avatars_loaded) {
@@ -404,28 +427,37 @@ struct FreeConversationApp::Impl {
 			return;
 		}
 		auto* epd = dynamic_cast<CustomEpdDisplay*>(ctx->board.GetDisplay());
-		if (!epd || display_hooked) {
+		if (!epd || hooked_epd) {
 			return;
 		}
-		static FreeConversationDisplayHook vtable_source(Epd::Pins{-1, -1, -1, -1});
-		original_vtable = *reinterpret_cast<void***>(epd);
-		void** hook_vtable = *reinterpret_cast<void***>(&vtable_source);
-		*reinterpret_cast<void***>(epd) = hook_vtable;
-		display_hooked = true;
+		epd->SetChatMessageListener(this);
 		hooked_epd = epd;
 	}
 
 	void RemoveDisplayHook() {
-		if (!display_hooked || !hooked_epd || !original_vtable) {
-			display_hooked = false;
+		if (!hooked_epd) {
 			hooked_epd = nullptr;
-			original_vtable = nullptr;
 			return;
 		}
-		*reinterpret_cast<void***>(hooked_epd) = original_vtable;
-		display_hooked = false;
+		hooked_epd->SetChatMessageListener(nullptr);
 		hooked_epd = nullptr;
-		original_vtable = nullptr;
+	}
+
+	void OnChatMessage(const char* role, const char* content) override {
+		if (!ctx || role == nullptr || content == nullptr) {
+			return;
+		}
+		if (std::strlen(content) == 0) {
+			return;
+		}
+		if (std::strcmp(role, "assistant") == 0) {
+			AddEntry(true, content);
+		} else if (std::strcmp(role, "user") == 0) {
+			AddEntry(false, content);
+		} else {
+			return;
+		}
+		Render(*ctx);
 	}
 
 	void StartListening() {
@@ -443,9 +475,8 @@ struct FreeConversationApp::Impl {
 		entry.is_teacher = is_teacher;
 		entry.text = text;
 		entries.push_back(std::move(entry));
-		RebuildLineIndex();
-		TrimHistoryToMaxLines();
-		MoveCursorToLatest();
+		line_index_dirty = true;
+		scroll_to_latest_pending = true;
 	}
 
 	void MoveCursorLine(int delta) {
@@ -492,15 +523,49 @@ struct FreeConversationApp::Impl {
 			return;
 		}
 		auto& entry = entries[entry_index];
-		if (entry.translated.empty()) {
-			entry.translated = PseudoTranslate(entry.text);
+		if (entry.show_translation) {
+			entry.show_translation = false;
+			line_index_dirty = true;
+			return;
 		}
-		entry.show_translation = !entry.show_translation;
-		entry.translated_lines.clear();
-		entry.lines.clear();
-		RebuildLineIndex();
-		TrimHistoryToMaxLines();
-		EnsureCursorVisible();
+		if (!entry.translated.empty()) {
+			entry.show_translation = true;
+			line_index_dirty = true;
+			return;
+		}
+		if (!translator) {
+			ESP_LOGW(kTag, "Translation provider not set");
+			return;
+		}
+		entry.show_translation = true;
+		line_index_dirty = true;
+		const std::string original = entry.text;
+		const int target_index = entry_index;
+		auto weak_token = std::weak_ptr<int>(alive_token);
+		translator->TranslateAsync(entry.text, [this, weak_token, target_index, original](std::string translated) mutable {
+			if (!weak_token.lock() || translated.empty()) {
+				return;
+			}
+			auto& app = AppService::GetInstance();
+			app.Schedule([this, weak_token, target_index, original, translated = std::move(translated)]() mutable {
+				if (!weak_token.lock() || !ctx) {
+					return;
+				}
+				if (target_index < 0 || target_index >= static_cast<int>(entries.size())) {
+					return;
+				}
+				auto& target = entries[target_index];
+				if (target.text != original) {
+					return;
+				}
+				target.translated = std::move(translated);
+				target.translated_lines.clear();
+				target.lines.clear();
+				target.show_translation = true;
+				line_index_dirty = true;
+				Render(*ctx);
+			});
+		});
 	}
 
 	void SpeakSelected() {
@@ -511,9 +576,12 @@ struct FreeConversationApp::Impl {
 		const auto& entry = entries[entry_index];
 		const std::string& content = entry.show_translation && !entry.translated.empty() ? entry.translated : entry.text;
 		std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"self.tts.speak\",\"arguments\":{\"text\":\"";
-		payload += content;
+		payload += EscapeJson(content);
 		payload += "\"}}}";
-		AppService::GetInstance().SendMcpMessage(payload);
+		auto& app = AppService::GetInstance();
+		app.Schedule([payload = std::move(payload), &app]() mutable {
+			app.SendMcpMessage(payload);
+		});
 	}
 
 	int GetSelectedEntry() const {
@@ -565,14 +633,31 @@ struct FreeConversationApp::Impl {
 		}
 	}
 
-	void TrimHistoryToMaxLines() {
+	bool TrimHistoryToMaxLines() {
 		if (line_to_entry.empty()) {
-			return;
+			return false;
 		}
-		while (static_cast<int>(line_to_entry.size()) > kMaxHistoryLines && !entries.empty()) {
-			entries.erase(entries.begin());
-			RebuildLineIndex();
+		const int extra = static_cast<int>(line_to_entry.size()) - kMaxHistoryLines;
+		if (extra <= 0 || entries.empty()) {
+			return false;
 		}
+		int lines_removed = 0;
+		int entries_removed = 0;
+		const int total_lines = static_cast<int>(line_to_entry.size());
+		for (size_t i = 0; i < entry_start_line.size() && lines_removed < extra; ++i) {
+			const int start = entry_start_line[i];
+			const int next_start = (i + 1 < entry_start_line.size()) ? entry_start_line[i + 1] : total_lines;
+			const int lines_in_entry = std::max<int>(1, next_start - start);
+			lines_removed += lines_in_entry;
+			++entries_removed;
+		}
+		if (entries_removed <= 0) {
+			return false;
+		}
+		entries.erase(entries.begin(), entries.begin() + entries_removed);
+		cursor_line_index = std::max<int>(0, cursor_line_index - lines_removed);
+		view_line_offset = std::max<int>(0, view_line_offset - lines_removed);
+		return true;
 	}
 
 	std::string BuildFooterText(AppContext& ctx) const {
@@ -625,10 +710,25 @@ struct FreeConversationApp::Impl {
 		}
 
 		EnsureAvatarsLoaded();
-		RebuildLineIndex();
 
 		const int screen_w = epd->width();
 		const int screen_h = epd->height();
+		if (screen_w != last_screen_w || screen_h != last_screen_h) {
+			last_screen_w = screen_w;
+			last_screen_h = screen_h;
+			line_index_dirty = true;
+		}
+		if (line_index_dirty) {
+			RebuildLineIndex();
+			if (TrimHistoryToMaxLines()) {
+				RebuildLineIndex();
+			}
+			line_index_dirty = false;
+			if (scroll_to_latest_pending) {
+				MoveCursorToLatest();
+				scroll_to_latest_pending = false;
+			}
+		}
 		const int text_font_height = GetFontHeight(kTextFont);
 		const int text_font_ascent = GetFontAscent(kTextFont);
 		const int line_height = text_font_height + kLineGap;
@@ -645,7 +745,10 @@ struct FreeConversationApp::Impl {
 		}
 		EnsureCursorVisible();
 
-		auto* snap = new RenderSnapshot();
+		auto* snap = AcquireSnapshot();
+		if (!snap) {
+			return;
+		}
 		snap->epd = epd;
 		snap->teacher_avatar = teacher_avatar;
 		snap->student_avatar = student_avatar;
@@ -774,9 +877,7 @@ struct FreeConversationApp::Impl {
 		}
 
 		const int avatar_w_left = snap->teacher_avatar.width > 0 ? snap->teacher_avatar.width : 24;
-		const int avatar_h_left = snap->teacher_avatar.height > 0 ? snap->teacher_avatar.height : 24;
 		const int avatar_w_right = snap->student_avatar.width > 0 ? snap->student_avatar.width : 24;
-		const int avatar_h_right = snap->student_avatar.height > 0 ? snap->student_avatar.height : 24;
 		const int text_left_teacher = style.padding + avatar_w_left + kAvatarGap;
 		const int student_avatar_x = screen_w - style.padding - avatar_w_right;
 		const int student_text_right = student_avatar_x - kAvatarGap;
@@ -859,7 +960,6 @@ MenuMeta FreeConversationApp::GetMenuMeta() const {
 
 void FreeConversationApp::OnEnter(AppContext &ctx) {
 	impl_->ctx = &ctx;
-	g_active_app = this;
 	impl_->recording = false;
 	impl_->last_state = AppService::GetInstance().GetDeviceState();
 	impl_->EnsureAvatarsLoaded();
@@ -870,7 +970,6 @@ void FreeConversationApp::OnEnter(AppContext &ctx) {
 void FreeConversationApp::OnExit(AppContext &ctx) {
 	(void)ctx;
 	impl_->RemoveDisplayHook();
-	g_active_app = nullptr;
 	impl_->ctx = nullptr;
 }
 
@@ -956,21 +1055,14 @@ void FreeConversationApp::OnTick(AppContext &ctx, uint32_t delta_ms) {
 	}
 }
 
+void FreeConversationApp::SetTranslator(std::shared_ptr<ConversationTranslator> translator) {
+	impl_->translator = std::move(translator);
+}
+
 void FreeConversationApp::OnChatMessage(const char* role, const char* content) {
-	if (!impl_->ctx || role == nullptr || content == nullptr) {
-		return;
-	}
-	if (std::strlen(content) == 0) {
-		return;
-	}
-	if (std::strcmp(role, "assistant") == 0) {
-		impl_->AddEntry(true, content);
-	} else if (std::strcmp(role, "user") == 0) {
-		impl_->AddEntry(false, content);
-	} else {
-		return;
-	}
-	impl_->Render(*impl_->ctx);
+	(void)role;
+	(void)content;
+	// Intentionally no-op: chat messages are handled via CustomEpdDisplay::ChatMessageListener.
 }
 
 std::unique_ptr<AppBase> MakeFreeConversationApp() {

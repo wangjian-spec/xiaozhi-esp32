@@ -62,6 +62,17 @@ CustomEpdDisplay::~CustomEpdDisplay() {
 	}
 }
 
+void CustomEpdDisplay::SetChatMessageListener(ChatMessageListener* listener) {
+	chat_listener_ = listener;
+}
+
+void CustomEpdDisplay::SetChatMessage(const char* role, const char* content) {
+	if (chat_listener_ != nullptr) {
+		chat_listener_->OnChatMessage(role, content);
+	}
+	Display::SetChatMessage(role, content);
+}
+
 bool CustomEpdDisplay::Lock(int timeout_ms) {
 	if (mutex_ == nullptr) {
 		return true;

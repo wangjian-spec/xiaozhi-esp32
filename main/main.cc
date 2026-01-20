@@ -20,6 +20,11 @@
 #include "eteacher/apps/scene_conversation/scene_conversation.h"
 #include "eteacher/apps/word_practice/word_practice.h"
 #include "eteacher/apps/calendar_schedule/calendar_schedule.h"
+#include "eteacher/apps/sd_file_mgr/sd_file_mgr.h"
+#include "eteacher/apps/daily_reading/daily_reading.h"
+#include "eteacher/apps/mission_game/mission_game.h"
+#include "eteacher/apps/txt_reader/txt_reader.h"
+#include "eteacher/apps/words_game/words_game.h"
 
 
 #define TAG "main"
@@ -41,11 +46,20 @@ extern "C" void app_main(void)
     // Initialize AppManager and register demo apps
     auto& app_mgr = AppManager::GetInstance();
     app_mgr.Init(board);
-    app_mgr.Register(MakeDeviceSettingApp());
-    app_mgr.Register(MakeFreeConversationApp());
-    app_mgr.Register(MakeSceneConversationApp());
+    
     app_mgr.Register(MakeWordPracticeApp());
+    app_mgr.Register(MakeSceneConversationApp());
+    app_mgr.Register(MakeFreeConversationApp());
+
     app_mgr.Register(MakeCalendarScheduleApp());
+ 
+    app_mgr.Register(MakeDailyReadingApp());
+
+    app_mgr.Register(MakeTxtReaderApp());
+    app_mgr.Register(MakeDeviceSettingApp());
+    app_mgr.Register(MakeMissionGameApp());
+    app_mgr.Register(MakeWordsGameApp());
+    app_mgr.Register(MakeSdFileMgrApp());
     app_mgr.FinalizeRegistration();
 
     // Initialize and run the application
