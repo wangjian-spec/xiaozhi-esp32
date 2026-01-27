@@ -162,10 +162,6 @@ void AppManager::Register(std::unique_ptr<AppBase> app)
     }
     apps_.push_back(std::move(app));
     EnsureSelectionValid();
-    if (menu_ready_)
-    {
-        RenderMenu();
-    }
 }
 
 void AppManager::FinalizeRegistration()
@@ -187,23 +183,17 @@ void AppManager::ShowMenu()
 void AppManager::SetMenuFooterText(std::string text)
 {
     menu_footer_text_ = std::move(text);
-    if (menu_ready_ && !running_)
-    {
-        RenderMenu();
-    }
 }
 
 void AppManager::HandleButton(const ButtonEvent &event)
 {
+// 如果没有上下文或没有 App，直接返回
     if (!ctx_ || apps_.empty())
     {
         return;
     }
 
-    const bool is_volume_event = (event.id == AppButton::VolumeUp || event.id == AppButton::VolumeDown);
-    const bool is_volume_refresh = is_volume_event &&
-                                   (event.action == ButtonAction::Click || event.action == ButtonAction::LongPress);
-
+// 如果有正在运行的 App，优先将按钮事件传递给它，如果按下 Select 键则退出当前 App
     if (running_)
     {
         if (event.id == AppButton::Select)
@@ -216,13 +206,11 @@ void AppManager::HandleButton(const ButtonEvent &event)
     }
 
     bool moved = false;
-
+// 如果没有正在运行的 App，则处理菜单导航
     switch (event.id)
     {
     case AppButton::Up:
-    case AppButton::VolumeUp:
     case AppButton::Down:
-    case AppButton::VolumeDown:
     case AppButton::Left:
     case AppButton::Right:
         if (menu_controller_.Move(event.id))
@@ -231,10 +219,6 @@ void AppManager::HandleButton(const ButtonEvent &event)
             ESP_LOGI(TAG, "Menu select %d/%d", selected_index_, static_cast<int>(apps_.size()));
             RenderMenu();
             moved = true;
-        }
-        if (!moved && is_volume_refresh)
-        {
-            RenderMenu();
         }
         break;
     case AppButton::Start:
@@ -260,6 +244,8 @@ void AppManager::RefreshMenu()
 
 void AppManager::Tick(uint32_t delta_ms)
 {
+    //更新上栏和下栏内容，检测间隔为1秒，当有时间，电量，WIFI变化时，刷新上栏和下栏（目前为整个菜单）
+    //此处代码需要检查，需要修改，确认是否重复刷新了
     if (running_ && ctx_)
     {
         running_->OnTick(*ctx_, delta_ms);

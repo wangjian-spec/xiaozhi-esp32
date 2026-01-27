@@ -1,0 +1,1 @@
+1.通过MCP_SERVER添加用于修改服务器role system的 jason字段

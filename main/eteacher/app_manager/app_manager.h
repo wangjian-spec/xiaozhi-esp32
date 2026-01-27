@@ -21,7 +21,7 @@ public:
     // 所有 App 注册完成后调用，刷新主菜单一次。
     void FinalizeRegistration();
 
-    // 绘制菜单。
+    // 绘制菜单。退出 App 时调用。
     void ShowMenu();
 
     // 设置主菜单底栏提示文字。

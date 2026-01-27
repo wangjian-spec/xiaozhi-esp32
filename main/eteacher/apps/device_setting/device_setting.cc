@@ -1,728 +1,387 @@
-#include "device_setting.h"
-
-#include "display.h"
-#include "ota.h"
-#include "settings.h"
-#include "assets/lang_config.h"
-
-#include "eteacher/epd_manager/epd_manager.h"
+#include "eteacher/app_manager/app_base.h"
+#include "eteacher/app_service/tool/tabs.h"
+#include "eteacher/app_service/tool/soft_keyboard.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/epd_manager/epd_manager.h"
 
-#include <esp_log.h>
-#include <esp_err.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-
-#include <qrcode.h>
-#include <wifi_manager.h>
-
-#include <algorithm>
-#include <string>
 #include <vector>
+#include <string>
+#include <algorithm>
+#include <memory>
+#include <cstddef>
 
-static const char *TAG = "DeviceSettingApp";
+using namespace eteacher;
 
-namespace {
-
-static constexpr const char *kTitle = "Settings";
-
-struct MenuItem {
-    const char *key;
-    const char *title;
-};
-
-static constexpr MenuItem kItems[] = {
-    {"wifi", "WiFi 配置"},
-    {"language", "语言设置"},
-    {"ota", "OTA"},
-};
-
-static constexpr int kItemCount = static_cast<int>(sizeof(kItems) / sizeof(kItems[0]));
-
-struct MenuDrawCtx {
-    CustomEpdDisplay *epd;
-    int selected_index;
-    std::vector<std::string> rows;
-};
-
-void DrawMenuCb(Adafruit_GFX &gfx, void *ctx)
-{
-    auto *m = static_cast<MenuDrawCtx *>(ctx);
-    if (!m || !m->epd)
-    {
-        return;
-    }
-
-    (void)gfx;
-
-    const int16_t x = 8;
-    int16_t baseline_y = 20;
-    m->epd->DrawUtf8(x, baseline_y, kTitle, "wenquanyi_11pt", GxEPD_BLACK);
-    baseline_y += 22;
-
-    for (size_t i = 0; i < m->rows.size(); ++i)
-    {
-        if (baseline_y > m->epd->height() - 16)
-        {
-            break;
-        }
-        std::string row = (static_cast<int>(i) == m->selected_index) ? "> " : "  ";
-        row += m->rows[i];
-        m->epd->DrawUtf8(x, baseline_y, row, "wenquanyi_11pt", GxEPD_BLACK);
-        baseline_y += 20;
-    }
-}
-
-void DeleteMenuCtx(void *ctx)
-{
-    delete static_cast<MenuDrawCtx *>(ctx);
-}
-
-struct QrDrawCtx {
-    Adafruit_GFX *gfx;
-    int16_t x;
-    int16_t y;
-    int16_t w;
-    int16_t h;
-};
-
-static QrDrawCtx *g_qr_draw_ctx = nullptr;
-
-class QrDrawCtxGuard {
+class DeviceSettingApp : public AppBase {
 public:
-    explicit QrDrawCtxGuard(QrDrawCtx *ctx) { g_qr_draw_ctx = ctx; }
-    ~QrDrawCtxGuard() { g_qr_draw_ctx = nullptr; }
-    QrDrawCtxGuard(const QrDrawCtxGuard &) = delete;
-    QrDrawCtxGuard &operator=(const QrDrawCtxGuard &) = delete;
-};
-
-void DrawQrToGfx(esp_qrcode_handle_t qrcode)
-{
-    auto *d = g_qr_draw_ctx;
-    if (!d || !d->gfx)
-    {
-        return;
+    MenuMeta GetMenuMeta() const override {
+        return MenuMeta{"device_setting", "系统设置 - WIFI", "方向键/ABCD"};
     }
 
-    const int size = esp_qrcode_get_size(qrcode);
-    const int border = 2;
-    const int total = size + border * 2;
-
-    int scale = std::min(d->w / total, d->h / total);
-    if (scale < 1)
-    {
-        scale = 1;
+    eteacher::layout::LayoutTemplate Template() const override {
+        return mode_ == Mode::kEnteringCredentials
+                   ? eteacher::layout::LayoutTemplate::InputKeyboard()
+                   : eteacher::layout::LayoutTemplate::FocusContent();
     }
 
-    const int qr_w = total * scale;
-    const int qr_h = total * scale;
-    const int start_x = d->x + (d->w - qr_w) / 2;
-    const int start_y = d->y + (d->h - qr_h) / 2;
+    void OnEnter(AppContext &ctx) override {
+        board_ = &ctx.board;
+        auto *epd = dynamic_cast<CustomEpdDisplay *>(board_->GetDisplay());
+        if (!epd) {
+            ctx.board.GetDisplay()->SetChatMessage("system", "EPD unavailable");
+            return;
+        }
 
-    // White background
-    d->gfx->fillRect(start_x, start_y, qr_w, qr_h, GxEPD_WHITE);
+        // sample data (in real implementation replace with actual WiFi scan/load)
+        scanned_ = {"AP_home", "AP_guest", "MyPhoneHotspot"};
+        saved_ = {"AP_saved"};
+        current_connected_.clear();
 
-    for (int y = 0; y < size; ++y)
-    {
-        for (int x = 0; x < size; ++x)
-        {
-            if (esp_qrcode_get_module(qrcode, x, y))
-            {
-                const int px = start_x + (x + border) * scale;
-                const int py = start_y + (y + border) * scale;
-                d->gfx->fillRect(px, py, scale, scale, GxEPD_BLACK);
+        // configure tabs: 1 row x 2 cols (布局会在 UpdateLayout 中更新位置与尺寸)
+        TabConfig cfg;
+        cfg.rows = 1;
+        cfg.cols = 2;
+        cfg.option_area_height = 40;
+        cfg.width = epd->width();
+        cfg.height = epd->height();
+        tabs_ = std::make_unique<TabView>(cfg);
+
+        std::vector<TabItem> items;
+        items.push_back(TabItem{"添加/扫描", []() {}});
+        items.push_back(TabItem{"已保存/状态", []() {}});
+        tabs_->SetItems(items);
+        tabs_->Show(epd, 0, 0, epd->width(), epd->height());
+
+        left_index_ = 0;
+        right_index_ = 0;
+        mode_ = Mode::kListing;
+
+        UpdateLayout(epd);
+        RenderPropertyArea();
+    }
+
+    void OnExit(AppContext &ctx) override {
+        if (tabs_) tabs_->Close();
+        if (skb_.IsVisible()) skb_.CloseKeyboard();
+        ctx.board.GetDisplay()->SetChatMessage("system", "");
+    }
+
+    void OnButton(AppContext &ctx, const ButtonEvent &event) override {
+        if (!board_) return;
+        auto *epd = dynamic_cast<CustomEpdDisplay *>(board_->GetDisplay());
+        if (!epd) return;
+
+        bool consumed = false;
+        if (tabs_ && tabs_->HandleButton(event, &consumed)) {
+            // Tab navigation consumed (entering/exiting property view)
+            // If entered property view, render property area.
+            RenderPropertyArea();
+            return;
+        }
+
+        // If soft keyboard visible, forward key events to it first.
+        if (skb_.IsVisible()) {
+            std::string out;
+            bool sk_consumed = false;
+            bool confirmed = skb_.HandleButton(event, out, &sk_consumed);
+            if (confirmed) {
+                // character confirmed
+                if (!out.empty()) {
+                    entering_password_ += out;
+                }
             }
-        }
-    }
-}
 
-struct WifiQrDrawCtx {
-    CustomEpdDisplay *epd;
-    std::string ssid;
-    std::string url;
-    std::string qr_text;
-};
-
-struct WifiStatusDrawCtx {
-    CustomEpdDisplay *epd;
-    std::string ssid;
-    std::string ip;
-};
-
-void DrawWifiQrCb(Adafruit_GFX &gfx, void *ctx)
-{
-    auto *w = static_cast<WifiQrDrawCtx *>(ctx);
-    if (!w || !w->epd)
-    {
-        return;
-    }
-
-    // Clear
-    gfx.fillScreen(GxEPD_WHITE);
-
-    // Title and hints
-    const int16_t x = 8;
-    int16_t baseline_y = 20;
-    w->epd->DrawUtf8(x, baseline_y, "WiFi 配网", "wenquanyi_11pt", GxEPD_BLACK);
-    baseline_y += 20;
-
-    std::string line1 = "热点: " + w->ssid;
-    w->epd->DrawUtf8(x, baseline_y, line1, "wenquanyi_11pt", GxEPD_BLACK);
-    baseline_y += 18;
-
-    std::string line2 = "浏览器: " + w->url;
-    w->epd->DrawUtf8(x, baseline_y, line2, "wenquanyi_11pt", GxEPD_BLACK);
-
-    // QR area (right side)
-    QrDrawCtx qctx{
-        .gfx = &gfx,
-        .x = static_cast<int16_t>(w->epd->width() - 210),
-        .y = 60,
-        .w = 200,
-        .h = 200,
-    };
-
-    QrDrawCtxGuard guard(&qctx);
-
-    esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
-    cfg.display_func = &DrawQrToGfx;
-    cfg.max_qrcode_version = 10;
-    cfg.qrcode_ecc_level = ESP_QRCODE_ECC_MED;
-
-    esp_err_t err = esp_qrcode_generate(&cfg, w->qr_text.c_str());
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "esp_qrcode_generate failed: %s", esp_err_to_name(err));
-        std::string err_line = "QR 生成失败: " + std::to_string(err);
-        w->epd->DrawUtf8(x, 290, err_line, "wenquanyi_11pt", GxEPD_BLACK);
-    }
-    else
-    {
-        w->epd->DrawUtf8(x, 290, "扫码连接热点后打开上面网址", "wenquanyi_11pt", GxEPD_BLACK);
-    }
-}
-
-void DeleteWifiQrCtx(void *ctx)
-{
-    delete static_cast<WifiQrDrawCtx *>(ctx);
-}
-
-void DrawWifiStatusCb(Adafruit_GFX &gfx, void *ctx)
-{
-    auto *w = static_cast<WifiStatusDrawCtx *>(ctx);
-    if (!w || !w->epd)
-    {
-        return;
-    }
-
-    gfx.fillScreen(GxEPD_WHITE);
-
-    const int16_t x = 8;
-    int16_t baseline_y = 20;
-    w->epd->DrawUtf8(x, baseline_y, "WiFi 已连接", "wenquanyi_11pt", GxEPD_BLACK);
-    baseline_y += 22;
-
-    std::string line1 = "SSID: " + (w->ssid.empty() ? std::string("-") : w->ssid);
-    w->epd->DrawUtf8(x, baseline_y, line1, "wenquanyi_11pt", GxEPD_BLACK);
-    baseline_y += 20;
-
-    if (!w->ip.empty())
-    {
-        std::string line2 = "IP: " + w->ip;
-        w->epd->DrawUtf8(x, baseline_y, line2, "wenquanyi_11pt", GxEPD_BLACK);
-        baseline_y += 20;
-    }
-
-    w->epd->DrawUtf8(x, 290, "Select 切换网络 / 长按Select 返回菜单", "wenquanyi_11pt", GxEPD_BLACK);
-}
-
-void DeleteWifiStatusCtx(void *ctx)
-{
-    delete static_cast<WifiStatusDrawCtx *>(ctx);
-}
-
-struct OtaDrawCtx {
-    CustomEpdDisplay *epd;
-    std::string status;
-    std::string current_version;
-    bool has_new_version;
-    std::string new_version;
-    std::string url;
-};
-
-void DrawOtaCb(Adafruit_GFX &gfx, void *ctx)
-{
-    auto *o = static_cast<OtaDrawCtx *>(ctx);
-    if (!o || !o->epd)
-    {
-        return;
-    }
-
-    gfx.fillScreen(GxEPD_WHITE);
-    o->epd->DrawUtf8(8, 20, "OTA", "wenquanyi_11pt", GxEPD_BLACK);
-    o->epd->DrawUtf8(8, 44, o->status.empty() ? "..." : o->status, "wenquanyi_11pt", GxEPD_BLACK);
-
-    int16_t y = 70;
-    if (!o->current_version.empty())
-    {
-        o->epd->DrawUtf8(8, y, std::string("当前: ") + o->current_version, "wenquanyi_11pt", GxEPD_BLACK);
-        y += 22;
-    }
-    if (o->has_new_version)
-    {
-        o->epd->DrawUtf8(8, y, std::string("新版本: ") + o->new_version, "wenquanyi_11pt", GxEPD_BLACK);
-        y += 22;
-        o->epd->DrawUtf8(8, y, std::string("URL: ") + o->url, "wenquanyi_11pt", GxEPD_BLACK);
-    }
-
-    o->epd->DrawUtf8(8, 290, "Start 返回菜单 / Select 退出 app", "wenquanyi_11pt", GxEPD_BLACK);
-}
-
-void DeleteOtaCtx(void *ctx)
-{
-    delete static_cast<OtaDrawCtx *>(ctx);
-}
-
-} // namespace
-
-DeviceSettingApp::DeviceSettingApp() = default;
-
-MenuMeta DeviceSettingApp::GetMenuMeta() const
-{
-    return MenuMeta{"device_setting", "系统设置", "WiFi / Language / OTA"};
-}
-
-void DeviceSettingApp::OnEnter(AppContext &ctx)
-{
-    selected_index_ = 0;
-    view_ = View::kMenu;
-    last_wifi_config_mode_ = false;
-    ota_ = OtaUiState{};
-    Render(ctx);
-}
-
-void DeviceSettingApp::OnExit(AppContext &ctx)
-{
-    (void)ctx;
-}
-
-void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event)
-{
-    if (view_ == View::kWifiQr)
-    {
-        if (event.id == AppButton::Start)
-        {
-            view_ = View::kMenu;
-            Render(ctx);
-        }
-        return;
-    }
-
-    if (view_ == View::kWifiStatus)
-    {
-        if (event.id == AppButton::Start)
-        {
-            if (event.action == ButtonAction::LongPress)
-            {
-                view_ = View::kMenu;
-                Render(ctx);
+            bool need_render = confirmed;
+            if (skb_.ConsumeStateChanged()) {
+                need_render = true;
             }
-            else
-            {
-                EnterWifiQr(ctx, true);
+            if (need_render) {
+                RenderPasswordEntry(epd);
             }
-        }
-        return;
-    }
 
-    if (view_ == View::kOta)
-    {
-        if (event.id == AppButton::Start)
-        {
-            view_ = View::kMenu;
-            Render(ctx);
-        }
-        return;
-    }
+            if (confirmed || sk_consumed) return;
 
-    if (event.id == AppButton::Up)
-    {
-        selected_index_ = (selected_index_ - 1 + kItemCount) % kItemCount;
-        Render(ctx);
-        return;
-    }
-
-    if (event.id == AppButton::Down)
-    {
-        selected_index_ = (selected_index_ + 1) % kItemCount;
-        Render(ctx);
-        return;
-    }
-
-    if (event.id == AppButton::Start)
-    {
-        switch (selected_index_)
-        {
-        case 0:
-            EnterWifiQr(ctx, false);
-            break;
-        case 1:
-            CycleLanguage(ctx);
-            break;
-        case 2:
-            EnterOta(ctx);
-            break;
-        default:
-            break;
-        }
-    }
-}
-
-void DeviceSettingApp::OnTick(AppContext &ctx, uint32_t /*delta_ms*/)
-{
-    if (view_ == View::kWifiQr)
-    {
-        auto &wifi = WifiManager::GetInstance();
-        bool now = wifi.IsConfigMode();
-        if (now != last_wifi_config_mode_)
-        {
-            last_wifi_config_mode_ = now;
-            RenderWifiQr(ctx);
-        }
-
-        if (!wifi.IsConfigMode() && wifi.IsConnected())
-        {
-            view_ = View::kWifiStatus;
-            RenderWifiStatus(ctx);
-        }
-        else if (!wifi.IsConnected() && !wifi.IsConfigMode())
-        {
-            EnterWifiQr(ctx, false);
-        }
-        return;
-    }
-
-    if (view_ == View::kWifiStatus)
-    {
-        auto &wifi = WifiManager::GetInstance();
-        if (!wifi.IsConnected())
-        {
-            EnterWifiQr(ctx, false);
-        }
-    }
-}
-
-void DeviceSettingApp::Render(AppContext &ctx)
-{
-    switch (view_)
-    {
-    case View::kMenu:
-        RenderMenu(ctx);
-        break;
-    case View::kWifiStatus:
-        RenderWifiStatus(ctx);
-        break;
-    case View::kWifiQr:
-        RenderWifiQr(ctx);
-        break;
-    case View::kOta:
-        RenderOta(ctx);
-        break;
-    }
-}
-
-void DeviceSettingApp::RenderMenu(AppContext &ctx)
-{
-    Settings settings("wifi", false);
-    std::string lang = settings.GetString("language", "");
-    if (lang.empty())
-    {
-        lang = Lang::CODE;
-    }
-
-    std::vector<std::string> rows;
-    rows.reserve(kItemCount);
-    for (const auto &it : kItems)
-    {
-        if (std::string(it.key) == "language")
-        {
-            rows.push_back(std::string(it.title) + " (" + lang + ")");
-        }
-        else
-        {
-            rows.push_back(it.title);
-        }
-    }
-
-    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx.board.GetDisplay()))
-    {
-        auto *m = new MenuDrawCtx();
-        m->epd = epd;
-        m->selected_index = selected_index_;
-        m->rows = std::move(rows);
-
-        EpdManager::GetInstance().Schedule(
-            EpdManager::TaskType::kPartial,
-            &DrawMenuCb,
-            m,
-            &DeleteMenuCtx,
-            EpdManager::Rect(0, 0, epd->width(), epd->height()));
-        return;
-    }
-
-    auto display = ctx.board.GetDisplay();
-    std::string msg = "Settings:\n";
-    for (size_t i = 0; i < rows.size(); ++i)
-    {
-        msg += (static_cast<int>(i) == selected_index_) ? "> " : "  ";
-        msg += rows[i];
-        if (i + 1 < rows.size())
-        {
-            msg += "\n";
-        }
-    }
-    msg += "\nStart to enter, Select to exit";
-    display->SetChatMessage("system", msg.c_str());
-}
-
-void DeviceSettingApp::EnterWifiQr(AppContext &ctx, bool force_config)
-{
-#if CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
-    auto &wifi = WifiManager::GetInstance();
-    if (!force_config && wifi.IsConnected() && !wifi.IsConfigMode())
-    {
-        view_ = View::kWifiStatus;
-        RenderWifiStatus(ctx);
-        return;
-    }
-
-    wifi.StartConfigAp();
-    last_wifi_config_mode_ = wifi.IsConfigMode();
-    view_ = View::kWifiQr;
-    Render(ctx);
-#else
-    ctx.board.GetDisplay()->SetChatMessage("system", "当前固件未启用热点配网 (CONFIG_USE_HOTSPOT_WIFI_PROVISIONING)");
-#endif
-}
-
-void DeviceSettingApp::RenderWifiStatus(AppContext &ctx)
-{
-    auto &wifi = WifiManager::GetInstance();
-    std::string ssid = wifi.GetSsid();
-    std::string ip = wifi.GetIpAddress();
-
-    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx.board.GetDisplay()))
-    {
-        auto *w = new WifiStatusDrawCtx();
-        w->epd = epd;
-        w->ssid = std::move(ssid);
-        w->ip = std::move(ip);
-
-        EpdManager::GetInstance().Schedule(
-            EpdManager::TaskType::kPartial,
-            &DrawWifiStatusCb,
-            w,
-            &DeleteWifiStatusCtx,
-            EpdManager::Rect(0, 0, epd->width(), epd->height()));
-        return;
-    }
-
-    std::string msg = "WiFi 已连接\n";
-    msg += "SSID: " + (ssid.empty() ? std::string("-") : ssid) + "\n";
-    if (!ip.empty())
-    {
-        msg += "IP: " + ip + "\n";
-    }
-    msg += "Select 切换网络 (长按Select 返回菜单)";
-    ctx.board.GetDisplay()->SetChatMessage("system", msg.c_str());
-}
-
-void DeviceSettingApp::RenderWifiQr(AppContext &ctx)
-{
-#if CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
-    auto &wifi = WifiManager::GetInstance();
-    std::string ssid = wifi.GetApSsid();
-    std::string url = wifi.GetApWebUrl();
-
-    // WiFi QR (open hotspot): scanning prompts phone to join the device AP.
-    // After joining, most phones will open captive portal automatically; otherwise open the URL manually.
-    std::string qr_text = "WIFI:T:nopass;S:" + ssid + ";;";
-
-
-
-    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx.board.GetDisplay()))
-    {
-        auto *w = new WifiQrDrawCtx();
-        w->epd = epd;
-        w->ssid = std::move(ssid);
-        w->url = std::move(url);
-        w->qr_text = std::move(qr_text);
-
-        EpdManager::GetInstance().Schedule(
-            EpdManager::TaskType::kPartial,
-            &DrawWifiQrCb,
-            w,
-            &DeleteWifiQrCtx,
-            EpdManager::Rect(0, 0, epd->width(), epd->height()));
-        return;
-    }
-
-    std::string msg = "WiFi 配网\n";
-    msg += "热点: " + ssid + "\n";
-    msg += "浏览器: " + url + "\n";
-    msg += "(EPD 不可用，无法显示二维码)";
-    ctx.board.GetDisplay()->SetChatMessage("system", msg.c_str());
-#else
-    (void)ctx;
-#endif
-}
-
-void DeviceSettingApp::CycleLanguage(AppContext &ctx)
-{
-    static const char *kLangs[] = {"zh-CN", "en-US", "ja-JP"};
-    static constexpr int kLangCount = static_cast<int>(sizeof(kLangs) / sizeof(kLangs[0]));
-
-    Settings settings_ro("wifi", false);
-    std::string cur = settings_ro.GetString("language", "");
-    if (cur.empty())
-    {
-        cur = Lang::CODE;
-    }
-
-    int idx = 0;
-    for (int i = 0; i < kLangCount; ++i)
-    {
-        if (cur == kLangs[i])
-        {
-            idx = i;
-            break;
-        }
-    }
-
-    const int next = (idx + 1) % kLangCount;
-
-    Settings settings("wifi", true);
-    settings.SetString("language", kLangs[next]);
-
-    std::string msg = "语言已设置为: ";
-    msg += kLangs[next];
-    msg += " (重启后生效)";
-    ctx.board.GetDisplay()->ShowNotification(msg, 3000);
-    RenderMenu(ctx);
-}
-
-void DeviceSettingApp::EnterOta(AppContext &ctx)
-{
-    view_ = View::kOta;
-    ota_ = OtaUiState{};
-    ota_.status_line = "Checking update...";
-    RenderOta(ctx);
-
-    // Run OTA check in background to avoid blocking button task.
-    xTaskCreate(
-        [](void *arg) {
-            auto *app = static_cast<DeviceSettingApp *>(arg);
-            if (!app)
-            {
-                vTaskDelete(nullptr);
+            // confirm (C) to submit password
+            if (event.action == ButtonAction::Click && event.id == AppButton::C) {
+                // pretend to connect: success
+                current_connected_ = editing_ssid_;
+                if (std::find(saved_.begin(), saved_.end(), editing_ssid_) == saved_.end()) {
+                    saved_.push_back(editing_ssid_);
+                }
+                skb_.CloseKeyboard();
+                skb_.ConsumeStateChanged();
+                mode_ = Mode::kListing;
+                UpdateLayout(epd);
+                RenderPropertyArea();
                 return;
             }
+        }
 
-            app->ota_.task_running = true;
-
-            Ota ota;
-            esp_err_t err = ota.CheckVersion();
-            app->ota_.check_done = true;
-            app->ota_.task_running = false;
-
-            if (err != ESP_OK)
-            {
-                app->ota_.status_line = std::string("Check failed: ") + esp_err_to_name(err);
-            }
-            else
-            {
-                app->ota_.current_version = ota.GetCurrentVersion();
-                app->ota_.has_new_version = ota.HasNewVersion();
-                if (ota.HasNewVersion())
-                {
-                    app->ota_.new_version = ota.GetFirmwareVersion();
-                    app->ota_.url = ota.GetFirmwareUrl();
-                    app->ota_.status_line = "发现新版本 (Select 返回)";
+        // If property view is showing, handle internal navigation and actions.
+        if (tabs_ && tabs_->IsShowingProperties()) {
+            int sel = tabs_->SelectedIndex();
+            if (event.action == ButtonAction::Click) {
+                if (event.id == AppButton::Up) {
+                    if (sel == 0) { // left: Add/Scanned
+                        if (left_index_ > 0) --left_index_; else left_index_ = (int)scanned_.size();
+                    } else { // right: saved/current
+                        if (right_index_ > 0) --right_index_;
+                    }
+                    RenderPropertyArea();
+                    return;
                 }
-                else
-                {
-                    app->ota_.status_line = "已是最新版本 (Select 返回)";
+                if (event.id == AppButton::Down) {
+                    if (sel == 0) {
+                        // left_index_ == 0 means "Add WiFi", following entries are scanned_
+                        ++left_index_;
+                        if (left_index_ > (int)scanned_.size()) left_index_ = 0;
+                    } else {
+                        ++right_index_;
+                        if (right_index_ >= (int)saved_.size()) right_index_ = (int)saved_.size() - 1;
+                    }
+                    RenderPropertyArea();
+                    return;
+                }
+                if (event.id == AppButton::B) {
+                    // If on right panel (saved networks), B deletes the selected network.
+                    if (sel == 1) {
+                        if (!saved_.empty() && right_index_ >= 0 && right_index_ < (int)saved_.size()) {
+                            saved_.erase(saved_.begin() + right_index_);
+                            if (right_index_ >= (int)saved_.size()) right_index_ = std::max(0, (int)saved_.size() - 1);
+                            RenderPropertyArea();
+                        }
+                        return;
+                    }
+                    // Otherwise, B exits property view
+                    tabs_->Back();
+                    RenderPropertyArea();
+                    return;
+                }
+                if (event.id == AppButton::C) {
+                    // Confirm inside property view
+                    if (sel == 0) {
+                        // left: index 0 -> Add WiFi, else scanned list
+                        if (left_index_ == 0) {
+                            // Enter manual add (ask SSID then password) - for brevity we'll treat as manual password entry
+                            editing_ssid_.clear();
+                            entering_password_.clear();
+                            mode_ = Mode::kEnteringCredentials;
+                            UpdateLayout(epd);
+                            // show keyboard for password input (按 Secondary 区域布局)
+                            ShowKeyboardInSecondary(epd);
+                            skb_.ConsumeStateChanged();
+                        } else {
+                            // scanned entry selected. left_index_ - 1 maps into scanned_
+                            int idx = left_index_ - 1;
+                            if (idx >= 0 && idx < (int)scanned_.size()) {
+                                editing_ssid_ = scanned_[idx];
+                                entering_password_.clear();
+                                mode_ = Mode::kEnteringCredentials;
+                                UpdateLayout(epd);
+                                ShowKeyboardInSecondary(epd);
+                                skb_.ConsumeStateChanged();
+                            }
+                        }
+                        RenderPropertyArea();
+                        return;
+                    } else {
+                        // right side: select saved network -> connect
+                        if (!saved_.empty() && right_index_ >= 0 && right_index_ < (int)saved_.size()) {
+                            editing_ssid_ = saved_[right_index_];
+                            // simulate connect
+                            current_connected_ = editing_ssid_;
+                            RenderPropertyArea();
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+private:
+    enum class Mode { kListing, kEnteringCredentials };
+
+    Board* board_ = nullptr;
+    std::unique_ptr<TabView> tabs_;
+    SoftKeyboard skb_;
+
+    std::vector<std::string> scanned_;
+    std::vector<std::string> saved_;
+    std::string current_connected_;
+
+    int left_index_ = 0;  // 0 == Add WiFi, 1..N = scanned list
+    int right_index_ = 0; // index into saved_
+
+    Mode mode_ = Mode::kListing;
+    std::string editing_ssid_;
+    std::string entering_password_;
+
+    eteacher::layout::LayoutParams layout_params_{};
+    eteacher::layout::LayoutResult layout_result_{};
+
+    void RenderPropertyArea() {
+        if (!board_) return;
+        auto *epd = dynamic_cast<CustomEpdDisplay *>(board_->GetDisplay());
+        if (!epd) return;
+
+        struct DrawCtx {
+            CustomEpdDisplay *epd;
+            TabView* tabs;
+            SoftKeyboard* keyboard;
+            std::vector<std::string> scanned;
+            std::vector<std::string> saved;
+            std::string current;
+            int left_index;
+            int right_index;
+            Mode mode;
+            std::string editing_ssid;
+            std::string entering_password;
+            eteacher::layout::LayoutResult layout;
+        };
+
+        auto *ctx = new DrawCtx{epd, tabs_.get(), &skb_, scanned_, saved_, current_connected_, left_index_, right_index_, mode_, editing_ssid_, entering_password_, layout_result_};
+
+        auto cb = [](Adafruit_GFX &gfx, void *v) {
+            auto *d = static_cast<DrawCtx *>(v);
+            if (!d || !d->epd) return;
+            gfx.fillRect(d->epd->width() > 0 ? 0 : 0, d->epd->height() > 0 ? 0 : 0, d->epd->width(), d->epd->height(), GxEPD_WHITE);
+
+            const auto *header = d->layout.Find({eteacher::layout::RegionType::Header, 0});
+            const auto *primary = d->layout.Find({eteacher::layout::RegionType::Primary, 0});
+            const auto *secondary = d->layout.Find({eteacher::layout::RegionType::Secondary, 0});
+            const auto *footer = d->layout.Find({eteacher::layout::RegionType::Footer, 0});
+
+            if (d->tabs && header && !header->rect.IsEmpty()) {
+                d->tabs->Draw(gfx);
+                int16_t title_x = static_cast<int16_t>(header->rect.x + 6);
+                int16_t title_y = static_cast<int16_t>(header->rect.y + header->rect.h - 6);
+                d->epd->DrawUtf8(title_x, title_y, "WIFI 设置", "wenquanyi_11pt", GxEPD_BLACK);
+            }
+
+            if (primary && !primary->rect.IsEmpty()) {
+                const int padding = 6;
+                int content_x = primary->rect.x + padding;
+                int content_y = primary->rect.y + padding + 10;
+                int content_w = primary->rect.w - padding * 2;
+
+                if (d->mode == Mode::kEnteringCredentials) {
+                    d->epd->DrawUtf8(content_x, content_y, ("SSID: " + d->editing_ssid).c_str(), "wenquanyi_9pt", GxEPD_BLACK);
+                    d->epd->DrawUtf8(content_x, content_y + 16, ("密码: " + d->entering_password).c_str(), "wenquanyi_9pt", GxEPD_BLACK);
+                    d->epd->DrawUtf8(content_x, content_y + 36, "C 确认连接  B 返回", "wenquanyi_9pt", GxEPD_BLACK);
+                } else {
+                    int left_w = content_w / 2;
+                    int right_w = content_w - left_w;
+                    int left_x = content_x;
+                    int right_x = content_x + left_w + 6;
+
+                    int ly = content_y;
+                    d->epd->DrawUtf8(left_x, ly, "左: 添加/扫描", "wenquanyi_9pt", GxEPD_BLACK);
+                    ly += 14;
+                    int list_x = left_x;
+                    if (d->left_index == 0) {
+                        gfx.fillRect(list_x - 2, ly - 2, left_w - 8, 16, GxEPD_BLACK);
+                        d->epd->DrawUtf8(list_x, ly + 10, "[添加WIFI]", "wenquanyi_9pt", GxEPD_WHITE);
+                    } else {
+                        d->epd->DrawUtf8(list_x, ly + 10, "[添加WIFI]", "wenquanyi_9pt", GxEPD_BLACK);
+                    }
+                    ly += 18;
+                    for (std::size_t i = 0; i < d->scanned.size(); ++i) {
+                        const bool sel = (d->left_index == (int)i + 1);
+                        if (sel) gfx.fillRect(list_x - 2, ly - 2, left_w - 6, 16, GxEPD_BLACK);
+                        d->epd->DrawUtf8(list_x, ly + 10, d->scanned[i].c_str(), "wenquanyi_9pt", sel ? GxEPD_WHITE : GxEPD_BLACK);
+                        ly += 16;
+                    }
+
+                    int ry = content_y;
+                    d->epd->DrawUtf8(right_x, ry, "右: 已保存 / 当前", "wenquanyi_9pt", GxEPD_BLACK);
+                    ry += 14;
+                    std::string conn = d->current.empty() ? "未连接" : std::string("连接: ") + d->current;
+                    d->epd->DrawUtf8(right_x, ry + 10, conn.c_str(), "wenquanyi_9pt", GxEPD_BLACK);
+                    ry += 18;
+                    for (std::size_t i = 0; i < d->saved.size(); ++i) {
+                        const bool sel = (d->right_index == (int)i);
+                        if (sel) gfx.fillRect(right_x - 2, ry - 2, right_w - 6, 16, GxEPD_BLACK);
+                        d->epd->DrawUtf8(right_x, ry + 10, d->saved[i].c_str(), "wenquanyi_9pt", sel ? GxEPD_WHITE : GxEPD_BLACK);
+                        ry += 16;
+                    }
                 }
             }
 
-            // Refresh OTA screen if still on OTA view (best-effort).
-            // Avoid calling app methods that need AppContext; schedule draw directly.
-            if (auto *epd = dynamic_cast<CustomEpdDisplay *>(Board::GetInstance().GetDisplay()))
-            {
-                auto *o = new OtaDrawCtx();
-                o->epd = epd;
-                o->status = app->ota_.status_line;
-                o->current_version = app->ota_.current_version;
-                o->has_new_version = app->ota_.has_new_version;
-                o->new_version = app->ota_.new_version;
-                o->url = app->ota_.url;
-                EpdManager::GetInstance().Schedule(
-                    EpdManager::TaskType::kPartial,
-                    &DrawOtaCb,
-                    o,
-                    &DeleteOtaCtx,
-                    EpdManager::Rect(0, 0, epd->width(), epd->height()));
-            }
-            else
-            {
-                Board::GetInstance().GetDisplay()->SetChatMessage("system", app->ota_.status_line.c_str());
+            if (footer && !footer->rect.IsEmpty()) {
+                int fx = footer->rect.x + 6;
+                int fy = footer->rect.y + footer->rect.h - 6;
+                if (d->mode == Mode::kEnteringCredentials) {
+                    d->epd->DrawUtf8(fx, fy, "键盘区位于下方", "wenquanyi_9pt", GxEPD_BLACK);
+                } else {
+                    d->epd->DrawUtf8(fx, fy, "左右选择面板  上下选择网络  C 确认  B 返回", "wenquanyi_9pt", GxEPD_BLACK);
+                }
             }
 
-            vTaskDelete(nullptr);
-        },
-        "ota_check",
-        8192,
-        this,
-        2,
-        nullptr);
-}
+            if (secondary && d->keyboard && d->keyboard->IsVisible()) {
+                d->keyboard->Draw(gfx);
+            }
+        };
 
-void DeviceSettingApp::RenderOta(AppContext &ctx)
-{
-    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx.board.GetDisplay()))
-    {
-        auto *o = new OtaDrawCtx();
-        o->epd = epd;
-        o->status = ota_.status_line;
-        o->current_version = ota_.current_version;
-        o->has_new_version = ota_.has_new_version;
-        o->new_version = ota_.new_version;
-        o->url = ota_.url;
-
-        EpdManager::GetInstance().Schedule(
-            EpdManager::TaskType::kPartial,
-            &DrawOtaCb,
-            o,
-            &DeleteOtaCtx,
-            EpdManager::Rect(0, 0, epd->width(), epd->height()));
-        return;
+        EpdManager::GetInstance().Schedule(EpdManager::TaskType::kPartial, cb, ctx, [](void *v) {
+            delete static_cast<DrawCtx *>(v);
+        }, EpdManager::Rect(0, 0, epd->width(), epd->height()));
     }
 
-    std::string msg = "OTA\n";
-    msg += ota_.status_line.empty() ? "..." : ota_.status_line;
-    if (!ota_.current_version.empty())
-    {
-        msg += "\n当前: " + ota_.current_version;
+    void RenderPasswordEntry(CustomEpdDisplay *epd) {
+        RenderPropertyArea();
     }
-    if (ota_.has_new_version)
-    {
-        msg += "\n新版本: " + ota_.new_version;
-        msg += "\nURL: " + ota_.url;
-    }
-    ctx.board.GetDisplay()->SetChatMessage("system", msg.c_str());
-}
 
-std::unique_ptr<AppBase> MakeDeviceSettingApp()
-{
-    return std::make_unique<DeviceSettingApp>();
+    void UpdateLayout(CustomEpdDisplay *epd) {
+        if (!epd) {
+            return;
+        }
+        eteacher::layout::ScreenInfo screen;
+        screen.width = static_cast<int16_t>(epd->width());
+        screen.height = static_cast<int16_t>(epd->height());
+        screen.orientation = eteacher::layout::Orientation::Auto;
+
+        layout_params_ = eteacher::layout::LayoutParams{};
+        layout_params_.margin = {6, 6, 6, 6};
+        layout_params_.gap = 4;
+        layout_params_.header_height = eteacher::layout::SizeSpec::Px(36);
+        layout_params_.footer_height = eteacher::layout::SizeSpec::Px(20);
+        layout_params_.primary_count = 1;
+        layout_params_.secondary_count = (mode_ == Mode::kEnteringCredentials) ? 1 : 0;
+        layout_params_.secondary_height = eteacher::layout::SizeSpec::Percent(40);
+        layout_params_.partial_refresh_default = true;
+
+        layout_result_ = eteacher::layout::LayoutEngine::Compute(Template(), screen, layout_params_);
+
+        const auto *header = layout_result_.Find({eteacher::layout::RegionType::Header, 0});
+        if (tabs_ && header && !header->rect.IsEmpty()) {
+            TabConfig cfg;
+            cfg.rows = 1;
+            cfg.cols = 2;
+            cfg.option_area_height = header->rect.h;
+            cfg.width = header->rect.w;
+            cfg.height = header->rect.h;
+            cfg.x = header->rect.x;
+            cfg.y = header->rect.y;
+            tabs_->SetConfig(cfg);
+            tabs_->Show(epd, header->rect.x, header->rect.y, header->rect.w, header->rect.h);
+        }
+    }
+
+    void ShowKeyboardInSecondary(CustomEpdDisplay *epd) {
+        if (!epd) {
+            return;
+        }
+        const auto *secondary = layout_result_.Find({eteacher::layout::RegionType::Secondary, 0});
+        if (secondary && !secondary->rect.IsEmpty()) {
+            skb_.ShowKeyboard(epd, secondary->rect.x, secondary->rect.y, secondary->rect.w, secondary->rect.h);
+        } else {
+            skb_.ShowKeyboard(epd);
+        }
+    }
+};
+
+// Factory function used by the app manager elsewhere.
+std::unique_ptr<AppBase> MakeDeviceSettingApp() {
+    return std::unique_ptr<AppBase>(new DeviceSettingApp());
 }
