@@ -1,6 +1,6 @@
-#include "eteacher/app_manager/layout_engine.h"
+#include "eteacher/app_ui/layout_engine.h"
 
-namespace eteacher::layout {
+namespace eteacher::app_ui::layout {
 
 namespace {
 
@@ -370,4 +370,4 @@ LayoutResult LayoutEngine::Compute(const LayoutTemplate &layout,
     return result;
 }
 
-} // namespace eteacher::layout
+} // namespace eteacher::app_ui::layout

@@ -553,12 +553,13 @@ void SdFileMgrApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 	}
 }
 
-void SdFileMgrApp::OnTick(AppContext &ctx, uint32_t delta_ms) {
+void SdFileMgrApp::OnTick(AppContext &ctx) {
 	(void)ctx;
 	if (!active_) {
 		return;
 	}
-	tick_accum_ms_ += delta_ms;
+	// AppManager now drives a fixed 1s tick.
+	tick_accum_ms_ += 1000;
 	if (tick_accum_ms_ < 1000) {
 		return;
 	}

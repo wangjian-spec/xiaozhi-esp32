@@ -1,19 +1,23 @@
-#include "status_bar.h"
+#include "eteacher/app_ui/status_bar.h"
 
 #include <Adafruit_GFX.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <ctime>
 #include <cstring>
 #include <vector>
 
 #include "assets.h"
+#include "audio/audio_codec.h"
+#include "boards/common/board.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
-#include "eteacher/app_manager/menu.h"
 #include "eteacher/font_manager/font_manager.h"
 #include <esp_log.h>
 
-namespace eteacher::app_service::tool {
+
+namespace eteacher::app_ui {
 namespace {
 
 static constexpr char kTag[] = "StatusBar";
@@ -143,13 +147,101 @@ void DrawBatteryIcon(Adafruit_GFX& gfx, int16_t right_x, int16_t top_y, int16_t 
     }
 }
 
+std::string FormatTimeText() {
+    std::time_t now = std::time(nullptr);
+    if (now <= 0) {
+        return "----年--月--日 星期-  --:--";
+    }
+    std::tm local_tm{};
+    localtime_r(&now, &local_tm);
+    static const char* kWeekday[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
+    const char* weekday = "星期-";
+    if (local_tm.tm_wday >= 0 && local_tm.tm_wday < 7) {
+        weekday = kWeekday[local_tm.tm_wday];
+    }
+    char buf[64] = {0};
+    std::snprintf(buf,
+                  sizeof(buf),
+                  "%04d年%02d月%02d日 %s  %02d:%02d",
+                  local_tm.tm_year + 1900,
+                  local_tm.tm_mon + 1,
+                  local_tm.tm_mday,
+                  weekday,
+                  local_tm.tm_hour,
+                  local_tm.tm_min);
+    return std::string(buf);
+}
+
+int GetCurrentMinuteOfDay() {
+    std::time_t now = std::time(nullptr);
+    if (now <= 0) {
+        return -1;
+    }
+    std::tm local_tm{};
+    localtime_r(&now, &local_tm);
+    return local_tm.tm_hour * 60 + local_tm.tm_min;
+}
+
+std::string FormatBatteryText(Board &board) {
+    int level = 0;
+    bool charging = false;
+    bool discharging = false;
+    if (!board.GetBatteryLevel(level, charging, discharging)) {
+        return "--";
+    }
+    std::string text = std::to_string(level) + "%";
+    if (charging) {
+        text += "+";
+    }
+    return text;
+}
+
+int GetBatteryLevelPercent(Board &board) {
+    int level = 0;
+    bool charging = false;
+    bool discharging = false;
+    if (!board.GetBatteryLevel(level, charging, discharging)) {
+        return 50;
+    }
+    if (level < 0) return 0;
+    if (level > 100) return 100;
+    return level;
+}
+
+std::string FormatVolumeText(Board &board) {
+    auto* codec = board.GetAudioCodec();
+    if (!codec) {
+        return "--";
+    }
+    return std::to_string(codec->output_volume()) + "%";
+}
+
+bool CheckAndUpdateMenuStatus(Board &board, eteacher::app_menu::MenuStatus &last_status) {
+    const auto new_status = BuildMenuStatus(board);
+    // Compare the fields we care about for driving menu refreshes.
+    const bool time_changed = (new_status.time_text != last_status.time_text);
+    const bool wifi_changed = (new_status.wifi_connected != last_status.wifi_connected);
+    const bool battery_changed = (new_status.battery_level != last_status.battery_level);
+    const bool volume_changed = (new_status.volume_text != last_status.volume_text);
+
+    if (time_changed || wifi_changed || battery_changed || volume_changed) {
+        last_status = new_status;
+        return true;
+    }
+    return false;
+}
 
 void DrawTopBar(Adafruit_GFX& gfx,
                 CustomEpdDisplay* epd,
                 const eteacher::app_menu::MenuStyle& style,
                 const eteacher::app_menu::MenuStatus& status) {
     if (!epd) return;
+    // Screen dimensions
     const int16_t screen_w = static_cast<int16_t>(epd->width());
+    const int16_t screen_h = static_cast<int16_t>(epd->height());
+
+    // Draw outer screen rectangle frame
+    gfx.drawRect(0, 0, screen_w, screen_h, GxEPD_BLACK);
 
     const int16_t status_font_ascent = GetFontAscent(style.status_font);
     const int16_t status_font_height = GetFontHeight(style.status_font);
@@ -217,4 +309,13 @@ void DrawBottomBar(Adafruit_GFX& gfx, CustomEpdDisplay* epd, const eteacher::app
     }
 }
 
-} // namespace eteacher::app_service::tool
+void DrawTopBottomBars(Adafruit_GFX& gfx,
+                       CustomEpdDisplay* epd,
+                       const eteacher::app_menu::MenuStyle& style,
+                       const eteacher::app_menu::MenuStatus& status,
+                       std::string_view footer_text) {
+    DrawTopBar(gfx, epd, style, status);
+    DrawBottomBar(gfx, epd, style, footer_text);
+}
+
+} // namespace eteacher::app_ui

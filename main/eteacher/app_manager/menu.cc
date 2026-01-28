@@ -10,10 +10,10 @@
 #include <vector>
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/font_manager/font_manager.h"
-#include "eteacher/app_service/tool/status_bar.h"
+#include "eteacher/app_ui/status_bar.h"
 
 namespace eteacher::app_menu {
-using namespace eteacher::app_service::tool;
+using namespace eteacher::app_ui;
 
 void DrawSelectionRect(Adafruit_GFX& gfx, int16_t x, int16_t y, int16_t w, int16_t h, int16_t border) {
     if (w <= 0 || h <= 0 || border <= 0) return;
@@ -78,7 +78,7 @@ MenuLayout Menu::ComputeLayout(int16_t screen_w, int16_t screen_h, size_t /*item
 
     return layout;
 }
-
+// Draw the menu with given items and selection.
 void Menu::Draw(Adafruit_GFX& gfx,
                 CustomEpdDisplay* epd,
                 const std::vector<MenuItem>& items,
@@ -101,14 +101,8 @@ void Menu::Draw(Adafruit_GFX& gfx,
 
     const auto layout = ComputeLayout(screen_w, screen_h, items.size());
 
-    // Top bar (delegated)
-    eteacher::app_service::tool::DrawTopBar(gfx, epd, style_, status);
-
-    // 上栏分割线取消
-   // gfx.drawFastHLine(0, style_.top_height, screen_w, GxEPD_BLACK);
-    // 下栏分割线由 status_bar 模块绘制
-    // Bottom bar (delegated)
-    eteacher::app_service::tool::DrawBottomBar(gfx, epd, style_, footer_text);
+    // Top/Bottom bars (delegated)
+    eteacher::app_ui::DrawTopBottomBars(gfx, epd, style_, status, footer_text);
 
     // App grid
     if (items.empty()) {
@@ -179,7 +173,7 @@ void Menu::Draw(Adafruit_GFX& gfx,
         }
     }
 }
-
+//当菜单格局或项目数量发生变化时调用它，用来同步布局和项目计数
 void MenuController::SetLayout(MenuLayout layout, int item_count) {
     layout_ = layout;
     item_count_ = std::max(0, item_count);

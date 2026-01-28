@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
-#include <ctime>
 #include <deque>
 #include <string>
 #include <string_view>
@@ -17,10 +16,10 @@
 #include <esp_log.h>
 
 #include "assets.h"
-#include "audio/audio_codec.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/app_manager/app_manager.h"
 #include "eteacher/app_manager/menu.h"
+#include "eteacher/app_ui/status_bar.h"
 #include "eteacher/app_service/app_service.h"
 #include "eteacher/epd_manager/epd_manager.h"
 #include "eteacher/font_manager/font_manager.h"
@@ -240,77 +239,6 @@ std::string EscapeJson(const std::string& s) {
 		}
 	}
 	return out;
-}
-
-std::string FormatTimeText() {
-	std::time_t now = std::time(nullptr);
-	if (now <= 0) {
-		return "----年--月--日 星期-  --:--";
-	}
-	std::tm local_tm{};
-	localtime_r(&now, &local_tm);
-	static const char* kWeekday[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
-	const char* weekday = "星期-";
-	if (local_tm.tm_wday >= 0 && local_tm.tm_wday < 7) {
-		weekday = kWeekday[local_tm.tm_wday];
-	}
-	char buf[64] = {0};
-	std::snprintf(buf, sizeof(buf), "%04d年%02d月%02d日 %s  %02d:%02d",
-				  local_tm.tm_year + 1900,
-				  local_tm.tm_mon + 1,
-				  local_tm.tm_mday,
-				  weekday,
-				  local_tm.tm_hour,
-				  local_tm.tm_min);
-	return std::string(buf);
-}
-
-int GetCurrentMinuteOfDay() {
-	std::time_t now = std::time(nullptr);
-	if (now <= 0) {
-		return -1;
-	}
-	std::tm local_tm{};
-	localtime_r(&now, &local_tm);
-	return local_tm.tm_hour * 60 + local_tm.tm_min;
-}
-
-std::string FormatBatteryText(Board& board) {
-	int level = 0;
-	bool charging = false;
-	bool discharging = false;
-	if (!board.GetBatteryLevel(level, charging, discharging)) {
-		return "--";
-	}
-	std::string text = std::to_string(level) + "%";
-	if (charging) {
-		text += "+";
-	}
-	return text;
-}
-
-int GetBatteryLevelPercent(Board& board) {
-	int level = 0;
-	bool charging = false;
-	bool discharging = false;
-	if (!board.GetBatteryLevel(level, charging, discharging)) {
-		return 50;
-	}
-	if (level < 0) {
-		return 0;
-	}
-	if (level > 100) {
-		return 100;
-	}
-	return level;
-}
-
-std::string FormatVolumeText(Board& board) {
-	auto* codec = board.GetAudioCodec();
-	if (!codec) {
-		return "--";
-	}
-	return std::to_string(codec->output_volume()) + "%";
 }
 
 struct ConversationEntry {
@@ -693,13 +621,7 @@ struct FreeConversationApp::Impl : public CustomEpdDisplay::ChatMessageListener 
 	}
 
 	eteacher::app_menu::MenuStatus BuildStatus(AppContext& ctx) {
-		eteacher::app_menu::MenuStatus status;
-		status.time_text = FormatTimeText();
-		status.wifi_connected = WifiManager::GetInstance().IsConnected();
-		status.battery_text = FormatBatteryText(ctx.board);
-		status.battery_level = GetBatteryLevelPercent(ctx.board);
-		status.volume_text = FormatVolumeText(ctx.board);
-		return status;
+		return eteacher::app_ui::BuildMenuStatus(ctx.board);
 	}
 
 	void Render(AppContext& ctx) {
@@ -1023,8 +945,9 @@ void FreeConversationApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 	}
 }
 
-void FreeConversationApp::OnTick(AppContext &ctx, uint32_t delta_ms) {
-	impl_->tick_accum_ms += delta_ms;
+void FreeConversationApp::OnTick(AppContext &ctx) {
+	// AppManager provides a fixed 1s tick; emulate previous accumulation behavior.
+	impl_->tick_accum_ms += 1000;
 	if (impl_->tick_accum_ms < 500) {
 		return;
 	}
@@ -1037,7 +960,7 @@ void FreeConversationApp::OnTick(AppContext &ctx, uint32_t delta_ms) {
 		return;
 	}
 
-	const int minute_now = GetCurrentMinuteOfDay();
+	const int minute_now = eteacher::app_ui::GetCurrentMinuteOfDay();
 	if (minute_now >= 0 && minute_now != impl_->last_minute) {
 		impl_->last_minute = minute_now;
 		impl_->Render(ctx);
@@ -1045,8 +968,8 @@ void FreeConversationApp::OnTick(AppContext &ctx, uint32_t delta_ms) {
 	}
 
 	const bool wifi_connected = WifiManager::GetInstance().IsConnected();
-	const int battery_level = GetBatteryLevelPercent(ctx.board);
-	const std::string volume = FormatVolumeText(ctx.board);
+	const int battery_level = eteacher::app_ui::GetBatteryLevelPercent(ctx.board);
+	const std::string volume = eteacher::app_ui::FormatVolumeText(ctx.board);
 	if (wifi_connected != impl_->last_wifi_connected || battery_level != impl_->last_battery_level || volume != impl_->last_volume_text) {
 		impl_->last_wifi_connected = wifi_connected;
 		impl_->last_battery_level = battery_level;

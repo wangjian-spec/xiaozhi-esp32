@@ -219,7 +219,6 @@ void EnglishTeacherBoard::InitializeButtons() {
 			volume = 100;
 		}
 		codec->SetOutputVolume(volume);
-		AppManager::GetInstance().RefreshMenu();
 	});
 	volume_up_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_UP: LongPress");
@@ -228,7 +227,6 @@ void EnglishTeacherBoard::InitializeButtons() {
 			return;
 		}
 		codec->SetOutputVolume(100);
-		AppManager::GetInstance().RefreshMenu();
 	});
 
 	volume_down_button_.OnClick([&]() {
@@ -242,7 +240,6 @@ void EnglishTeacherBoard::InitializeButtons() {
 			volume = 0;
 		}
 		codec->SetOutputVolume(volume);
-		AppManager::GetInstance().RefreshMenu();
 	});
 	volume_down_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_DOWN: LongPress");
@@ -251,7 +248,6 @@ void EnglishTeacherBoard::InitializeButtons() {
 			return;
 		}
 		codec->SetOutputVolume(0);
-		AppManager::GetInstance().RefreshMenu();
 	});
 }
 

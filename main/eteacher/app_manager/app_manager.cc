@@ -2,6 +2,7 @@
 #include "eteacher/app_manager/app_manager.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/epd_manager/epd_manager.h"
+#include "eteacher/app_ui/status_bar.h"
 #include "audio/audio_codec.h"
 #include <esp_log.h>
 #include <wifi_manager.h>
@@ -9,10 +10,9 @@
 #include <string>
 #include <vector>
 #include <ctime>
-#include <cstdio>
 
 namespace {
-
+// Context structure for menu drawing callback.
 struct MenuDrawCtx {
     CustomEpdDisplay *epd;
     const eteacher::app_menu::Menu *menu;
@@ -21,7 +21,7 @@ struct MenuDrawCtx {
     eteacher::app_menu::MenuStatus status;
     std::string footer_text;
 };
-
+// Menu drawing callback function.
 void DrawMenuCb(Adafruit_GFX &gfx, void *ctx)
 {
     auto *m = static_cast<MenuDrawCtx *>(ctx);
@@ -33,97 +33,10 @@ void DrawMenuCb(Adafruit_GFX &gfx, void *ctx)
     // Keep the callback focused on drawing only.
     m->menu->Draw(gfx, m->epd, m->items, m->selected_index, m->status, m->footer_text);
 }
-
+// Menu drawing context cleanup function.
 void DeleteMenuCtx(void *ctx)
 {
     delete static_cast<MenuDrawCtx *>(ctx);
-}
-
-std::string FormatTimeText()
-{
-    std::time_t now = std::time(nullptr);
-    if (now <= 0)
-    {
-        return "----年--月--日 星期-  --:--";
-    }
-    std::tm local_tm{};
-    localtime_r(&now, &local_tm);
-    static const char *kWeekday[] = {"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"};
-    const char *weekday = "星期-";
-    if (local_tm.tm_wday >= 0 && local_tm.tm_wday < 7)
-    {
-        weekday = kWeekday[local_tm.tm_wday];
-    }
-    char buf[64] = {0};
-    std::snprintf(buf,
-                  sizeof(buf),
-                  "%04d年%02d月%02d日 %s  %02d:%02d",
-                  local_tm.tm_year + 1900,
-                  local_tm.tm_mon + 1,
-                  local_tm.tm_mday,
-                  weekday,
-                  local_tm.tm_hour,
-                  local_tm.tm_min);
-    return std::string(buf);
-}
-
-int GetCurrentMinuteOfDay()
-{
-    std::time_t now = std::time(nullptr);
-    if (now <= 0)
-    {
-        return -1;
-    }
-    std::tm local_tm{};
-    localtime_r(&now, &local_tm);
-    return local_tm.tm_hour * 60 + local_tm.tm_min;
-}
-
-std::string FormatBatteryText(Board &board)
-{
-    int level = 0;
-    bool charging = false;
-    bool discharging = false;
-    if (!board.GetBatteryLevel(level, charging, discharging))
-    {
-        return "--";
-    }
-    std::string text = std::to_string(level) + "%";
-    if (charging)
-    {
-        text += "+";
-    }
-    return text;
-}
-
-int GetBatteryLevelPercent(Board &board)
-{
-    int level = 0;
-    bool charging = false;
-    bool discharging = false;
-    if (!board.GetBatteryLevel(level, charging, discharging))
-    {
-        return 50;
-    }
-    if (level < 0)
-    {
-        return 0;
-    }
-    if (level > 100)
-    {
-        return 100;
-    }
-    return level;
-}
-
-std::string FormatVolumeText(Board &board)
-{
-    auto *codec = board.GetAudioCodec();
-    if (!codec)
-    {
-        return "--";
-    }
-    return std::to_string(codec->output_volume()) + "%";
 }
 
 } // namespace
@@ -205,7 +118,6 @@ void AppManager::HandleButton(const ButtonEvent &event)
         return;
     }
 
-    bool moved = false;
 // 如果没有正在运行的 App，则处理菜单导航
     switch (event.id)
     {
@@ -218,7 +130,6 @@ void AppManager::HandleButton(const ButtonEvent &event)
             selected_index_ = menu_controller_.selected();
             ESP_LOGI(TAG, "Menu select %d/%d", selected_index_, static_cast<int>(apps_.size()));
             RenderMenu();
-            moved = true;
         }
         break;
     case AppButton::Start:
@@ -242,47 +153,19 @@ void AppManager::RefreshMenu()
     }
 }
 
-void AppManager::Tick(uint32_t delta_ms)
+void AppManager::Tick()
 {
-    //更新上栏和下栏内容，检测间隔为1秒，当有时间，电量，WIFI变化时，刷新上栏和下栏（目前为整个菜单）
-    //此处代码需要检查，需要修改，确认是否重复刷新了
-    if (running_ && ctx_)
-    {
-        running_->OnTick(*ctx_, delta_ms);
-        return;
-    }
+    //如果没有上下文或菜单未准备好，直接返回
     if (!ctx_ || !menu_ready_)
     {
         return;
     }
 
-    menu_tick_accum_ += delta_ms;
-    if (menu_tick_accum_ < 1000)
-    {
-        return;
-    }
-    menu_tick_accum_ = 0;
-
-    const int minute_now = GetCurrentMinuteOfDay();
-    if (minute_now >= 0 && minute_now != last_time_minute_)
-    {
-        RenderMenu();
-        return;
-    }
-
-    bool need_refresh = false;
-    const bool wifi_connected = WifiManager::GetInstance().IsConnected();
-    if (wifi_connected != last_wifi_connected_)
-    {
-        need_refresh = true;
-    }
-    const int battery_level = GetBatteryLevelPercent(ctx_->board);
-    if (battery_level != last_battery_level_)
-    {
-        need_refresh = true;
-    }
-    if (need_refresh)
-    {
+    // Fixed 1s tick — check menu status every call.
+    bool status_changed = eteacher::app_ui::CheckAndUpdateMenuStatus(ctx_->board, last_status_);
+    ESP_LOGI(TAG, "CheckAndUpdateMenuStatus -> %s", status_changed ? "true" : "false");
+    // 如果状态有变化且没有正在运行的 App，则重新渲染菜单
+    if (status_changed && !running_) {
         RenderMenu();
     }
 }
@@ -331,42 +214,29 @@ void AppManager::RenderMenu()
     {
         return;
     }
+    // Build menu items once and reuse for both EPD and fallback paths.
+    std::vector<eteacher::app_menu::MenuItem> items;
+    items.reserve(apps_.size());
+    for (const auto &app : apps_)
+    {
+        auto meta = app->GetMenuMeta();
+        std::string icon = app->icon();
+        if (icon.empty() && !meta.key.empty())
+        {
+            icon = meta.key + ".bin";
+        }
+        items.push_back({meta, std::move(icon)});
+    }
 
     // Prefer native EPD render when available
     if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
     {
-        // Render menu via EpdManager partial refresh:
-        // - non-blocking (runs in EpdManager task)
-        // - uses `displayWindow(...)` internally
-        // - text uses EPD UTF-8 API with WenQuanYi built-in fonts
-        std::vector<eteacher::app_menu::MenuItem> items;
-        items.reserve(apps_.size());
-        for (const auto &app : apps_)
-        {
-            auto meta = app->GetMenuMeta();
-            std::string icon = app->icon();
-            if (icon.empty() && !meta.key.empty())
-            {
-                icon = meta.key + ".bin";
-            }
-            items.push_back({meta, std::move(icon)});
-        }
-
+        // Render menu via EpdManager partial refresh (non-blocking task).
         last_layout_ = menu_.ComputeLayout(epd->width(), epd->height(), items.size());
         menu_controller_.SetLayout(last_layout_, static_cast<int>(items.size()));
         menu_controller_.SetSelected(selected_index_);
 
-        eteacher::app_menu::MenuStatus status;
-        status.time_text = FormatTimeText();
-        status.wifi_text.clear();
-        status.wifi_connected = WifiManager::GetInstance().IsConnected();
-        status.battery_text = FormatBatteryText(ctx_->board);
-        status.battery_level = GetBatteryLevelPercent(ctx_->board);
-        status.volume_text = FormatVolumeText(ctx_->board);
-
-        last_time_minute_ = GetCurrentMinuteOfDay();
-        last_wifi_connected_ = status.wifi_connected;
-        last_battery_level_ = status.battery_level;
+        eteacher::app_menu::MenuStatus status = eteacher::app_ui::BuildMenuStatus(ctx_->board);
 
         auto *m = new MenuDrawCtx();
         m->epd = epd;
@@ -385,64 +255,29 @@ void AppManager::RenderMenu()
         return;
     }
 
+    // Fallback: plain text display
     auto display = ctx_->board.GetDisplay();
     std::string buf = "Apps:\n";
-    for (size_t i = 0; i < apps_.size(); ++i)
+    for (size_t i = 0; i < items.size(); ++i)
     {
         buf += (static_cast<int>(i) == selected_index_) ? "> " : "  ";
-        buf += apps_[i]->GetMenuMeta().title;
-        if (!apps_[i]->GetMenuMeta().subtitle.empty())
+        buf += items[i].meta.title;
+        if (!items[i].meta.subtitle.empty())
         {
-            buf += " - " + apps_[i]->GetMenuMeta().subtitle;
+            buf += " - " + items[i].meta.subtitle;
         }
-        if (i + 1 < apps_.size())
+        if (i + 1 < items.size())
             buf += "\n";
     }
     display->SetChatMessage("system", buf.c_str());
 }
 
-void AppManager::RenderStatus(const std::string &headline, const std::string &detail)
+void AppManager::TickAppRunning()
 {
-    if (!ctx_)
+    if (running_ && ctx_)
     {
-        return;
+        running_->OnTick(*ctx_);
     }
-    if (auto *epd = dynamic_cast<CustomEpdDisplay *>(ctx_->board.GetDisplay()))
-    {
-        struct StatusDrawCtx {
-            CustomEpdDisplay *epd;
-            std::string headline;
-            std::string detail;
-        };
-
-        auto *s = new StatusDrawCtx();
-        s->epd = epd;
-        s->headline = headline;
-        s->detail = detail;
-
-        auto draw = [](Adafruit_GFX &gfx, void *ctx) {
-            auto *st = static_cast<StatusDrawCtx *>(ctx);
-            if (!st || !st->epd)
-            {
-                return;
-            }
-            gfx.fillScreen(GxEPD_WHITE);
-            st->epd->DrawUtf8(8, 24, st->headline, "wenquanyi_11pt", GxEPD_BLACK);
-            st->epd->DrawUtf8(8, 48, st->detail, "wenquanyi_11pt", GxEPD_BLACK);
-        };
-
-        auto del = [](void *ctx) { delete static_cast<StatusDrawCtx *>(ctx); };
-
-        EpdManager::GetInstance().Schedule(
-            EpdManager::TaskType::kPartial,
-            draw,
-            s,
-            del,
-            EpdManager::Rect(0, 0, epd->width(), epd->height()));
-        return;
-    }
-
-    auto display = ctx_->board.GetDisplay();
-    std::string msg = headline + "\n" + detail;
-    display->SetChatMessage("system", msg.c_str());
 }
+
+

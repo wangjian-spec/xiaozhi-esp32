@@ -5,7 +5,7 @@
 #include <string>
 
 #include "boards/common/board.h"
-#include "eteacher/app_manager/layout_engine.h"
+#include "eteacher/app_ui/layout_engine.h"
 
 // AppManager 向应用传递的上下文，便于直接访问 Board。
 struct AppContext {
@@ -57,15 +57,15 @@ public:
     virtual MenuMeta GetMenuMeta() const = 0;
 
     // 返回布局模板（默认：全屏主区域）。
-    virtual eteacher::layout::LayoutTemplate Template() const {
-        return eteacher::layout::LayoutTemplate::FullScreenText();
+    virtual eteacher::app_ui::layout::LayoutTemplate Template() const {
+        return eteacher::app_ui::layout::LayoutTemplate::FullScreenText();
     }
 
     // 布局计算完成后回调，通知 App 区域位置。
-    virtual void OnLayout(const eteacher::layout::LayoutResult &layout) { (void)layout; }
+    virtual void OnLayout(const eteacher::app_ui::layout::LayoutResult &layout) { (void)layout; }
 
     // 在指定区域绘制内容。
-    virtual void OnDraw(const eteacher::layout::RegionId &region_id) { (void)region_id; }
+    virtual void OnDraw(const eteacher::app_ui::layout::RegionId &region_id) { (void)region_id; }
 
     const std::string& icon() const { return icon_; }
     void SetIcon(std::string icon) { icon_ = std::move(icon); }
@@ -74,7 +74,7 @@ public:
     virtual void OnEnter(AppContext &ctx) = 0;
     virtual void OnExit(AppContext &ctx) = 0;
     virtual void OnButton(AppContext &ctx, const ButtonEvent &event) = 0;
-    virtual void OnTick(AppContext &ctx, uint32_t /*delta_ms*/) { (void)ctx; }
+    virtual void OnTick(AppContext &ctx) { (void)ctx; }
 
     bool show_in_menu() const { return show_in_menu_; }
 

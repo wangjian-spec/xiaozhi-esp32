@@ -7,7 +7,7 @@
 // 轻量布局引擎：专为墨水屏 MCU 设计（内存占用小，结构清晰）。
 // 说明：仅负责计算区域 Rect 与状态，不涉及具体绘制。
 
-namespace eteacher::layout {
+namespace eteacher::app_ui::layout {
 
 // 屏幕矩形。
 struct Rect {
@@ -220,4 +220,4 @@ public:
                                 const LayoutParams &params);
 };
 
-} // namespace eteacher::layout
+} // namespace eteacher::app_ui::layout

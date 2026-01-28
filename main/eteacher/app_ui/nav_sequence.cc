@@ -1,6 +1,6 @@
-#include "eteacher/app_service/tool/nav_sequence.h"
+#include "eteacher/app_ui/nav_sequence.h"
 
-namespace eteacher::nav {
+namespace eteacher::app_ui::nav {
 
 std::vector<AppButton> ToAppButtonSequence(const seq_event_t* evt) {
 	std::vector<AppButton> seq;
@@ -53,4 +53,4 @@ void ApplyGridMoveSequence(int& row, int& col, int rows, int cols, const std::ve
 	}
 }
 
-} // namespace eteacher::nav
+} // namespace eteacher::app_ui::nav

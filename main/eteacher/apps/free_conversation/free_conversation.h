@@ -21,7 +21,7 @@ public:
 	void OnEnter(AppContext &ctx) override;
 	void OnExit(AppContext &ctx) override;
 	void OnButton(AppContext &ctx, const ButtonEvent &event) override;
-	void OnTick(AppContext &ctx, uint32_t delta_ms) override;
+	void OnTick(AppContext &ctx) override;
 	void SetTranslator(std::shared_ptr<ConversationTranslator> translator);
 
 	virtual void OnChatMessage(const char* role, const char* content);

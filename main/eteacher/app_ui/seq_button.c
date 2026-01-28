@@ -1,6 +1,6 @@
 /* Implementation of cross-button sequence detector
  */
-#include "seq_button.h"
+#include "eteacher/app_ui/seq_button.h"
 #include <stdlib.h>
 #include <string.h>
 #include "esp_log.h"

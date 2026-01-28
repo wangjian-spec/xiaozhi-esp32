@@ -1,6 +1,7 @@
 #include "app_service.h"
 #include "board.h"
 #include "display.h"
+#include "eteacher/app_manager/app_manager.h"
 #include "system_info.h"
 #include "audio_codec.h"
 #include "eteacher_mqtt_protocol.h"
@@ -247,6 +248,12 @@ void AppService::Run() {
             clock_ticks_++;
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
+
+            //Tick和TickAppRunning函数周期检查上栏状态变化并刷新菜单，将来改成事件驱动更合适
+            // Drive AppManager periodic tick (fixed 1s)
+            AppManager::GetInstance().Tick();
+            // Also drive the currently running app's per-second tick (if any).
+            AppManager::GetInstance().TickAppRunning();
         
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {

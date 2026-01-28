@@ -19,7 +19,7 @@ public:
 	void OnEnter(AppContext &ctx) override;
 	void OnExit(AppContext &ctx) override;
 	void OnButton(AppContext &ctx, const ButtonEvent &event) override;
-	void OnTick(AppContext &ctx, uint32_t delta_ms) override;
+	void OnTick(AppContext &ctx) override;
 
 private:
 	struct Entry {

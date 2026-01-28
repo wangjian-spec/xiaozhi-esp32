@@ -5,26 +5,14 @@
 #include <vector>
 
 #include "eteacher/app_manager/app_base.h"
+// status_bar definitions moved into menu.h to centralize menu-related types.
 
 class Adafruit_GFX;
 class CustomEpdDisplay;
 
 namespace eteacher::app_menu {
 
-struct MenuItem {
-    MenuMeta meta;
-    std::string icon;
-};
-
-struct MenuStatus {
-    std::string time_text;
-    std::string wifi_text;
-    bool wifi_connected = false;
-    std::string battery_text;
-    int battery_level = -1;
-    std::string volume_text;
-};
-
+// Top bar style (single source of truth).
 struct MenuStyle {
     int16_t top_height = 20;
     int16_t bottom_height = 16;
@@ -40,6 +28,20 @@ struct MenuStyle {
     std::string label_font = "wenquanyi_9pt";
     std::string status_font = "wenquanyi_9pt";
     std::string title_font = "wenquanyi_11pt";
+};
+
+// Top bar status content (single source of truth).
+struct MenuStatus {
+    std::string time_text;
+    bool wifi_connected = false;
+    std::string battery_text;
+    int battery_level = -1;
+    std::string volume_text;
+};
+
+struct MenuItem {
+    MenuMeta meta;
+    std::string icon;
 };
 
 struct MenuLayout {
@@ -63,6 +65,7 @@ public:
     void SetStyle(MenuStyle style) { style_ = std::move(style); }
     const MenuStyle& style() const { return style_; }
 
+    //声明成员函数，返回值类型为MenuLayout，函数名为ComputeLayout，参数为int16_t类型的screen_w、int16_t类型的screen_h和size_t类型的item_count，函数为常量成员函数
     MenuLayout ComputeLayout(int16_t screen_w, int16_t screen_h, size_t item_count) const;
 
     void Draw(Adafruit_GFX& gfx,

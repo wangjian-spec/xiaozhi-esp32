@@ -7,14 +7,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "eteacher/app_service/tool/seq_button.h"
+#include "eteacher/app_ui/seq_button.h"
 #ifdef __cplusplus
 }
 #endif
 
-namespace eteacher::nav {
+namespace eteacher::app_ui::nav {
 
 std::vector<AppButton> ToAppButtonSequence(const seq_event_t* evt);
 void ApplyGridMoveSequence(int& row, int& col, int rows, int cols, const std::vector<AppButton>& seq);
 
-} // namespace eteacher::nav
+} // namespace eteacher::app_ui::nav
