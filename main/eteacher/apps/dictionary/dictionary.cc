@@ -1,4 +1,4 @@
-#include "eteacher/apps/device_setting/device_setting.h"
+#include "eteacher/apps/dictionary/dictionary.h"
 
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/epd_manager/epd_manager.h"
@@ -14,145 +14,19 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <cJSON.h>
-#include <cstdint>
 
 namespace {
 
 static constexpr const char *kStatusFont = "wenquanyi_9pt";
-static constexpr int kPadding = 8;
 
-static constexpr const char* kDeviceSettingUiJson = R"json({
-    "meta": {
-        "project": "ui_device_setting",
-        "ui_version": "1.0",
-        "target": "esp32-s3",
-        "display": {
-            "type": "eink",
-            "width": 400,
-            "height": 300,
-            "color": "mono"
-        },
-        "generator": {
-            "tool": "ui_editor",
-            "version": "0.3.1"
-        }
-    },
-    "resources": {
-        "texts": {
-            "TEXT_IMAGE_A0FE4E": "Image",
-            "TEXT_CHECKBOX_54B600": "Checkbox",
-            "TEXT_RADIO_CC0D9A": "Radio"
-        },
-        "images": {},
-        "fonts": {}
-    },
-    "styles": {},
-    "themes": {},
-    "data": {},
-    "scenes": {
-        "main_scene": {
-            "name": "买买买",
-            "root": "root_main_scene"
-        },
-        "scene_86f4": {
-            "name": "你你你",
-            "root": "root_scene_86f4"
-        },
-        "scene_6a50": {
-            "name": "NewScene",
-            "root": "root_scene_6a50"
-        }
-    },
-    "widgets": {
-        "root_main_scene": {
-            "type": "Container",
-            "rect": {
-                "x": 0,
-                "y": 0,
-                "w": 400,
-                "h": 300
-            },
-            "children": [
-                "image_a0fe4e",
-                "checkbox_54b600",
-                "radio_cc0d9a"
-            ]
-        },
-        "image_a0fe4e": {
-            "type": "Image",
-            "rect": {
-                "x": 10,
-                "y": 10,
-                "w": 80,
-                "h": 40
-            },
-            "style": null,
-            "properties": {
-                "textId": "TEXT_IMAGE_A0FE4E"
-            }
-        },
-        "checkbox_54b600": {
-            "type": "Checkbox",
-            "rect": {
-                "x": 50,
-                "y": 160,
-                "w": 80,
-                "h": 40
-            },
-            "style": null,
-            "properties": {
-                "textId": "TEXT_CHECKBOX_54B600"
-            }
-        },
-        "radio_cc0d9a": {
-            "type": "Radio",
-            "rect": {
-                "x": 180,
-                "y": 60,
-                "w": 80,
-                "h": 40
-            },
-            "style": null,
-            "properties": {
-                "textId": "TEXT_RADIO_CC0D9A"
-            }
-        },
-        "root_scene_86f4": {
-            "type": "Container",
-            "rect": {
-                "x": 0,
-                "y": 0,
-                "w": 400,
-                "h": 300
-            },
-            "children": []
-        },
-        "root_scene_6a50": {
-            "type": "Container",
-            "rect": {
-                "x": 0,
-                "y": 0,
-                "w": 400,
-                "h": 300
-            },
-            "children": []
-        }
-    },
-    "events": [],
-    "navigation": {
-        "focus": {},
-        "scene_flow": {}
-    },
-    "states": {}
-})json";
-
-extern const uint8_t kDeviceSettingJsonStart[] asm("_binary_device_setting_json_start");
-extern const uint8_t kDeviceSettingJsonEnd[] asm("_binary_device_setting_json_end");
+extern const uint8_t kDictionaryJsonStart[] asm("_binary_dictionary_json_start");
+extern const uint8_t kDictionaryJsonEnd[] asm("_binary_dictionary_json_end");
 
 cJSON* LoadEmbeddedJson(const uint8_t* start, const uint8_t* end) {
     if (!start || !end || end <= start) {
@@ -178,7 +52,6 @@ int GetFontAscent(std::string_view name) {
     }
     return static_cast<int>(font->Header().ascent);
 }
-
 
 class EpdPainter : public app_ui::Painter {
 public:
@@ -290,34 +163,23 @@ void RenderWidgetTree(CustomEpdDisplay* epd, app_ui::Widget* root) {
 
 } // namespace
 
-MenuMeta DeviceSettingApp::GetMenuMeta() const {
-    return MenuMeta{"device_setting", "系统设置", "示例"};
+MenuMeta DictionaryApp::GetMenuMeta() const {
+    return MenuMeta{"dictionary", "词典", "示例"};
 }
 
-void DeviceSettingApp::OnEnter(AppContext &ctx) {
+void DictionaryApp::OnEnter(AppContext &ctx) {
     if (ui_root_) {
         cJSON_Delete(ui_root_);
         ui_root_ = nullptr;
     }
 
-    ui_root_ = LoadEmbeddedJson(kDeviceSettingJsonStart, kDeviceSettingJsonEnd);
+    ui_root_ = LoadEmbeddedJson(kDictionaryJsonStart, kDictionaryJsonEnd);
     if (!ui_root_) {
-        printf("[DeviceSetting] Embedded JSON parse FAILED, using fallback\n");
-        ui_root_ = cJSON_Parse(kDeviceSettingUiJson);
-        if (ui_root_) {
-            printf("[DeviceSetting] Fallback JSON parsed successfully\n");
-        } else {
-            printf("[DeviceSetting] Fallback JSON parse FAILED\n");
-        }
+        printf("[Dictionary] Embedded JSON parse FAILED\n");
     } else {
-        printf("[DeviceSetting] Embedded JSON parsed successfully\n");
+        printf("[Dictionary] Embedded JSON parsed successfully\n");
     }
-    // Notify user on-screen when running in host/dev environment
-    if (ui_root_) {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: JSON loaded");
-    } else {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: failed to parse JSON");
-    }
+
     scene_ids_.clear();
     if (ui_root_) {
         const cJSON* scenes = cJSON_GetObjectItemCaseSensitive(ui_root_, "scenes");
@@ -335,16 +197,16 @@ void DeviceSettingApp::OnEnter(AppContext &ctx) {
     Render(ctx);
 }
 
-void DeviceSettingApp::OnExit(AppContext &ctx) {
+void DictionaryApp::OnExit(AppContext &ctx) {
     if (ui_root_) {
         cJSON_Delete(ui_root_);
         ui_root_ = nullptr;
     }
     scene_ids_.clear();
-    ctx.board.GetDisplay()->SetChatMessage("system", "Exit Device Setting UI");
+    ctx.board.GetDisplay()->SetChatMessage("system", "Exit Dictionary UI");
 }
 
-void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
+void DictionaryApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
     if (event.action != ButtonAction::Click) {
         return;
     }
@@ -367,7 +229,7 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
     }
 }
 
-void DeviceSettingApp::PrevScene(AppContext &ctx) {
+void DictionaryApp::PrevScene(AppContext &ctx) {
     if (scene_ids_.empty()) {
         return;
     }
@@ -375,7 +237,7 @@ void DeviceSettingApp::PrevScene(AppContext &ctx) {
     Render(ctx);
 }
 
-void DeviceSettingApp::NextScene(AppContext &ctx) {
+void DictionaryApp::NextScene(AppContext &ctx) {
     if (scene_ids_.empty()) {
         return;
     }
@@ -383,20 +245,20 @@ void DeviceSettingApp::NextScene(AppContext &ctx) {
     Render(ctx);
 }
 
-void DeviceSettingApp::Render(AppContext &ctx) {
+void DictionaryApp::Render(AppContext &ctx) {
     if (!ui_root_) {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: json missing");
+        ctx.board.GetDisplay()->SetChatMessage("system", "Dictionary UI: json missing");
         return;
     }
 
     if (scene_ids_.empty()) {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: no scenes");
+        ctx.board.GetDisplay()->SetChatMessage("system", "Dictionary UI: no scenes");
         return;
     }
 
     const std::string& scene_id = scene_ids_[scene_index_];
     if (!scene_mgr_.LoadFromJson(ui_root_, scene_id.c_str(), static_cast<uint16_t>(scene_index_))) {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: failed to load scene");
+        ctx.board.GetDisplay()->SetChatMessage("system", "Dictionary UI: failed to load scene");
         return;
     }
 
@@ -405,7 +267,7 @@ void DeviceSettingApp::Render(AppContext &ctx) {
         return;
     }
 
-    std::string msg = "Device Setting UI\n";
+    std::string msg = "Dictionary UI\n";
     msg += "Scene: ";
     msg += "#";
     msg += std::to_string(scene_mgr_.SceneId());
@@ -413,6 +275,6 @@ void DeviceSettingApp::Render(AppContext &ctx) {
     ctx.board.GetDisplay()->SetChatMessage("system", msg.c_str());
 }
 
-std::unique_ptr<AppBase> MakeDeviceSettingApp() {
-    return std::make_unique<DeviceSettingApp>();
+std::unique_ptr<AppBase> MakeDictionaryApp() {
+    return std::make_unique<DictionaryApp>();
 }

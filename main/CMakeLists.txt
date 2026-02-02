@@ -714,6 +714,7 @@ if(NOT LANG_DIR STREQUAL "en-US")
 endif()
 
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
+file(GLOB UI_JSONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "eteacher/apps/jsons/ui_json/*.json")
 
 # If target chip is ESP32, exclude specific files to avoid build errors
 if(CONFIG_IDF_TARGET_ESP32)
@@ -752,7 +753,7 @@ if(CONFIG_BOARD_TYPE_English_Teacher)
 endif()
 
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${UI_JSONS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     REQUIRES ${MAIN_REQUIRES}
                     WHOLE_ARCHIVE

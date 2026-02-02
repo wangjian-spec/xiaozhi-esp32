@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "project": "ui_dictionary",
+    "ui_version": "1.0",
+    "target": "esp32-s3",
+    "display": {
+      "type": "eink",
+      "width": 400,
+      "height": 300,
+      "color": "mono"
+    },
+    "generator": {
+      "tool": "ui_editor",
+      "version": "0.3.1"
+    }
+  },
+  "resources": {
+    "texts": {
+      "TEXT_LABEL_0169D1": "Label",
+      "TEXT_RADIO_0B7A7E": "Radio",
+      "TEXT_LINEEDIT_B6CCFC": "LineEdit",
+      "TEXT_MENUITEM_CDCFEB": "MenuItem",
+      "TEXT_CONTEXTSUBMENU_4C9572": "ContextSubMenu"
+    },
+    "images": {},
+    "fonts": {}
+  },
+  "styles": {},
+  "themes": {},
+  "data": {},
+  "scenes": {
+    "main_scene": {
+      "name": "字典查询",
+      "root": "root_main_scene"
+    },
+    "scene_637f": {
+      "name": "软键盘",
+      "root": "root_scene_637f"
+    },
+    "scene_5fa6": {
+      "name": "查询结果",
+      "root": "root_scene_5fa6"
+    }
+  },
+  "widgets": {
+    "root_main_scene": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      },
+      "children": [
+        "label_0169d1",
+        "radio_0b7a7e",
+        "lineedit_b6ccfc"
+      ]
+    },
+    "label_0169d1": {
+      "type": "Label",
+      "rect": {
+        "x": 10,
+        "y": 10,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_0169D1"
+      }
+    },
+    "radio_0b7a7e": {
+      "type": "Radio",
+      "rect": {
+        "x": 130,
+        "y": 180,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_0B7A7E"
+      }
+    },
+    "lineedit_b6ccfc": {
+      "type": "LineEdit",
+      "rect": {
+        "x": 210,
+        "y": 60,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LINEEDIT_B6CCFC"
+      }
+    },
+    "root_scene_637f": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      },
+      "children": [
+        "menuitem_cdcfeb"
+      ]
+    },
+    "menuitem_cdcfeb": {
+      "type": "MenuItem",
+      "rect": {
+        "x": 140,
+        "y": 120,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_MENUITEM_CDCFEB"
+      }
+    },
+    "root_scene_5fa6": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      },
+      "children": [
+        "contextsubmenu_4c9572"
+      ]
+    },
+    "contextsubmenu_4c9572": {
+      "type": "ContextSubMenu",
+      "rect": {
+        "x": 150,
+        "y": 140,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_CONTEXTSUBMENU_4C9572"
+      }
+    }
+  },
+  "events": [],
+  "navigation": {
+    "focus": {},
+    "scene_flow": {}
+  },
+  "states": {}
+}

@@ -9,7 +9,7 @@
 
 struct cJSON;
 
-class DeviceSettingApp : public AppBase {
+class DictionaryApp : public AppBase {
 public:
     MenuMeta GetMenuMeta() const override;
 
@@ -28,4 +28,4 @@ private:
     int scene_index_ = 0;
 };
 
-std::unique_ptr<AppBase> MakeDeviceSettingApp();
+std::unique_ptr<AppBase> MakeDictionaryApp();

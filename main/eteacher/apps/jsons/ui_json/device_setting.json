@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "project": "ui_device_setting",
+    "ui_version": "1.0",
+    "target": "esp32-s3",
+    "display": {
+      "type": "eink",
+      "width": 400,
+      "height": 300,
+      "color": "mono"
+    },
+    "generator": {
+      "tool": "ui_editor",
+      "version": "0.3.1"
+    }
+  },
+  "resources": {
+    "texts": {
+      "TEXT_IMAGE_39FB77": "Image",
+      "TEXT_CHECKBOX_293A1E": "Checkbox",
+      "TEXT_LABEL_2E3E99": "Label",
+      "TEXT_BUTTON_B0DF17": "Button",
+      "TEXT_RADIO_06B042": "Radio",
+      "TEXT_LINEEDIT_1C5E53": "LineEdit"
+    },
+    "images": {},
+    "fonts": {}
+  },
+  "styles": {},
+  "themes": {},
+  "data": {},
+  "scenes": {
+    "main_scene": {
+      "name": "wifi设置",
+      "root": "root_main_scene"
+    },
+    "scene_bb07": {
+      "name": "学习进度",
+      "root": "root_scene_bb07"
+    }
+  },
+  "widgets": {
+    "root_main_scene": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      },
+      "children": [
+        "image_39fb77",
+        "checkbox_293a1e",
+        "label_2e3e99",
+        "button_b0df17",
+        "radio_06b042",
+        "lineedit_1c5e53"
+      ]
+    },
+    "image_39fb77": {
+      "type": "Image",
+      "rect": {
+        "x": 10,
+        "y": 10,
+        "w": 100,
+        "h": 100
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_IMAGE_39FB77"
+      }
+    },
+    "checkbox_293a1e": {
+      "type": "Checkbox",
+      "rect": {
+        "x": 130,
+        "y": 20,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_CHECKBOX_293A1E"
+      }
+    },
+    "label_2e3e99": {
+      "type": "Label",
+      "rect": {
+        "x": 250,
+        "y": 170,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_2E3E99"
+      }
+    },
+    "button_b0df17": {
+      "type": "Button",
+      "rect": {
+        "x": 60,
+        "y": 190,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_B0DF17"
+      }
+    },
+    "radio_06b042": {
+      "type": "Radio",
+      "rect": {
+        "x": 230,
+        "y": 70,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_06B042"
+      }
+    },
+    "lineedit_1c5e53": {
+      "type": "LineEdit",
+      "rect": {
+        "x": 110,
+        "y": 130,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LINEEDIT_1C5E53"
+      }
+    },
+    "root_scene_bb07": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      },
+      "children": [
+        "button_bd6190",
+        "lineedit_3a6117",
+        "image_32d18e"
+      ]
+    },
+    "button_bd6190": {
+      "type": "Button",
+      "rect": {
+        "x": 10,
+        "y": 10,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_B0DF17"
+      }
+    },
+    "lineedit_3a6117": {
+      "type": "LineEdit",
+      "rect": {
+        "x": 50,
+        "y": 180,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LINEEDIT_1C5E53"
+      }
+    },
+    "image_32d18e": {
+      "type": "Image",
+      "rect": {
+        "x": 200,
+        "y": 80,
+        "w": 100,
+        "h": 100
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_IMAGE_39FB77"
+      }
+    }
+  },
+  "events": [],
+  "navigation": {
+    "focus": {},
+    "scene_flow": {}
+  },
+  "states": {}
+}

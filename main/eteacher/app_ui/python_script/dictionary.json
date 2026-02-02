@@ -1,0 +1,138 @@
+{
+  "meta": {
+    "project": "ui_dictionary",
+    "ui_version": "1.0",
+    "target": "esp32-s3",
+    "display": {
+      "type": "eink",
+      "width": 400,
+      "height": 300,
+      "color": "mono"
+    },
+    "generator": {
+      "tool": "ui_editor",
+      "version": "0.3.1"
+    }
+  },
+  "resources": {
+    "texts": {
+      "TEXT_IMAGE_E59EE8": "Image",
+      "TEXT_CHECKBOX_DA2BD7": "Checkbox",
+      "TEXT_BUTTON_18ED2F": "Button",
+      "TEXT_IMAGE_146005": "Image"
+    },
+    "images": {},
+    "fonts": {}
+  },
+  "styles": {},
+  "themes": {},
+  "data": {},
+  "scenes": {
+    "main_scene": {
+      "name": "钱钱钱",
+      "widget_start": 0,
+      "widget_count": 2,
+      "widgets": [
+        "image_e59ee8",
+        "checkbox_da2bd7"
+      ]
+    },
+    "scene_1a7b": {
+      "name": "NewScene",
+      "widget_start": 2,
+      "widget_count": 2,
+      "widgets": [
+        "button_18ed2f",
+        "image_146005"
+      ]
+    },
+    "scene_1c33": {
+      "name": "阿斯顿",
+      "widget_start": 4,
+      "widget_count": 0,
+      "widgets": []
+    }
+  },
+  "widgets": [
+    {
+      "id": "image_e59ee8",
+      "type": "Image",
+      "scene": "main_scene",
+      "rect": {
+        "x": 10,
+        "y": 10,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "prop_start": 0,
+      "prop_count": 1
+    },
+    {
+      "id": "checkbox_da2bd7",
+      "type": "Checkbox",
+      "scene": "main_scene",
+      "rect": {
+        "x": 140,
+        "y": 110,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "prop_start": 1,
+      "prop_count": 1
+    },
+    {
+      "id": "button_18ed2f",
+      "type": "Button",
+      "scene": "scene_1a7b",
+      "rect": {
+        "x": 120,
+        "y": 90,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "prop_start": 2,
+      "prop_count": 1
+    },
+    {
+      "id": "image_146005",
+      "type": "Image",
+      "scene": "scene_1a7b",
+      "rect": {
+        "x": 240,
+        "y": 180,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "prop_start": 3,
+      "prop_count": 1
+    }
+  ],
+  "properties": [
+    {
+      "key": "TextID",
+      "value": "TEXT_IMAGE_E59EE8"
+    },
+    {
+      "key": "TextID",
+      "value": "TEXT_CHECKBOX_DA2BD7"
+    },
+    {
+      "key": "TextID",
+      "value": "TEXT_BUTTON_18ED2F"
+    },
+    {
+      "key": "TextID",
+      "value": "TEXT_IMAGE_146005"
+    }
+  ],
+  "events": [],
+  "navigation": {
+    "focus": {},
+    "scene_flow": {}
+  },
+  "states": {}
+}
