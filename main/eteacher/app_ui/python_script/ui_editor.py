@@ -272,11 +272,8 @@ class WidgetItem(QGraphicsRectItem):
             self.handles["br"].setPos(self.rect().width(), self.rect().height())
 
     def resize_from_handle(self, corner: str, pos: QPointF):
-        new_w = max(10, int(pos.x()))
-        new_h = max(10, int(pos.y()))
-        if self.editor.snap_to_grid:
-            new_w = self.editor.snap_value(new_w)
-            new_h = self.editor.snap_value(new_h)
+        new_w = max(1, int(pos.x()))
+        new_h = max(1, int(pos.y()))
         rect = QRectF(0, 0, new_w, new_h)
         self.setRect(rect)
         self.text_item.setPos(4, 4)
@@ -296,10 +293,12 @@ class WidgetItem(QGraphicsRectItem):
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.update_handles()
         if change == QGraphicsItem.ItemPositionChange:
+            # Allow arbitrary positions (integers) without snapping
             new_pos: QPointF = value
-            if self.editor.snap_to_grid:
-                new_pos = QPointF(self.editor.snap_value(int(new_pos.x())), self.editor.snap_value(int(new_pos.y())))
-            return new_pos
+            try:
+                return QPointF(int(new_pos.x()), int(new_pos.y()))
+            except Exception:
+                return new_pos
         return super().itemChange(change, value)
 
 
@@ -314,19 +313,20 @@ class CanvasScene(QGraphicsScene):
 
     def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
         super().drawBackground(painter, rect)
-        if not self.editor.grid_visible:
-            return
         painter.save()
-        pen = QPen(QColor("#e2e8f0"), 1)
-        painter.setPen(pen)
-        left = int(rect.left()) - (int(rect.left()) % GRID_SIZE)
-        top = int(rect.top()) - (int(rect.top()) % GRID_SIZE)
-        right = int(rect.right())
-        bottom = int(rect.bottom())
-        for x in range(left, right + 1, GRID_SIZE):
-            painter.drawLine(x, int(rect.top()), x, bottom)
-        for y in range(top, bottom + 1, GRID_SIZE):
-            painter.drawLine(int(rect.left()), y, right, y)
+        # Grid drawing removed; canvas is intended to be clean for free placement
+
+        # Draw top/bottom guide lines: 20px from top, 16px from bottom, solid black
+        guide_pen = QPen(QColor("#000000"), 1, Qt.SolidLine)
+        painter.setPen(guide_pen)
+        top_y = 20
+        bottom_y = CANVAS_HEIGHT - 16
+        painter.drawLine(0, top_y, CANVAS_WIDTH, top_y)
+        painter.drawLine(0, bottom_y, CANVAS_WIDTH, bottom_y)
+        # Draw 1px canvas border (inset by 0.5 for crisp stroke)
+        border_pen = QPen(QColor("#000000"), 1, Qt.SolidLine)
+        painter.setPen(border_pen)
+        painter.drawRect(0.5, 0.5, CANVAS_WIDTH - 1, CANVAS_HEIGHT - 1)
         painter.restore()
 
 
@@ -401,29 +401,76 @@ class EditorWindow(QMainWindow):
         self.setWindowTitle("ESP32 UI Editor")
         self.resize(1000, 600)
 
-        self.grid_visible = True
-        self.snap_to_grid = True
+        # No grid and no snapping by default so controls can be placed freely
+        self.grid_visible = False
+        self.snap_to_grid = False
 
-        self.project = ProjectData(scenes=[SceneData(id="main_scene", name="MainScene")])
+        self.project = ProjectData(scenes=[SceneData(id="page_main", name="MainPage")])
         self.current_scene = self.project.scenes[0]
         self.load_editor_state()
 
         self.undo_stack = QUndoStack(self)
         self._updating_properties = False
+        self._clipboard = None
 
         self.scene = CanvasScene(self)
         self.scene.selection_changed.connect(self.on_selection_changed)
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.Antialiasing)
         self.view.setDragMode(QGraphicsView.RubberBandDrag)
-        self.view.setFixedSize(CANVAS_WIDTH + 2, CANVAS_HEIGHT + 2)
+        # Add a 1px viewport margin so the scene's 1px border isn't clipped
+        self.view.setViewportMargins(1, 1, 1, 1)
+        # Let the view expand/contract with the central widget; we'll scale the scene to fit
+        self.view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Prevent panning via middle-button; install event filter on viewport
+        self.view.viewport().installEventFilter(self)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scene.setSceneRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
         central = QWidget()
         layout = QHBoxLayout(central)
-        layout.addWidget(self.view)
+
+        # Canvas area with alignment buttons below
+        canvas_container = QWidget()
+        canvas_layout = QVBoxLayout(canvas_container)
+        canvas_layout.setContentsMargins(0, 0, 0, 0)
+        canvas_layout.setSpacing(4)
+        # Center the canvas view in the container
+        canvas_layout.addWidget(self.view, alignment=Qt.AlignCenter)
+
+        align_bar = QWidget()
+        align_layout = QHBoxLayout(align_bar)
+        align_layout.setContentsMargins(0, 0, 0, 0)
+        align_layout.setSpacing(4)
+
+        # Alignment: Left/Right/Top/Bottom + Distribute H/V
+        btn_align_left = QPushButton("Left")
+        btn_align_left.clicked.connect(self.align_left)
+        align_layout.addWidget(btn_align_left)
+
+        btn_align_right = QPushButton("Right")
+        btn_align_right.clicked.connect(self.align_right)
+        align_layout.addWidget(btn_align_right)
+
+        btn_align_top = QPushButton("Top")
+        btn_align_top.clicked.connect(self.align_top)
+        align_layout.addWidget(btn_align_top)
+
+        btn_align_bottom = QPushButton("Bottom")
+        btn_align_bottom.clicked.connect(self.align_bottom)
+        align_layout.addWidget(btn_align_bottom)
+
+        btn_distribute_h = QPushButton("Distribute H")
+        btn_distribute_h.clicked.connect(self.distribute_h)
+        align_layout.addWidget(btn_distribute_h)
+
+        btn_distribute_v = QPushButton("Distribute V")
+        btn_distribute_v.clicked.connect(self.distribute_v)
+        align_layout.addWidget(btn_distribute_v)
+
+        canvas_layout.addWidget(align_bar)
+        layout.addWidget(canvas_container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         self.setCentralWidget(central)
@@ -434,7 +481,7 @@ class EditorWindow(QMainWindow):
         self.resources_panel = self.build_resources_panel()
         self.build_toolbar()
 
-        dock_left = QDockWidget("Scenes", self)
+        dock_left = QDockWidget("Pages", self)
         dock_left.setWidget(self.scene_list)
         dock_left.setAllowedAreas(Qt.LeftDockWidgetArea)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock_left)
@@ -456,6 +503,31 @@ class EditorWindow(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, dock_resources)
 
         self.refresh_scene()
+        # Ensure the view initially fits the entire canvas
+        self.view.resetTransform()
+        self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+
+    def resizeEvent(self, event):
+        # Keep the canvas fitted to the available view area when the window resizes
+        try:
+            self.view.resetTransform()
+            self.view.fitInView(self.scene.sceneRect(), Qt.KeepAspectRatio)
+        except Exception:
+            pass
+        return super().resizeEvent(event)
+
+    def eventFilter(self, obj, event):
+        # Block middle-button pan and touchpad two-finger drag that may move the view
+        from PySide6.QtCore import QEvent
+        if obj is self.view.viewport():
+            if event.type() == QEvent.MouseButtonPress:
+                if event.button() == Qt.MiddleButton:
+                    return True
+            if event.type() == QEvent.MouseMove:
+                buttons = event.buttons()
+                if buttons & Qt.MiddleButton:
+                    return True
+        return super().eventFilter(obj, event)
 
     def build_toolbar(self):
         toolbar = QToolBar("Tools")
@@ -480,6 +552,16 @@ class EditorWindow(QMainWindow):
         delete_action.triggered.connect(self.delete_selected_widgets)
         toolbar.addAction(delete_action)
 
+        copy_action = QAction("Copy", self)
+        copy_action.setShortcut("Ctrl+C")
+        copy_action.triggered.connect(self.copy_selected_widgets)
+        toolbar.addAction(copy_action)
+
+        paste_action = QAction("Paste", self)
+        paste_action.setShortcut("Ctrl+V")
+        paste_action.triggered.connect(self.paste_widgets)
+        toolbar.addAction(paste_action)
+
         new_action = QAction("New File", self)
         new_action.triggered.connect(self.new_file)
         toolbar.addAction(new_action)
@@ -491,13 +573,13 @@ class EditorWindow(QMainWindow):
         toolbar.addSeparator()
         grid_action = QAction("Grid", self)
         grid_action.setCheckable(True)
-        grid_action.setChecked(True)
+        grid_action.setChecked(False)
         grid_action.triggered.connect(self.toggle_grid)
         toolbar.addAction(grid_action)
 
         snap_action = QAction("Snap", self)
         snap_action.setCheckable(True)
-        snap_action.setChecked(True)
+        snap_action.setChecked(False)
         snap_action.triggered.connect(self.toggle_snap)
         toolbar.addAction(snap_action)
 
@@ -508,6 +590,131 @@ class EditorWindow(QMainWindow):
         z_down = QAction("Send Back", self)
         z_down.triggered.connect(self.send_back)
         toolbar.addAction(z_down)
+
+    def keyPressEvent(self, event):
+        # Delete key removes selected widgets
+        if event.key() == Qt.Key_Delete:
+            self.delete_selected_widgets()
+            return
+        # Copy / Paste
+        if event.modifiers() & Qt.ControlModifier:
+            if event.key() == Qt.Key_C:
+                self.copy_selected_widgets()
+                return
+            if event.key() == Qt.Key_V:
+                self.paste_widgets()
+                return
+        return super().keyPressEvent(event)
+
+    # Alignment helpers
+    def _selection_bbox(self):
+        items = self.selected_items()
+        if not items:
+            return None
+        min_x = min(int(item.pos().x()) for item in items)
+        min_y = min(int(item.pos().y()) for item in items)
+        max_x = max(int(item.pos().x() + item.rect().width()) for item in items)
+        max_y = max(int(item.pos().y() + item.rect().height()) for item in items)
+        return (min_x, min_y, max_x, max_y)
+
+    def align_left(self):
+        items = self.selected_items()
+        if not items:
+            return
+        bbox = self._selection_bbox()
+        if not bbox:
+            return
+        min_x = bbox[0]
+        for item in items:
+            old_pos = QPointF(item.pos())
+            old_rect = QRectF(item.rect())
+            item.setPos(min_x, item.pos().y())
+            self.update_data_from_item(item, update_panel=False)
+            self.commit_move_resize(item, old_pos, old_rect)
+
+    def align_right(self):
+        items = self.selected_items()
+        if not items:
+            return
+        bbox = self._selection_bbox()
+        if not bbox:
+            return
+        _, _, max_x, _ = bbox
+        for item in items:
+            old_pos = QPointF(item.pos())
+            old_rect = QRectF(item.rect())
+            w = item.rect().width()
+            item.setPos(int(max_x - w), item.pos().y())
+            self.update_data_from_item(item, update_panel=False)
+            self.commit_move_resize(item, old_pos, old_rect)
+
+    def align_top(self):
+        items = self.selected_items()
+        if not items:
+            return
+        bbox = self._selection_bbox()
+        if not bbox:
+            return
+        _, min_y, _, _ = bbox
+        for item in items:
+            old_pos = QPointF(item.pos())
+            old_rect = QRectF(item.rect())
+            item.setPos(item.pos().x(), min_y)
+            self.update_data_from_item(item, update_panel=False)
+            self.commit_move_resize(item, old_pos, old_rect)
+
+    def distribute_h(self):
+        items = self.selected_items()
+        if not items or len(items) < 2:
+            return
+        # sort by current x (center)
+        items_sorted = sorted(items, key=lambda it: it.pos().x() + it.rect().width() / 2)
+        centers = [it.pos().x() + it.rect().width() / 2 for it in items_sorted]
+        min_c = min(centers)
+        max_c = max(centers)
+        n = len(items_sorted)
+        for i, item in enumerate(items_sorted):
+            old_pos = QPointF(item.pos())
+            old_rect = QRectF(item.rect())
+            target_c = min_c + (max_c - min_c) * (i / (n - 1)) if n > 1 else centers[i]
+            w = item.rect().width()
+            item.setPos(int(target_c - w / 2), int(item.pos().y()))
+            self.update_data_from_item(item, update_panel=False)
+            self.commit_move_resize(item, old_pos, old_rect)
+
+    def distribute_v(self):
+        items = self.selected_items()
+        if not items or len(items) < 2:
+            return
+        items_sorted = sorted(items, key=lambda it: it.pos().y() + it.rect().height() / 2)
+        centers = [it.pos().y() + it.rect().height() / 2 for it in items_sorted]
+        min_c = min(centers)
+        max_c = max(centers)
+        n = len(items_sorted)
+        for i, item in enumerate(items_sorted):
+            old_pos = QPointF(item.pos())
+            old_rect = QRectF(item.rect())
+            target_c = min_c + (max_c - min_c) * (i / (n - 1)) if n > 1 else centers[i]
+            h = item.rect().height()
+            item.setPos(int(item.pos().x()), int(target_c - h / 2))
+            self.update_data_from_item(item, update_panel=False)
+            self.commit_move_resize(item, old_pos, old_rect)
+
+    def align_bottom(self):
+        items = self.selected_items()
+        if not items:
+            return
+        bbox = self._selection_bbox()
+        if not bbox:
+            return
+        _, _, _, max_y = bbox
+        for item in items:
+            old_pos = QPointF(item.pos())
+            old_rect = QRectF(item.rect())
+            h = item.rect().height()
+            item.setPos(item.pos().x(), int(max_y - h))
+            self.update_data_from_item(item, update_panel=False)
+            self.commit_move_resize(item, old_pos, old_rect)
 
     def build_widget_palette(self) -> QWidget:
         widget = QWidget()
@@ -614,25 +821,24 @@ class EditorWindow(QMainWindow):
         self.scene_list_widget.currentRowChanged.connect(self.switch_scene)
 
         self.scene_name_edit = QLineEdit()
-        rename_btn = QPushButton("Rename Scene")
-        rename_btn.clicked.connect(self.rename_scene)
-        layout.addWidget(QLabel("Scene Name"))
+        # Apply rename when editing finished (press Enter or focus lost)
+        self.scene_name_edit.editingFinished.connect(self.rename_scene)
+        layout.addWidget(QLabel("Page Name"))
         layout.addWidget(self.scene_name_edit)
-        layout.addWidget(rename_btn)
 
-        add_btn = QPushButton("Add Scene")
+        add_btn = QPushButton("Add Page")
         add_btn.clicked.connect(self.add_scene)
         layout.addWidget(add_btn)
 
-        remove_btn = QPushButton("Remove Current Scene")
+        remove_btn = QPushButton("Remove Current Page")
         remove_btn.clicked.connect(self.remove_scene)
         layout.addWidget(remove_btn)
 
-        save_btn = QPushButton("Save All Scenes")
+        save_btn = QPushButton("Save All Pages")
         save_btn.clicked.connect(self.save_json)
         layout.addWidget(save_btn)
 
-        open_btn = QPushButton("Open Scenes")
+        open_btn = QPushButton("Open Pages")
         open_btn.clicked.connect(self.open_json)
         layout.addWidget(open_btn)
 
@@ -657,8 +863,15 @@ class EditorWindow(QMainWindow):
         self.prop_z = QSpinBox()
         self.prop_onclick = QLineEdit()
 
-        for spin in [self.prop_x, self.prop_y, self.prop_w, self.prop_h, self.prop_z]:
-            spin.setRange(-10000, 10000)
+        # Allow arbitrary positive integers for coords and sizes
+        for spin in [self.prop_x, self.prop_y]:
+            spin.setRange(0, 100000)
+            spin.setSingleStep(1)
+        for spin in [self.prop_w, self.prop_h]:
+            spin.setRange(1, 100000)
+            spin.setSingleStep(1)
+        # z-order can be negative if desired
+        self.prop_z.setRange(-10000, 10000)
 
         layout.addRow("ID", self.prop_id)
         layout.addRow("Type", self.prop_type)
@@ -679,9 +892,7 @@ class EditorWindow(QMainWindow):
         for spin in [self.prop_x, self.prop_y, self.prop_w, self.prop_h, self.prop_z]:
             spin.valueChanged.connect(self.apply_properties)
 
-        save_default_btn = QPushButton("Save As Default")
-        save_default_btn.clicked.connect(self.save_selected_as_default)
-        layout.addRow(save_default_btn)
+        # 'Save As Default' button removed; defaults are now auto-saved on size changes
 
         return widget
 
@@ -946,10 +1157,10 @@ class EditorWindow(QMainWindow):
         before = WidgetData(**asdict(item.data))
         item.data.id = new_id
         item.data.type = self.prop_type.text().strip() or item.data.type
-        item.data.x = self.prop_x.value()
-        item.data.y = self.prop_y.value()
-        item.data.w = max(10, self.prop_w.value())
-        item.data.h = max(10, self.prop_h.value())
+        item.data.x = int(self.prop_x.value())
+        item.data.y = int(self.prop_y.value())
+        item.data.w = max(1, int(self.prop_w.value()))
+        item.data.h = max(1, int(self.prop_h.value()))
         item.data.text = self.prop_text.text()
         item.data.style = self.prop_style.text()
         item.data.z_order = self.prop_z.value()
@@ -961,9 +1172,35 @@ class EditorWindow(QMainWindow):
         after = WidgetData(**asdict(item.data))
         if asdict(before) != asdict(after):
             self.undo_stack.push(PropertyChangeCommand(item, before, after))
+            # Auto-save updated width/height defaults when user edits properties
+            try:
+                if not hasattr(self.project, 'control_defaults') or self.project.control_defaults is None:
+                    self.project.control_defaults = {}
+                defs = dict(self.project.control_defaults.get(item.data.type, {}))
+                defs['w'] = int(item.data.w)
+                defs['h'] = int(item.data.h)
+                self.project.control_defaults[item.data.type] = defs
+                self.save_editor_state()
+            except Exception:
+                pass
 
     def commit_move_resize(self, item: WidgetItem, old_pos: QPointF, old_rect: QRectF):
         self.undo_stack.push(MoveResizeCommand(item, old_pos, old_rect))
+        try:
+            old_w = int(old_rect.width())
+            old_h = int(old_rect.height())
+            new_w = int(item.rect().width())
+            new_h = int(item.rect().height())
+            if new_w != old_w or new_h != old_h:
+                if not hasattr(self.project, 'control_defaults') or self.project.control_defaults is None:
+                    self.project.control_defaults = {}
+                defs = dict(self.project.control_defaults.get(item.data.type, {}))
+                defs['w'] = new_w
+                defs['h'] = new_h
+                self.project.control_defaults[item.data.type] = defs
+                self.save_editor_state()
+        except Exception:
+            pass
 
     def snap_value(self, value: int) -> int:
         return int(round(value / GRID_SIZE) * GRID_SIZE)
@@ -998,6 +1235,33 @@ class EditorWindow(QMainWindow):
         for item in selected:
             self.undo_stack.push(RemoveWidgetCommand(self, item))
 
+    def copy_selected_widgets(self):
+        selected = list(self.selected_items())
+        if not selected:
+            return
+        data = [asdict(item.data) for item in selected]
+        try:
+            self._clipboard = json.dumps(data)
+        except Exception:
+            self._clipboard = None
+
+    def paste_widgets(self):
+        if not self._clipboard:
+            return
+        try:
+            data = json.loads(self._clipboard)
+        except Exception:
+            return
+        # Paste each widget as a new widget with new id and offset
+        for d in data:
+            d_copy = dict(d)
+            d_copy['id'] = f"{d_copy.get('type','widget').lower()}_{uuid.uuid4().hex[:6]}"
+            d_copy['x'] = int(d_copy.get('x', 0)) + 10
+            d_copy['y'] = int(d_copy.get('y', 0)) + 10
+            widget = WidgetData(**d_copy)
+            self.current_scene.widgets.append(widget)
+            self.undo_stack.push(AddWidgetCommand(self, widget))
+
     def export_json(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export JSON", "ui.json", "JSON (*.json)")
         if not path:
@@ -1011,7 +1275,7 @@ class EditorWindow(QMainWindow):
         texts: Dict[str, str] = {}
         text_id_by_value: Dict[str, str] = {}
         widgets: Dict[str, Dict[str, object]] = {}
-        scenes: Dict[str, Dict[str, object]] = {}
+        pages: Dict[str, Dict[str, object]] = {}
 
         for scene in self.project.scenes:
             root_id = f"root_{scene.id}"
@@ -1042,7 +1306,7 @@ class EditorWindow(QMainWindow):
                 scene_widget_ids.append(w.id)
                 widgets[root_id]["children"].append(w.id)
 
-            scenes[scene.id] = {
+            pages[scene.id] = {
                 "name": scene.name,
                 "root": root_id,
             }
@@ -1101,7 +1365,7 @@ class EditorWindow(QMainWindow):
             "styles": styles,
             "themes": {},
             "data": {},
-            "scenes": scenes,
+            "pages": pages,
             "widgets": widgets,
             "events": [],
             "navigation": {"focus": {}, "scene_flow": {}},
@@ -1172,12 +1436,14 @@ class EditorWindow(QMainWindow):
                         events={},
                     )
 
-                scene_map = raw.get("scenes", {})
-                for scene_id, scene in scene_map.items():
-                    scene_root = scene.get("root", "") if isinstance(scene, dict) else ""
-                    scene_widgets = build_scene_widgets(str(scene_root), widget_map) if scene_root else []
+                page_map = raw.get("pages", {})
+                if not page_map:
+                    page_map = raw.get("scenes", {})
+                for page_id, page in page_map.items():
+                    page_root = page.get("root", "") if isinstance(page, dict) else ""
+                    page_widgets = build_scene_widgets(str(page_root), widget_map) if page_root else []
                     scenes.append(
-                        SceneData(id=str(scene_id), name=scene.get("name", "") if isinstance(scene, dict) else "", widgets=scene_widgets)
+                        SceneData(id=str(page_id), name=page.get("name", "") if isinstance(page, dict) else "", widgets=page_widgets)
                     )
             else:
                 properties = raw.get("properties", [])
@@ -1197,8 +1463,10 @@ class EditorWindow(QMainWindow):
                             return str(texts.get(text_id, text_id))
                     return ""
 
-                scene_map = raw.get("scenes", {})
-                for scene_id, scene in scene_map.items():
+                page_map = raw.get("pages", {})
+                if not page_map:
+                    page_map = raw.get("scenes", {})
+                for scene_id, scene in page_map.items():
                     scene_widgets: List[WidgetData] = []
                     for w in widgets_raw:
                         if w.get("scene") != scene_id:
@@ -1319,7 +1587,7 @@ class EditorWindow(QMainWindow):
         favs = list(getattr(self.project, "favorites", []))
         defaults = dict(getattr(self.project, "control_defaults", {}))
         self.project = ProjectData(
-            scenes=[SceneData(id="main_scene", name="MainScene")],
+            scenes=[SceneData(id="page_main", name="MainPage")],
             favorites=favs,
             control_defaults=defaults,
         )
@@ -1343,7 +1611,7 @@ class EditorWindow(QMainWindow):
         favs = list(getattr(self.project, "favorites", []))
         defaults = dict(getattr(self.project, "control_defaults", {}))
         self.project = ProjectData(favorites=favs, control_defaults=defaults)
-        self.current_scene = SceneData(id="scene", name="Scene")
+        self.current_scene = SceneData(id="page", name="Page")
         if hasattr(self, 'scene_list_widget'):
             self.scene_list_widget.clear()
         if hasattr(self, 'scene_name_edit'):
@@ -1361,7 +1629,7 @@ class EditorWindow(QMainWindow):
         super().closeEvent(event)
 
     def add_scene(self):
-        scene = SceneData(id=f"scene_{uuid.uuid4().hex[:4]}", name="NewScene")
+        scene = SceneData(id=f"page_{uuid.uuid4().hex[:4]}", name="NewPage")
         self.project.scenes.append(scene)
         item = QListWidgetItem(scene.name)
         item.setData(Qt.UserRole, scene)
@@ -1381,7 +1649,7 @@ class EditorWindow(QMainWindow):
             self.refresh_scene()
             self.scene_name_edit.setText(self.current_scene.name)
         else:
-            self.current_scene = SceneData("scene", "Scene")
+            self.current_scene = SceneData("page", "Page")
             self.scene_name_edit.setText("")
 
     def switch_scene(self, row: int):

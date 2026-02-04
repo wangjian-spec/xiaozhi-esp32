@@ -1,5 +1,6 @@
 #include "ui_engine.h"
-#include "painter.h"
+
+#include "renderer.h"
 #include "scene.h"
 #include "widget.h"
 
@@ -60,6 +61,11 @@ void UIEngine::Tick(uint32_t delta_ms) {
 
     if (cached_root_ != root) {
         cached_root_ = root;
+        focus_.Clear();
+        dirty_.Clear();
+        animation_.StopAll();
+        style_.MarkDirty(true);
+        input_queue_.Clear();
         focus_.Build(root);
         RequestLayout();
     }

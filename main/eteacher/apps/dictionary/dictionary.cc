@@ -3,11 +3,8 @@
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/epd_manager/epd_manager.h"
 #include "eteacher/font_manager/font_manager.h"
-#include "eteacher/app_ui/dirty_tracker.h"
-#include "eteacher/app_ui/layout_engine.h"
-#include "eteacher/app_ui/painter.h"
 #include "eteacher/app_ui/renderer.h"
-#include "eteacher/app_ui/scene_runtime.h"
+#include "eteacher/app_ui/scene.h"
 #include "eteacher/app_ui/widget_builder.h"
 
 #include "display.h"

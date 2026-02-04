@@ -1,4 +1,25 @@
 {
-  "favorites": [],
-  "control_defaults": {}
+  "favorites": [
+    "Label",
+    "Button",
+    "TextArea"
+  ],
+  "control_defaults": {
+    "Label": {
+      "w": 100,
+      "h": 20,
+      "text": "Label",
+      "style": "",
+      "z_order": 0,
+      "events": {}
+    },
+    "Radio": {
+      "w": 112,
+      "h": 22
+    },
+    "Checkbox": {
+      "w": 12,
+      "h": 101
+    }
+  }
 }

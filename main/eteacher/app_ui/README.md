@@ -1,190 +1,200 @@
-﻿# app_ui — UI 架构与工作原理（当前版本）
+﻿app_ui 文档
 
-本文件描述当前项目 UI 架构、工作原理、工作流程、调用关系、数据结构与使用方法。
-内容基于 `main/eteacher/app_ui` 当前实现（运行期 Widget Tree + JSON 解析 + 渲染管线）。
+概览
+- 目标：提供轻量 UI 运行时（布局、渲染、输入、焦点、样式、动画），支持从 JSON 动态构建场景。
+- 核心入口：`UIEngine`（见 [main/eteacher/app_ui/ui_engine.h](main/eteacher/app_ui/ui_engine.h) 与 [main/eteacher/app_ui/ui_engine.cc](main/eteacher/app_ui/ui_engine.cc)）。
+- 数据驱动：`runtime::SceneManager::LoadFromJson` 通过 JSON 构建 `Widget` 树（见 [main/eteacher/app_ui/scene.cc](main/eteacher/app_ui/scene.cc)）。
 
----
+UI 架构
+1) 数据层
+	- JSON UI 描述（场景、控件、资源）。
+	- 结构验证：`UiSchemaValidator`（见 [main/eteacher/app_ui/scene.cc](main/eteacher/app_ui/scene.cc)）。
+2) 运行时层
+	- 场景栈：`SceneManager`（静态场景）与 `runtime::SceneManager`（JSON 场景）。
+	- 互斥规则：同一时刻 UIEngine 只能有一个 Active Root（静态 Scene 或 JSON Scene 之一）。
+	  切换 Root 时必须清理状态：清空焦点、清空脏区、停止动画、释放旧 Root。
+	- 控件树：`Widget` 基类 + `BasicWidget`/具体控件。
+3) 系统层
+	- 输入：`InputQueue` + `InputDispatcher` + `FocusManager`。
+	- 布局：`LayoutEngine`。
+	- 渲染：`RenderList` + `Renderer` + `Painter`。
+	- 脏矩形：`DirtyTracker`。
+	- 动画与样式：`AnimationEngine`、`StyleManager`。
 
-# 1. 架构总览
+工作原理
+1) App 进入时构建/加载场景（静态 Scene 或 JSON）。
+2) `UIEngine::Tick`（条件驱动）：
+	- 处理输入事件 → 分发到控件树。
+	- 若样式/动画脏：触发布局或渲染请求。
+	- 若布局脏：测量/布局，并构建渲染列表。
+	- 若渲染脏：执行增量或全量绘制。
 
-## 1.1 分层架构
+所有模块设计（文件与职责）
+- `UIEngine`（含 Style/Animation）：主循环与协同调度。[main/eteacher/app_ui/ui_engine.h](main/eteacher/app_ui/ui_engine.h)
+- `Scene`/`SceneManager` + `runtime::SceneManager` + `UiSchemaValidator`：[main/eteacher/app_ui/scene.h](main/eteacher/app_ui/scene.h)
+- `Widget`/`BasicWidget`/控件集：[main/eteacher/app_ui/widget.h](main/eteacher/app_ui/widget.h)
+- `WidgetBuilder`：JSON → 控件树。[main/eteacher/app_ui/widget_builder.h](main/eteacher/app_ui/widget_builder.h)
+- `Renderer`/`RenderList` + `LayoutEngine` + `DirtyTracker` + `Painter`：[main/eteacher/app_ui/renderer.h](main/eteacher/app_ui/renderer.h)
+- `InputQueue`/`InputDispatcher` + `FocusManager`：[main/eteacher/app_ui/input.h](main/eteacher/app_ui/input.h)
+- 基础数据结构与资源描述：`Size/Point/Rect`、`WidgetType` 等。[main/eteacher/app_ui/types.h](main/eteacher/app_ui/types.h)
 
-当前 UI 体系分为 3 层：
+时序图（UIEngine::Tick）
+```mermaid
+sequenceDiagram
+	 participant App
+	 participant UIEngine
+	 participant InputQueue
+	 participant Dispatcher
+	 participant Layout
+	 participant RenderList
+	 participant Renderer
+	 participant Painter
 
-1. **UI 描述层（资源层）**
-	 - JSON / Generated C++ 只做“资源描述”，不参与运行期状态。
-2. **运行期对象层（Runtime）**
-	 - `Widget` / `Scene` / `FocusManager` 等构成 Widget Tree 与交互状态。
-3. **渲染执行层（Renderer / Painter）**
-	 - `RenderList` → `Renderer` → `Painter` 完成绘制与刷新。
+	 App->>UIEngine: Tick(delta_ms)
+	 UIEngine->>InputQueue: TryPop()
+	 UIEngine->>Dispatcher: Dispatch(event, root, focus)
+	Note over UIEngine: if (style/animation dirty) RequestLayout/Render
+	UIEngine->>Layout: LayoutTree(root, viewport) [if layout dirty]
+	UIEngine->>RenderList: Build(root) [if layout dirty]
+	UIEngine->>Renderer: Render(list, dirty, painter) [if render dirty]
+	 Renderer->>Painter: Draw...
+```
 
-依赖方向为单向：资源层 → 运行期层 → 渲染层。
+流程图（JSON 场景加载）
+```mermaid
+flowchart TD
+	 A[LoadFromJson] --> B{Validate JSON}
+	 B -- fail --> X[返回 false]
+	 B -- ok --> C[查找 scenes/widgets/resources]
+	 C --> D[解析 scene.root]
+	 D --> E[WidgetBuilder::BuildScene]
+	 E -- fail --> X
+	E -- ok --> F[生成 root Widget]
+	F --> G[清理旧状态: Focus/Dirty/Animation/Old Root]
+	G --> H[FocusManager::Build]
+	H --> I[返回 true]
+```
 
-## 1.2 模块划分
+函数调用关系（核心链路）
+- `UIEngine::Tick` → `InputQueue::TryPop` → `InputDispatcher::Dispatch` → `Widget::OnInput`
+- `UIEngine::Tick` → `LayoutEngine::LayoutTree` → `Widget::Measure` → `Widget::Layout`
+- `UIEngine::Tick` → `RenderList::Build` → `Renderer::Render` → `Widget::Draw`
+- `runtime::SceneManager::LoadFromJson` → `UiSchemaValidator::Validate` → `WidgetBuilder::BuildScene`
 
-- **资源描述层**：`ui_layout_types.h`（资源结构定义）
-- **运行期对象层**：`widget.h/.cc`, `scene.h/.cc`, `scene_runtime.*`, `focus_manager.*`
-- **布局系统**：`layout_engine.*`, `layout_cache.h`
-- **渲染系统**：`renderer.*`, `dirty_tracker.*`, `painter.h`
-- **Widget 构建**：`widget_builder.*`
-- **Schema 校验**：`ui_schema_validator.*`
-- **基础控件**：`basic_widgets.*`
-- **输入系统**：`input.h/.cc`
-- **引擎调度**：`ui_engine.*`
+依赖规则（必须遵守）
+- Widget 不得直接访问 `UIEngine` 或 `SceneManager`。
+- Widget 只能通过 `MarkDirty()` / `MarkLayoutDirty()` 或回调/事件上报请求刷新。
 
-## 1.3 当前合并说明（文件精简）
+数据接口
+JSON 结构（要求至少包含以下字段）：
+- `scenes`：对象，key 为场景 id，value 包含 `root`。
+- `widgets`：对象，key 为控件 id，value 包含 `type` 与 `rect`。
+- `resources.texts`：可选，用于 `textId` 解析。
+- `rect`：包含 `x/y/w/h`，均为数值。
+- `children`：可选，数组，容器类控件才允许有子节点。
 
-- `RenderList` 已合并进 `renderer.h/.cc`
-- `SceneManager` 已合并进 `scene.h/.cc`
-- 输入系统合并为 `input.h/.cc`
-- `WidgetFactory` 与资源树构建合并进 `widget_builder.*`
+演进建议（预留字段）
+- `meta.ui_version`：版本号。
+- `layout`：预留布局模型字段，例如：
+	- `layout.type = "absolute"`
+	- `layout.rect = {x,y,w,h}`
 
----
+数据结构与数据类型
+- `Size`/`Point`/`Rect`：[main/eteacher/app_ui/types.h](main/eteacher/app_ui/types.h)
+- `InputEvent`/`InputType`：[main/eteacher/app_ui/input.h](main/eteacher/app_ui/input.h)
+- `WidgetType`、`SceneID` 等枚举：[main/eteacher/app_ui/types.h](main/eteacher/app_ui/types.h)
+- `WidgetFlags`/`LayoutCache`：[main/eteacher/app_ui/widget.h](main/eteacher/app_ui/widget.h)
 
-# 2. 工作原理
+状态与生命周期约束
+- `WidgetFlags` 仅允许由 Widget 自身与核心引擎修改；外部模块不得随意改写。
+- `RectInParent/Window/Screen` 的更新由 Layout 阶段统一完成，Widget 不应私自修改。
+- `InputEvent` 为值语义，禁止跨 Tick 保存指针/引用。
 
-## 2.1 Scene 与 Widget Tree
+所有接口（Public API 摘要）
+UI 引擎
+- `UIEngine`: `OnInput()`, `RequestLayout()`, `RequestRender()`, `Tick()`, `SetPainter()`, `SetViewport()`, `Scenes()`, `Input()`。
 
-- Scene 必须拥有 **root**，并以 root 为入口形成树。
-- Widget Tree 是运行期对象结构；所有状态只存在运行期对象。
-- Scene 生命周期：`OnEnter` → `OnPause/OnResume` → `OnExit`。
+场景
+- `Scene`: `BuildUI()`, `Name()`, `OnEnter()`, `OnExit()`, `OnPause()`, `OnResume()`, `Root()`。
+- `SceneManager`: `Push()`, `Pop()`, `Replace()`, `FindByName()`, `Current()`, `Clear()`, `PromoteToTop()`。
+- `runtime::SceneManager`: `LoadFromJson()`, `Root()`, `Focus()`, `SceneId()`。
 
-## 2.2 资源/运行期边界
+控件与构建
+- `Widget`: `AddChild()`, `Parent()`, `Children()`, `Measure()`, `Layout()`, `Draw()`, `OnInput()`, `OnAttach()`, `OnDetach()`, `MarkDirty()`, `MarkLayoutDirty()`, `SetVisible()`, `Visible()`, `SetEnabled()`, `Enabled()`, `SetFocusable()`, `RectInParent()`, `RectInWindow()`, `RectInScreen()`, `MapToGlobal()`, `MapFromGlobal()`, `HitTest()`, `Focusable()`, `ZOrder()`, `SetRectInParent()`。
+- `WidgetBuilder`: `BuildWidget()`, `BuildScene()`。
 
-- 资源层只保存构造参数（type/rect/properties/资源引用）。
-- 运行期仅保存状态（visible/enabled/checked/value/focus）。
-- 状态变化不会写回资源层。
+布局与渲染
+- `LayoutEngine`: `LayoutTree()`。
+- `RenderList`: `Clear()`, `Build()`, `Items()`。
+- `Renderer`: `Capabilities()`, `Render()`。
+- `Painter`: `SetClip()`, `PushClip()`, `PopClip()`, `DrawText()`, `MeasureText()`, `DrawRect()`, `FillRect()`, `DrawImage()`, `SetFont()`, `SetDrawColor()`, `SetTextColor()`, `DrawCircle()`, `SetTransform()`, `SetAlpha()`。
 
-## 2.3 严格 Schema
+输入与焦点
+- `InputQueue`: `Push()`, `TryPop()`, `Clear()`, `Size()`。
+- `InputDispatcher`: `Dispatch()`。
+- `FocusManager`: `Build()`, `MoveUp()`, `MoveDown()`, `MoveLeft()`, `MoveRight()`, `Current()`, `SetWrap()`。
 
-- `scene.root` 必须存在且合法。
-- 每个 widget 必须有 `type` 与完整 `rect`。
-- `children` 只能出现在容器类型。
-- Builder 不做默认补齐，缺失字段即失败。
+辅助模块
+- `DirtyTracker`: `Add()`, `HasDirty()`, `Merge()`, `RequireFullRefresh()`, `Clear()`。
+- `StyleManager`: `MarkDirty()`, `ConsumeLayoutDirty()`, `ConsumeRenderDirty()`。
+- `AnimationEngine`: `Tick()`, `StopAll()`。
 
----
+使用方法
+1) 构建静态场景
+	- 继承 `Scene`，实现 `BuildUI()`，并将场景 Push 到 `SceneManager`。
+2) 使用 JSON 场景
+	- 通过 `runtime::SceneManager::LoadFromJson()` 读取 JSON 结构并生成控件树。
+3) 运行
+	- 将 `Painter` 绑定给 `UIEngine`，设置 viewport。
+	- 周期性调用 `UIEngine::Tick(delta_ms)`。
 
-# 3. 数据结构
+使用约束
+- 所有 UI API 仅允许在 UI 线程调用。
+- Scene 切换必须遵守“清理旧状态”顺序（Focus/Dirty/Animation/Old Root）。
 
-## 3.1 JSON 顶层结构（严格树模型）
+文件精简结果
+- 核心文件（建议关注）
+	- [main/eteacher/app_ui/ui_engine.h](main/eteacher/app_ui/ui_engine.h)
+	- [main/eteacher/app_ui/ui_engine.cc](main/eteacher/app_ui/ui_engine.cc)
+	- [main/eteacher/app_ui/scene.h](main/eteacher/app_ui/scene.h)
+	- [main/eteacher/app_ui/scene.cc](main/eteacher/app_ui/scene.cc)
+	- [main/eteacher/app_ui/widget.h](main/eteacher/app_ui/widget.h)
+	- [main/eteacher/app_ui/widget.cc](main/eteacher/app_ui/widget.cc)
+	- [main/eteacher/app_ui/widget_builder.h](main/eteacher/app_ui/widget_builder.h)
+	- [main/eteacher/app_ui/widget_builder.cc](main/eteacher/app_ui/widget_builder.cc)
+	- [main/eteacher/app_ui/renderer.h](main/eteacher/app_ui/renderer.h)
+	- [main/eteacher/app_ui/renderer.cc](main/eteacher/app_ui/renderer.cc)
+	- [main/eteacher/app_ui/input.h](main/eteacher/app_ui/input.h)
+	- [main/eteacher/app_ui/input.cc](main/eteacher/app_ui/input.cc)
+	- [main/eteacher/app_ui/types.h](main/eteacher/app_ui/types.h)
+	- [main/eteacher/app_ui/status_bar.h](main/eteacher/app_ui/status_bar.h)
+	- [main/eteacher/app_ui/status_bar.cc](main/eteacher/app_ui/status_bar.cc)
+- 兼容层已删除
 
+示例
+JSON 片段（结构示意）：
 ```json
 {
-	"meta": {},
-	"resources": { "texts": {}, "images": {}, "fonts": {} },
-	"styles": {},
-	"themes": {},
-	"data": {},
-	"scenes": {
-		"scene_id": { "name": "", "root": "widget_id" }
-	},
-	"widgets": {
-		"widget_id": {
-			"type": "Button",
-			"rect": {"x":0,"y":0,"w":0,"h":0},
-			"properties": {},
-			"children": ["child_widget_id"]
-		}
-	},
-	"events": [],
-	"navigation": { "focus": {}, "scene_flow": {} },
-	"states": {}
+  "scenes": { "main_scene": { "root": "root_main" } },
+  "widgets": {
+	 "root_main": { "type": "Container", "rect": {"x":0,"y":0,"w":400,"h":300}, "children": ["label_1"] },
+	 "label_1": { "type": "Label", "rect": {"x":10,"y":10,"w":100,"h":30}, "properties": {"text":"Hello"} }
+  }
 }
 ```
 
-## 3.2 资源层结构（C++）
+调用示例（伪代码）：
+```cpp
+app_ui::UIEngine engine;
+engine.SetPainter(painter);
+engine.SetViewport({0,0,400,300});
+engine.Scenes().Push(std::make_unique<MyScene>());
+engine.Tick(16);
+```
 
-- `resource::WidgetInit` / `resource::SceneInit`
-- `GeneratedTextResource` / `GeneratedImageResource` / `GeneratedFontResource`
-- `GeneratedStyle` / `GeneratedTheme`
+WidgetBuilder 事务语义
+- `BuildScene()` 要么返回完整、可用的 Root Widget；要么返回 `nullptr`，系统状态不变。
+- Builder 内部不得直接触碰 `UIEngine`/`FocusManager`。
 
-## 3.3 运行期结构
-
-- `Widget`：运行期 UI 对象
-- `Scene` / `SceneManager`：Scene 栈与生命周期
-- `SceneRuntime` / `runtime::SceneManager`：JSON 场景加载
-- `LayoutEngine`：Measure / Layout
-- `Renderer` + `RenderList`：绘制排序与刷新
-
----
-
-# 4. 工作流程
-
-## 4.1 UI 开发流程
-
-1. UI 编辑器导出 JSON（Scene 必须有 root）
-2. 可选：Python 生成器生成 C++ 头文件
-3. 运行期加载 JSON 或 Generated 资源
-
-## 4.2 启动流程（Runtime JSON）
-
-1. 读取 JSON
-2. `UiSchemaValidator::Validate`
-3. `WidgetBuilder::BuildScene` 递归构建树
-4. `FocusManager::Build`
-5. `LayoutEngine::LayoutTree`
-6. `Renderer::Render`
-
-## 4.3 Scene 切换流程
-
-- `SceneManager::Push/Pop/Replace`
-- Scene 生命周期回调执行
-
----
-
-# 5. 调用关系（Call Graph）
-
-## 5.1 模块级调用链
-
-- App → `runtime::SceneManager::LoadFromJson`
-- `UiSchemaValidator` → `WidgetBuilder`
-- `LayoutEngine` → `Renderer` → `Painter`
-
-## 5.2 渲染链
-
-`RenderList::Build` → `Renderer::Render` → `Painter`（设备绘制）
-
-## 5.3 输入链
-
-`InputQueue` → `InputDispatcher` → `Widget::OnInput`
-
----
-
-# 6. 使用方法
-
-## 6.1 运行期 JSON 使用
-
-1. 准备 JSON（root + children 树结构）
-2. 调用 `runtime::SceneManager::LoadFromJson` 加载 Scene
-3. 使用 `LayoutEngine` + `Renderer` 进行渲染
-
-## 6.2 关键入口
-
-- Schema 校验：`UiSchemaValidator::Validate`
-- Widget 构建：`WidgetBuilder::BuildScene`
-- 场景管理：`SceneManager` / `runtime::SceneManager`
-- 渲染管线：`LayoutEngine` → `RenderList` → `Renderer`
-- 输入处理：`InputQueue` / `InputDispatcher`
-
----
-
-# 7. 设计原则与约束
-
-- **单向依赖**：资源层不依赖运行期与渲染层。
-- **严格 Schema**：缺字段直接失败，避免隐式行为。
-- **状态只在运行期**：资源层不可保存运行期状态。
-- **易扩展**：新增控件仅扩展 `basic_widgets` 与 `widget_builder` 映射。
-
----
-
-# 8. 目录索引（当前关键文件）
-
-- 入口：`ui_engine.*`
-- Scene：`scene.h/.cc`，`scene_runtime.*`
-- Builder：`widget_builder.*`
-- Schema：`ui_schema_validator.*`
-- 渲染：`renderer.*`，`dirty_tracker.*`，`painter.h`
-- 布局：`layout_engine.*`
-- 控件：`basic_widgets.*`
-- 输入：`input.h/.cc`
-
+Style/Animation 作用域
+- Style/Animation 视为 Root 级状态，Scene 切换时必须 Reset。

@@ -17,8 +17,108 @@
 #include <driver/gpio.h>
 #include <arpa/inet.h>
 #include <font_awesome.h>
+#include <unordered_map>
+#include <type_traits>
+#include <utility>
 
 #define TAG "AppService"
+
+namespace {
+
+struct StackHistory {
+    uint32_t min_free_bytes = 0;
+    uint32_t prev_free_bytes = 0;
+    uint8_t down_streak = 0;
+};
+
+// Portable fallback: many FreeRTOS ports do not expose total stack size in TaskStatus_t.
+// Return 0 to indicate unavailable. To enable stack-size reporting, enable
+// FreeRTOS config options that expose stack limits (eg. configRECORD_STACK_HIGH_ADDRESS
+// or task info fields) and then implement extraction here.
+size_t GetStackSizeBytes(const TaskStatus_t& /*status*/) {
+    return 0;
+}
+
+void PrintTaskStackWatermarks() {
+    constexpr UBaseType_t kArraySizeOffset = 5;
+    UBaseType_t array_size = uxTaskGetNumberOfTasks() + kArraySizeOffset;
+    auto* task_array = static_cast<TaskStatus_t*>(malloc(sizeof(TaskStatus_t) * array_size));
+    if (task_array == nullptr) {
+        ESP_LOGW(TAG, "Stack dump: OOM");
+        return;
+    }
+
+    configRUN_TIME_COUNTER_TYPE run_time = 0;
+    array_size = uxTaskGetSystemState(task_array, array_size, &run_time);
+    if (array_size == 0) {
+        ESP_LOGW(TAG, "Stack dump: no tasks");
+        free(task_array);
+        return;
+    }
+
+    static std::unordered_map<TaskHandle_t, StackHistory> history;
+
+    printf("| Task | StackSize | HighWater | Usage | MinHighWater | Trend | Level |\n");
+    for (UBaseType_t i = 0; i < array_size; ++i) {
+        const uint32_t free_bytes = static_cast<uint32_t>(task_array[i].usStackHighWaterMark) * sizeof(StackType_t);
+        const size_t stack_size_bytes = GetStackSizeBytes(task_array[i]);
+
+        auto& hist = history[task_array[i].xHandle];
+        if (hist.min_free_bytes == 0 || free_bytes < hist.min_free_bytes) {
+            hist.min_free_bytes = free_bytes;
+        }
+        if (hist.prev_free_bytes != 0 && free_bytes < hist.prev_free_bytes) {
+            hist.down_streak = static_cast<uint8_t>(std::min<uint8_t>(hist.down_streak + 1, 10));
+        } else if (hist.prev_free_bytes != 0 && free_bytes > hist.prev_free_bytes) {
+            hist.down_streak = 0;
+        }
+        const bool is_down = (hist.prev_free_bytes != 0 && free_bytes < hist.prev_free_bytes);
+        const bool is_up = (hist.prev_free_bytes != 0 && free_bytes > hist.prev_free_bytes);
+        const char* trend = is_down ? "down" : (is_up ? "up" : "flat");
+        hist.prev_free_bytes = free_bytes;
+
+        const uint32_t used_bytes = (stack_size_bytes > free_bytes)
+            ? static_cast<uint32_t>(stack_size_bytes - free_bytes)
+            : 0;
+        const uint32_t usage_pct = (stack_size_bytes > 0)
+            ? static_cast<uint32_t>((used_bytes * 100UL) / stack_size_bytes)
+            : 0;
+
+        const char* level = "OK";
+        if (free_bytes < 512) {
+            level = "ERROR";
+        } else if (free_bytes < 1024) {
+            level = "WARN";
+        }
+
+        char stack_size_str[12];
+        char usage_str[8];
+        if (stack_size_bytes == 0) {
+            snprintf(stack_size_str, sizeof(stack_size_str), "N/A");
+            snprintf(usage_str, sizeof(usage_str), "N/A");
+        } else {
+            snprintf(stack_size_str, sizeof(stack_size_str), "%lu", static_cast<unsigned long>(stack_size_bytes));
+            snprintf(usage_str, sizeof(usage_str), "%lu%%", static_cast<unsigned long>(usage_pct));
+        }
+
+        printf("| %-16s | %8s | %9lu | %5s | %12lu | %4s | %-5s |\n",
+               task_array[i].pcTaskName,
+               stack_size_str,
+               static_cast<unsigned long>(free_bytes),
+               usage_str,
+               static_cast<unsigned long>(hist.min_free_bytes),
+               trend,
+               level);
+
+        if (hist.down_streak >= 3) {
+            ESP_LOGW(TAG, "Stack trend down for task %s (streak=%u)", task_array[i].pcTaskName, hist.down_streak);
+        }
+    }
+
+    free(task_array);
+}
+
+} // namespace
 
 
 AppService::AppService() {
@@ -254,6 +354,7 @@ void AppService::Run() {
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {
             SystemInfo::PrintHeapStats();
+           // PrintTaskStackWatermarks();
             //Tick和TickAppRunning函数周期检查上栏状态变化并刷新菜单，将来改成事件驱动更合适
             // Drive AppManager periodic tick (fixed 1s)
             AppManager::GetInstance().Tick();

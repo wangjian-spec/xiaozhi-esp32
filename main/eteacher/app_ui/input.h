@@ -5,7 +5,7 @@
 #include <queue>
 #include <vector>
 
-#include "geometry.h"
+#include "types.h"
 
 namespace app_ui {
 
@@ -40,8 +40,29 @@ private:
     std::queue<InputEvent> queue_;
 };
 
-class FocusManager;
 class Widget;
+
+class FocusManager {
+public:
+    void Build(Widget* root);
+    void Clear();
+    void MoveUp();
+    void MoveDown();
+    void MoveLeft();
+    void MoveRight();
+
+    Widget* Current() const;
+
+    void SetWrap(bool wrap);
+
+private:
+    void Move(int delta);
+    void Traverse(Widget* node);
+
+    std::vector<Widget*> focusables_{};
+    int current_index_ = -1;
+    bool wrap_ = true;
+};
 
 class InputDispatcher {
 public:

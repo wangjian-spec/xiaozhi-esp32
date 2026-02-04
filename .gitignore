@@ -16,3 +16,5 @@ main/mmap_generate_emoji.h
 *.pyc
 mmap_generate_*.h
 .clangd
+# 保存UI数据
+ui_editor_state.json

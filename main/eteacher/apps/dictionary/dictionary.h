@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "eteacher/app_manager/app_base.h"
-#include "eteacher/app_ui/scene_runtime.h"
+#include "eteacher/app_ui/scene.h"
 
 struct cJSON;
 

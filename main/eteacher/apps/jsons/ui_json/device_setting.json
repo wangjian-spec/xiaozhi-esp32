@@ -16,12 +16,11 @@
   },
   "resources": {
     "texts": {
-      "TEXT_IMAGE_39FB77": "Image",
-      "TEXT_CHECKBOX_293A1E": "Checkbox",
-      "TEXT_LABEL_2E3E99": "Label",
-      "TEXT_BUTTON_B0DF17": "Button",
-      "TEXT_RADIO_06B042": "Radio",
-      "TEXT_LINEEDIT_1C5E53": "LineEdit"
+      "TEXT_RADIO_A6E38D": "Radio",
+      "TEXT_CHECKBOX_5F4BDB": "Checkbox",
+      "TEXT_IMAGE_C505FA": "Image",
+      "TEXT_BUTTON_3426F9": "Button",
+      "TEXT_TEXTAREA_F41CEC": "TextArea"
     },
     "images": {},
     "fonts": {}
@@ -29,18 +28,18 @@
   "styles": {},
   "themes": {},
   "data": {},
-  "scenes": {
-    "main_scene": {
-      "name": "wifi设置",
-      "root": "root_main_scene"
+  "pages": {
+    "page_main": {
+      "name": "888看看",
+      "root": "root_page_main"
     },
-    "scene_bb07": {
-      "name": "学习进度",
-      "root": "root_scene_bb07"
+    "page_ebbe": {
+      "name": "899hi和",
+      "root": "root_page_ebbe"
     }
   },
   "widgets": {
-    "root_main_scene": {
+    "root_page_main": {
       "type": "Container",
       "rect": {
         "x": 0,
@@ -49,93 +48,107 @@
         "h": 300
       },
       "children": [
-        "image_39fb77",
-        "checkbox_293a1e",
-        "label_2e3e99",
-        "button_b0df17",
-        "radio_06b042",
-        "lineedit_1c5e53"
+        "radio_a6e38d",
+        "checkbox_5f4bdb",
+        "radio_e6f4ce",
+        "checkbox_5cfdc0",
+        "image_c505fa",
+        "button_3426f9",
+        "textarea_f41cec"
       ]
     },
-    "image_39fb77": {
-      "type": "Image",
-      "rect": {
-        "x": 10,
-        "y": 10,
-        "w": 100,
-        "h": 100
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_IMAGE_39FB77"
-      }
-    },
-    "checkbox_293a1e": {
-      "type": "Checkbox",
-      "rect": {
-        "x": 130,
-        "y": 20,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_CHECKBOX_293A1E"
-      }
-    },
-    "label_2e3e99": {
-      "type": "Label",
-      "rect": {
-        "x": 250,
-        "y": 170,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_LABEL_2E3E99"
-      }
-    },
-    "button_b0df17": {
-      "type": "Button",
-      "rect": {
-        "x": 60,
-        "y": 190,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_BUTTON_B0DF17"
-      }
-    },
-    "radio_06b042": {
+    "radio_a6e38d": {
       "type": "Radio",
       "rect": {
-        "x": 230,
-        "y": 70,
-        "w": 80,
-        "h": 40
+        "x": 163,
+        "y": 73,
+        "w": 112,
+        "h": 22
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_RADIO_06B042"
+        "textId": "TEXT_RADIO_A6E38D"
       }
     },
-    "lineedit_1c5e53": {
-      "type": "LineEdit",
+    "checkbox_5f4bdb": {
+      "type": "Checkbox",
       "rect": {
-        "x": 110,
-        "y": 130,
+        "x": 35,
+        "y": 50,
+        "w": 12,
+        "h": 101
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_CHECKBOX_5F4BDB"
+      }
+    },
+    "radio_e6f4ce": {
+      "type": "Radio",
+      "rect": {
+        "x": 221,
+        "y": 196,
+        "w": 112,
+        "h": 22
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_A6E38D"
+      }
+    },
+    "checkbox_5cfdc0": {
+      "type": "Checkbox",
+      "rect": {
+        "x": 38,
+        "y": 178,
+        "w": 12,
+        "h": 101
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_CHECKBOX_5F4BDB"
+      }
+    },
+    "image_c505fa": {
+      "type": "Image",
+      "rect": {
+        "x": 111,
+        "y": 225,
         "w": 80,
         "h": 40
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_LINEEDIT_1C5E53"
+        "textId": "TEXT_IMAGE_C505FA"
       }
     },
-    "root_scene_bb07": {
+    "button_3426f9": {
+      "type": "Button",
+      "rect": {
+        "x": 112,
+        "y": 123,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_3426F9"
+      }
+    },
+    "textarea_f41cec": {
+      "type": "TextArea",
+      "rect": {
+        "x": 273,
+        "y": 120,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_TEXTAREA_F41CEC"
+      }
+    },
+    "root_page_ebbe": {
       "type": "Container",
       "rect": {
         "x": 0,
@@ -144,48 +157,34 @@
         "h": 300
       },
       "children": [
-        "button_bd6190",
-        "lineedit_3a6117",
-        "image_32d18e"
+        "radio_07e09a",
+        "checkbox_0d8ef9"
       ]
     },
-    "button_bd6190": {
-      "type": "Button",
+    "radio_07e09a": {
+      "type": "Radio",
       "rect": {
-        "x": 10,
-        "y": 10,
-        "w": 80,
-        "h": 40
+        "x": 9,
+        "y": 50,
+        "w": 112,
+        "h": 22
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_BUTTON_B0DF17"
+        "textId": "TEXT_RADIO_A6E38D"
       }
     },
-    "lineedit_3a6117": {
-      "type": "LineEdit",
+    "checkbox_0d8ef9": {
+      "type": "Checkbox",
       "rect": {
-        "x": 50,
-        "y": 180,
-        "w": 80,
-        "h": 40
+        "x": 118,
+        "y": 128,
+        "w": 12,
+        "h": 101
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_LINEEDIT_1C5E53"
-      }
-    },
-    "image_32d18e": {
-      "type": "Image",
-      "rect": {
-        "x": 200,
-        "y": 80,
-        "w": 100,
-        "h": 100
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_IMAGE_39FB77"
+        "textId": "TEXT_CHECKBOX_5F4BDB"
       }
     }
   },

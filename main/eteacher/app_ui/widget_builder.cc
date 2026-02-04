@@ -10,8 +10,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "basic_widgets.h"
-#include "ui_schema_validator.h"
+#include "scene.h"
 #include "widget.h"
 
 namespace app_ui {

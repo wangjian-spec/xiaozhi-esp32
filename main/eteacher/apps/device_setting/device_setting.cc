@@ -3,11 +3,8 @@
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/epd_manager/epd_manager.h"
 #include "eteacher/font_manager/font_manager.h"
-#include "eteacher/app_ui/dirty_tracker.h"
-#include "eteacher/app_ui/layout_engine.h"
-#include "eteacher/app_ui/painter.h"
 #include "eteacher/app_ui/renderer.h"
-#include "eteacher/app_ui/scene_runtime.h"
+#include "eteacher/app_ui/scene.h"
 #include "eteacher/app_ui/widget_builder.h"
 
 #include "display.h"
@@ -20,148 +17,15 @@
 
 #include <cJSON.h>
 #include <cstdint>
+#include <cerrno>
+#include <cstring>
 
 namespace {
 
 static constexpr const char *kStatusFont = "wenquanyi_9pt";
 static constexpr int kPadding = 8;
 
-static constexpr const char* kDeviceSettingUiJson = R"json({
-    "meta": {
-        "project": "ui_device_setting",
-        "ui_version": "1.0",
-        "target": "esp32-s3",
-        "display": {
-            "type": "eink",
-            "width": 400,
-            "height": 300,
-            "color": "mono"
-        },
-        "generator": {
-            "tool": "ui_editor",
-            "version": "0.3.1"
-        }
-    },
-    "resources": {
-        "texts": {
-            "TEXT_IMAGE_A0FE4E": "Image",
-            "TEXT_CHECKBOX_54B600": "Checkbox",
-            "TEXT_RADIO_CC0D9A": "Radio"
-        },
-        "images": {},
-        "fonts": {}
-    },
-    "styles": {},
-    "themes": {},
-    "data": {},
-    "scenes": {
-        "main_scene": {
-            "name": "买买买",
-            "root": "root_main_scene"
-        },
-        "scene_86f4": {
-            "name": "你你你",
-            "root": "root_scene_86f4"
-        },
-        "scene_6a50": {
-            "name": "NewScene",
-            "root": "root_scene_6a50"
-        }
-    },
-    "widgets": {
-        "root_main_scene": {
-            "type": "Container",
-            "rect": {
-                "x": 0,
-                "y": 0,
-                "w": 400,
-                "h": 300
-            },
-            "children": [
-                "image_a0fe4e",
-                "checkbox_54b600",
-                "radio_cc0d9a"
-            ]
-        },
-        "image_a0fe4e": {
-            "type": "Image",
-            "rect": {
-                "x": 10,
-                "y": 10,
-                "w": 80,
-                "h": 40
-            },
-            "style": null,
-            "properties": {
-                "textId": "TEXT_IMAGE_A0FE4E"
-            }
-        },
-        "checkbox_54b600": {
-            "type": "Checkbox",
-            "rect": {
-                "x": 50,
-                "y": 160,
-                "w": 80,
-                "h": 40
-            },
-            "style": null,
-            "properties": {
-                "textId": "TEXT_CHECKBOX_54B600"
-            }
-        },
-        "radio_cc0d9a": {
-            "type": "Radio",
-            "rect": {
-                "x": 180,
-                "y": 60,
-                "w": 80,
-                "h": 40
-            },
-            "style": null,
-            "properties": {
-                "textId": "TEXT_RADIO_CC0D9A"
-            }
-        },
-        "root_scene_86f4": {
-            "type": "Container",
-            "rect": {
-                "x": 0,
-                "y": 0,
-                "w": 400,
-                "h": 300
-            },
-            "children": []
-        },
-        "root_scene_6a50": {
-            "type": "Container",
-            "rect": {
-                "x": 0,
-                "y": 0,
-                "w": 400,
-                "h": 300
-            },
-            "children": []
-        }
-    },
-    "events": [],
-    "navigation": {
-        "focus": {},
-        "scene_flow": {}
-    },
-    "states": {}
-})json";
-
-extern const uint8_t kDeviceSettingJsonStart[] asm("_binary_device_setting_json_start");
-extern const uint8_t kDeviceSettingJsonEnd[] asm("_binary_device_setting_json_end");
-
-cJSON* LoadEmbeddedJson(const uint8_t* start, const uint8_t* end) {
-    if (!start || !end || end <= start) {
-        return nullptr;
-    }
-    const size_t size = static_cast<size_t>(end - start);
-    std::string json(reinterpret_cast<const char*>(start), size);
-    return cJSON_Parse(json.c_str());
-}
+// Embedded JSON removed — UI JSON is loaded from flash at runtime.
 
 int GetFontHeight(std::string_view name) {
     const auto *font = eteacher::font_manager::GetBuiltinFont(name);
@@ -294,23 +158,144 @@ MenuMeta DeviceSettingApp::GetMenuMeta() const {
     return MenuMeta{"device_setting", "系统设置", "示例"};
 }
 
+// Try loading UI JSON from common flash paths (SPIFFS/LittleFS). Returns parsed cJSON or nullptr.
+static cJSON* LoadJsonFromFlash() {
+    const char* candidates[] = {
+        "/spiffs/device_setting.json",
+        "/spiffs/ui_device_setting.json",
+        "/spiffs/ui.json",
+        "/device_setting.json",
+        "/ui_device_setting.json",
+        "/ui.json",
+    };
+    for (const char* path : candidates) {
+        FILE* f = fopen(path, "rb");
+        if (!f) {
+            printf("[DeviceSetting] fopen failed for %s: %s\n", path, std::strerror(errno));
+            continue;
+        }
+        if (fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            continue;
+        }
+        long size = ftell(f);
+        if (size <= 0) {
+            fclose(f);
+            continue;
+        }
+        rewind(f);
+        std::string buf;
+        buf.resize(static_cast<size_t>(size));
+        size_t read = fread(&buf[0], 1, buf.size(), f);
+        fclose(f);
+        if (read != buf.size()) {
+            continue;
+        }
+        cJSON* root = cJSON_Parse(buf.c_str());
+        if (root) {
+            printf("[DeviceSetting] Loaded UI JSON from: %s\n", path);
+            return root;
+        }
+        // Print a short snippet to help debugging parse failures
+        size_t show = std::min<size_t>(buf.size(), 256);
+        printf("[DeviceSetting] Failed parse for: %s (first %zu bytes):\n%.*s\n",
+               path, show, static_cast<int>(show), buf.c_str());
+    }
+    return nullptr;
+}
+
+// Try to load JSON embedded into the firmware via CMake EMBED_FILES.
+static cJSON* LoadEmbeddedJson() {
+    auto parse_embedded = [](const uint8_t* begin, const uint8_t* end, const char* name) -> cJSON* {
+        if (!begin || !end || end <= begin) {
+            return nullptr;
+        }
+        size_t len = static_cast<size_t>(end - begin);
+        std::string_view sv(reinterpret_cast<const char*>(begin), len);
+        cJSON* root = cJSON_ParseWithLength(sv.data(), len);
+        if (root) {
+            printf("[DeviceSetting] Loaded embedded UI JSON: %s\n", name);
+            return root;
+        }
+        printf("[DeviceSetting] Failed parse embedded %s (first 256 bytes):\n%.*s\n",
+               name, static_cast<int>(std::min<size_t>(len, 256)), sv.data());
+        return nullptr;
+    };
+
+    // Symbols are generated by the linker for each EMBED_FILES entry.
+    // Pattern: _binary_<relpath_with_underscores>_start / _end
+    // Our CMake globs use: eteacher/apps/jsons/ui_json/<name>.json
+    // So symbol names become: _binary_eteacher_apps_jsons_ui_json_<name>_json_start
+    {
+        extern const uint8_t _binary_eteacher_apps_jsons_ui_json_device_setting_json_start[] __attribute__((weak));
+        extern const uint8_t _binary_eteacher_apps_jsons_ui_json_device_setting_json_end[] __attribute__((weak));
+        if (auto* root = parse_embedded(_binary_eteacher_apps_jsons_ui_json_device_setting_json_start,
+                                        _binary_eteacher_apps_jsons_ui_json_device_setting_json_end,
+                                        "device_setting.json")) {
+            return root;
+        }
+    }
+    {
+        extern const uint8_t _binary_device_setting_json_start[] __attribute__((weak));
+        extern const uint8_t _binary_device_setting_json_end[] __attribute__((weak));
+        if (auto* root = parse_embedded(_binary_device_setting_json_start,
+                                        _binary_device_setting_json_end,
+                                        "device_setting.json")) {
+            return root;
+        }
+    }
+    {
+        extern const uint8_t _binary_eteacher_apps_jsons_ui_json_ui_device_setting_json_start[] __attribute__((weak));
+        extern const uint8_t _binary_eteacher_apps_jsons_ui_json_ui_device_setting_json_end[] __attribute__((weak));
+        if (auto* root = parse_embedded(_binary_eteacher_apps_jsons_ui_json_ui_device_setting_json_start,
+                                        _binary_eteacher_apps_jsons_ui_json_ui_device_setting_json_end,
+                                        "ui_device_setting.json")) {
+            return root;
+        }
+    }
+    {
+        extern const uint8_t _binary_ui_device_setting_json_start[] __attribute__((weak));
+        extern const uint8_t _binary_ui_device_setting_json_end[] __attribute__((weak));
+        if (auto* root = parse_embedded(_binary_ui_device_setting_json_start,
+                                        _binary_ui_device_setting_json_end,
+                                        "ui_device_setting.json")) {
+            return root;
+        }
+    }
+    {
+        extern const uint8_t _binary_eteacher_apps_jsons_ui_json_ui_json_start[] __attribute__((weak));
+        extern const uint8_t _binary_eteacher_apps_jsons_ui_json_ui_json_end[] __attribute__((weak));
+        if (auto* root = parse_embedded(_binary_eteacher_apps_jsons_ui_json_ui_json_start,
+                                        _binary_eteacher_apps_jsons_ui_json_ui_json_end,
+                                        "ui.json")) {
+            return root;
+        }
+    }
+    {
+        extern const uint8_t _binary_ui_json_start[] __attribute__((weak));
+        extern const uint8_t _binary_ui_json_end[] __attribute__((weak));
+        if (auto* root = parse_embedded(_binary_ui_json_start,
+                                        _binary_ui_json_end,
+                                        "ui.json")) {
+            return root;
+        }
+    }
+    return nullptr;
+}
+
 void DeviceSettingApp::OnEnter(AppContext &ctx) {
     if (ui_root_) {
         cJSON_Delete(ui_root_);
         ui_root_ = nullptr;
     }
 
-    ui_root_ = LoadEmbeddedJson(kDeviceSettingJsonStart, kDeviceSettingJsonEnd);
+    ui_root_ = LoadJsonFromFlash();
     if (!ui_root_) {
-        printf("[DeviceSetting] Embedded JSON parse FAILED, using fallback\n");
-        ui_root_ = cJSON_Parse(kDeviceSettingUiJson);
-        if (ui_root_) {
-            printf("[DeviceSetting] Fallback JSON parsed successfully\n");
-        } else {
-            printf("[DeviceSetting] Fallback JSON parse FAILED\n");
+        printf("[DeviceSetting] Failed to load UI JSON from flash, trying embedded resources\n");
+        ui_root_ = LoadEmbeddedJson();
+        if (!ui_root_) {
+            printf("[DeviceSetting] No embedded UI JSON found or parse failed\n");
         }
-    } else {
-        printf("[DeviceSetting] Embedded JSON parsed successfully\n");
     }
     // Notify user on-screen when running in host/dev environment
     if (ui_root_) {
@@ -318,20 +303,23 @@ void DeviceSettingApp::OnEnter(AppContext &ctx) {
     } else {
         ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: failed to parse JSON");
     }
-    scene_ids_.clear();
+    page_ids_.clear();
     if (ui_root_) {
-        const cJSON* scenes = cJSON_GetObjectItemCaseSensitive(ui_root_, "scenes");
-        if (cJSON_IsObject(scenes)) {
-            const cJSON* scene = nullptr;
-            cJSON_ArrayForEach(scene, scenes) {
-                if (scene && scene->string) {
-                    scene_ids_.push_back(scene->string);
+        const cJSON* pages = cJSON_GetObjectItemCaseSensitive(ui_root_, "pages");
+        if (!cJSON_IsObject(pages)) {
+            pages = cJSON_GetObjectItemCaseSensitive(ui_root_, "scenes");
+        }
+        if (cJSON_IsObject(pages)) {
+            const cJSON* page = nullptr;
+            cJSON_ArrayForEach(page, pages) {
+                if (page && page->string) {
+                    page_ids_.push_back(page->string);
                 }
             }
         }
     }
 
-    scene_index_ = 0;
+    page_index_ = 0;
     Render(ctx);
 }
 
@@ -340,7 +328,7 @@ void DeviceSettingApp::OnExit(AppContext &ctx) {
         cJSON_Delete(ui_root_);
         ui_root_ = nullptr;
     }
-    scene_ids_.clear();
+    page_ids_.clear();
     ctx.board.GetDisplay()->SetChatMessage("system", "Exit Device Setting UI");
 }
 
@@ -352,11 +340,11 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
     switch (event.id) {
     case AppButton::Up:
     case AppButton::Left:
-        PrevScene(ctx);
+        PrevPage(ctx);
         break;
     case AppButton::Down:
     case AppButton::Right:
-        NextScene(ctx);
+        NextPage(ctx);
         break;
     case AppButton::Start:
     case AppButton::A:
@@ -367,19 +355,19 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
     }
 }
 
-void DeviceSettingApp::PrevScene(AppContext &ctx) {
-    if (scene_ids_.empty()) {
+void DeviceSettingApp::PrevPage(AppContext &ctx) {
+    if (page_ids_.empty()) {
         return;
     }
-    scene_index_ = (scene_index_ - 1 + static_cast<int>(scene_ids_.size())) % static_cast<int>(scene_ids_.size());
+    page_index_ = (page_index_ - 1 + static_cast<int>(page_ids_.size())) % static_cast<int>(page_ids_.size());
     Render(ctx);
 }
 
-void DeviceSettingApp::NextScene(AppContext &ctx) {
-    if (scene_ids_.empty()) {
+void DeviceSettingApp::NextPage(AppContext &ctx) {
+    if (page_ids_.empty()) {
         return;
     }
-    scene_index_ = (scene_index_ + 1) % static_cast<int>(scene_ids_.size());
+    page_index_ = (page_index_ + 1) % static_cast<int>(page_ids_.size());
     Render(ctx);
 }
 
@@ -389,14 +377,14 @@ void DeviceSettingApp::Render(AppContext &ctx) {
         return;
     }
 
-    if (scene_ids_.empty()) {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: no scenes");
+    if (page_ids_.empty()) {
+        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: no pages");
         return;
     }
 
-    const std::string& scene_id = scene_ids_[scene_index_];
-    if (!scene_mgr_.LoadFromJson(ui_root_, scene_id.c_str(), static_cast<uint16_t>(scene_index_))) {
-        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: failed to load scene");
+    const std::string& page_id = page_ids_[page_index_];
+    if (!scene_mgr_.LoadFromJson(ui_root_, page_id.c_str(), static_cast<uint16_t>(page_index_))) {
+        ctx.board.GetDisplay()->SetChatMessage("system", "Device Setting UI: failed to load page");
         return;
     }
 
@@ -406,7 +394,7 @@ void DeviceSettingApp::Render(AppContext &ctx) {
     }
 
     std::string msg = "Device Setting UI\n";
-    msg += "Scene: ";
+    msg += "Page: ";
     msg += "#";
     msg += std::to_string(scene_mgr_.SceneId());
     msg += "\nUse Up/Down to switch";

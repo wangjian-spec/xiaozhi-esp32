@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "eteacher/app_manager/app_base.h"
-#include "eteacher/app_ui/scene_runtime.h"
+#include "eteacher/app_ui/scene.h"
 
 struct cJSON;
 
@@ -19,13 +19,13 @@ public:
 
 private:
     void Render(AppContext &ctx);
-    void PrevScene(AppContext &ctx);
-    void NextScene(AppContext &ctx);
+    void PrevPage(AppContext &ctx);
+    void NextPage(AppContext &ctx);
 
     app_ui::runtime::SceneManager scene_mgr_{};
     cJSON* ui_root_ = nullptr;
-    std::vector<std::string> scene_ids_{};
-    int scene_index_ = 0;
+    std::vector<std::string> page_ids_{};
+    int page_index_ = 0;
 };
 
 std::unique_ptr<AppBase> MakeDeviceSettingApp();

@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <memory>
 
-#include "ui_layout_types.h"
+#include "types.h"
 
 struct cJSON;
 

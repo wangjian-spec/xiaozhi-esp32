@@ -6,6 +6,7 @@
 #include "assets/lang_config.h"
 #include "codecs/no_audio_codec.h"
 #include "config.h"
+#include "eteacher/app_service/app_service.h"
 #include "eteacher/app_manager/app_manager.h"
 #include "eteacher/epd_manager/epd_manager.h"
 #include "lamp_controller.h"
@@ -133,78 +134,84 @@ void EnglishTeacherBoard::InitializeEpd() {
 }
 
 void EnglishTeacherBoard::InitializeButtons() {
-	auto& app_mgr = AppManager::GetInstance();
+	//auto& app_mgr = AppManager::GetInstance();
+	//按钮回调是由 iot_button执行的是 esp_timer 任务栈，改为投递到主线程执行
+	auto post_button = [](ButtonEvent event) {
+		AppService::GetInstance().Schedule([event]() {
+			AppManager::GetInstance().HandleButton(event);
+		});
+	};
 
 	up_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "UP: Click");
-		app_mgr.HandleButton(ButtonEvent{AppButton::Up});
+		post_button(ButtonEvent{AppButton::Up});
 	});
 	left_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "LEFT: Click");
-		app_mgr.HandleButton(ButtonEvent{AppButton::Left});
+		post_button(ButtonEvent{AppButton::Left});
 	});
 	down_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "DOWN: Click");
-		app_mgr.HandleButton(ButtonEvent{AppButton::Down});
+		post_button(ButtonEvent{AppButton::Down});
 	});
 	right_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "RIGHT: Click");
-		app_mgr.HandleButton(ButtonEvent{AppButton::Right});
+		post_button(ButtonEvent{AppButton::Right});
 	});
 
 
 	a_button_.OnPressDown([&]() {
 		ESP_LOGW(kTag, "BOOT(A): PressDown");
-		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::PressDown});
+		post_button(ButtonEvent{AppButton::A, ButtonAction::PressDown});
 	});
 	a_button_.OnPressUp([&]() {
 		ESP_LOGW(kTag, "BOOT(A): PressUp");
-		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::PressUp});
+		post_button(ButtonEvent{AppButton::A, ButtonAction::PressUp});
 	});
 	a_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "BOOT(A): LongPress");
-		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::LongPress});
+		post_button(ButtonEvent{AppButton::A, ButtonAction::LongPress});
 	});
 	a_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "BOOT(A): Click");
-		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::Click});
+		post_button(ButtonEvent{AppButton::A, ButtonAction::Click});
 	});
 	a_button_.OnDoubleClick([&]() {
 		ESP_LOGW(kTag, "BOOT(A): DoubleClick");
-		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::DoubleClick, 2});
+		post_button(ButtonEvent{AppButton::A, ButtonAction::DoubleClick, 2});
 	});
 	a_button_.OnMultipleClick([&]() {
 		ESP_LOGW(kTag, "BOOT(A): MultipleClick");
-		app_mgr.HandleButton(ButtonEvent{AppButton::A, ButtonAction::MultipleClick, 3});
+		post_button(ButtonEvent{AppButton::A, ButtonAction::MultipleClick, 3});
 	}, 3);
 
 	// B: Click -> AppButton::B
 	b_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "TOUCH(B): Click");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::B});
+		post_button(ButtonEvent{AppButton::B});
 	});
 
 	// C/D
 	c_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "C: Click");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::C});
+		post_button(ButtonEvent{AppButton::C});
 	});
 	d_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "D: Click");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::D});
+		post_button(ButtonEvent{AppButton::D});
 	});
 
 	select_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "SELECT: Click");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::Select});
+		post_button(ButtonEvent{AppButton::Select});
 	});
 	start_button_.OnClick([&]() {
 		ESP_LOGW(kTag, "START: Click");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::Start});
+		post_button(ButtonEvent{AppButton::Start});
 	});
 	start_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "START: LongPress");
-		AppManager::GetInstance().HandleButton(ButtonEvent{AppButton::Start, ButtonAction::LongPress});
+		post_button(ButtonEvent{AppButton::Start, ButtonAction::LongPress});
 	});
 
 	
