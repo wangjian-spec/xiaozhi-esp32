@@ -8,6 +8,7 @@
 #include "eteacher/app_ui/scene.h"
 
 struct cJSON;
+class CustomEpdDisplay;
 
 class DictionaryApp : public AppBase {
 public:
@@ -23,9 +24,11 @@ private:
     void NextScene(AppContext &ctx);
 
     app_ui::runtime::SceneManager scene_mgr_{};
+    // Owns UI JSON AST for the entire app lifetime.
     cJSON* ui_root_ = nullptr;
     std::vector<std::string> scene_ids_{};
     int scene_index_ = 0;
+    CustomEpdDisplay* epd_ = nullptr;
 };
 
 std::unique_ptr<AppBase> MakeDictionaryApp();

@@ -147,7 +147,47 @@ protected:
     void OnDraw(Painter& p) override;
 };
 
-class SeparatorWidget : public BasicWidget {
+class TextAreaWidget : public TextWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class ListViewWidget : public TextWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class TabViewWidget : public TextWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class FrameWidget : public TextWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class MenuWidget : public TextWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class DialogWidget : public TextWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class SoftKeyboardWidget : public BasicWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class TopBarWidget : public TextWidget {
+protected:
+    void OnDraw(Painter& p) override;
+};
+
+class BottomBarWidget : public TextWidget {
 protected:
     void OnDraw(Painter& p) override;
 };
@@ -198,16 +238,6 @@ protected:
 
 private:
     uint8_t value_ = 0;
-};
-
-class MenuItemWidget : public TextWidget {
-protected:
-    void OnDraw(Painter& p) override;
-};
-
-class TabItemWidget : public TextWidget {
-protected:
-    void OnDraw(Painter& p) override;
 };
 
 } // namespace app_ui

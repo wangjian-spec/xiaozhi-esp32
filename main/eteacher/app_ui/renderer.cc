@@ -1,18 +1,97 @@
 #include "renderer.h"
 
 #include <algorithm>
+#include <string_view>
 
+#include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/font_manager/font_manager.h"
 #include "widget.h"
 
 namespace app_ui {
 
 namespace {
 constexpr size_t kFullRefreshThreshold = 32;
+constexpr const char* kStatusFont = "wenquanyi_9pt";
+
+int GetFontHeight(std::string_view name) {
+    const auto* font = eteacher::font_manager::GetBuiltinFont(name);
+    if (!font) {
+        return 16;
+    }
+    return static_cast<int>(font->Header().ascent + font->Header().descent);
+}
+
+int GetFontAscent(std::string_view name) {
+    const auto* font = eteacher::font_manager::GetBuiltinFont(name);
+    if (!font) {
+        return 12;
+    }
+    return static_cast<int>(font->Header().ascent);
+}
 }
 
 void DirtyTracker::Add(const Rect& rect, DirtyReason reason) {
     dirty_.push_back({rect, reason});
 }
+
+EpdPainter::EpdPainter(::CustomEpdDisplay* epd, ::Adafruit_GFX& gfx)
+    : epd_(epd), gfx_(gfx) {
+    draw_color_ = GxEPD_BLACK;
+    text_color_ = GxEPD_BLACK;
+}
+
+void EpdPainter::SetClip(const Rect&) {}
+
+void EpdPainter::PushClip(const Rect&) {}
+
+void EpdPainter::PopClip() {}
+
+void EpdPainter::DrawText(Point p, const char* text) {
+    if (!epd_ || !text) {
+        return;
+    }
+    const int16_t x = static_cast<int16_t>(p.x + offset_.x);
+    const int16_t y = static_cast<int16_t>(p.y + offset_.y);
+    epd_->DrawUtf8(x, y + GetFontAscent(kStatusFont), text, kStatusFont, text_color_);
+}
+
+Size EpdPainter::MeasureText(const char* text, Font*) {
+    if (!epd_ || !text) {
+        return {0, 0};
+    }
+    const int16_t w = epd_->MeasureUtf8Width(text, kStatusFont);
+    return {w, static_cast<int16_t>(GetFontHeight(kStatusFont))};
+}
+
+void EpdPainter::DrawRect(const Rect& rect) {
+    gfx_.drawRect(rect.x + offset_.x, rect.y + offset_.y, rect.w, rect.h, draw_color_);
+}
+
+void EpdPainter::FillRect(const Rect& rect) {
+    gfx_.fillRect(rect.x + offset_.x, rect.y + offset_.y, rect.w, rect.h, draw_color_);
+}
+
+void EpdPainter::DrawImage(Point, const Image*) {}
+
+void EpdPainter::SetFont(Font*) {}
+
+void EpdPainter::SetDrawColor(Color color) {
+    draw_color_ = (color == Color::Black) ? GxEPD_BLACK : GxEPD_WHITE;
+}
+
+void EpdPainter::SetTextColor(Color color) {
+    text_color_ = (color == Color::Black) ? GxEPD_BLACK : GxEPD_WHITE;
+}
+
+void EpdPainter::DrawCircle(Point center, int radius) {
+    gfx_.drawCircle(center.x + offset_.x, center.y + offset_.y, radius, draw_color_);
+}
+
+void EpdPainter::SetTransform(const Point& offset) {
+    offset_ = offset;
+}
+
+void EpdPainter::SetAlpha(float) {}
 
 bool DirtyTracker::HasDirty() const {
     return !dirty_.empty();

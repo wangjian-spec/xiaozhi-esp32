@@ -55,7 +55,7 @@ namespace runtime {
 
 struct SceneRuntime {
     uint16_t scene_id = 0;
-    std::unique_ptr<Widget> root;
+    std::shared_ptr<Widget> root;
     FocusManager focus;
 };
 
@@ -64,6 +64,7 @@ public:
     bool LoadFromJson(const cJSON* root, const char* scene_id, uint16_t scene_index);
 
     Widget* Root() const;
+    std::shared_ptr<Widget> RootShared() const;
     FocusManager& Focus();
     uint16_t SceneId() const;
 

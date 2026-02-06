@@ -153,27 +153,6 @@ bool Widget::HitTest(Point global) const {
 
 } // namespace app_ui
 
-namespace {
-
-std::string ToLower(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return s;
-}
-
-bool TextHasToken(const std::string& text, const std::string& token) {
-    const std::string lower = ToLower(text);
-    return lower.find(token) != std::string::npos;
-}
-
-bool IsSelectedText(const std::string& text) {
-    return TextHasToken(text, "selected") || TextHasToken(text, "active") || TextHasToken(text, "[*]") ||
-           TextHasToken(text, "*");
-}
-
-} // namespace
-
 namespace app_ui {
 
 void BasicWidget::ApplyStyle(uint16_t style_id) {
@@ -244,12 +223,132 @@ void ImageWidget::OnDraw(Painter& p) {
     }
 }
 
-void SeparatorWidget::OnDraw(Painter& p) {
+void TextAreaWidget::OnDraw(Painter& p) {
     Rect parent = RectInParent();
     Rect rect{0, 0, parent.w, parent.h};
     p.SetDrawColor(Color::Black);
-    const int y = rect.h > 0 ? rect.h / 2 : 0;
-    p.DrawHLine({0, static_cast<int16_t>(y)}, rect.w);
+    p.SetTextColor(Color::Black);
+    p.DrawRect(rect);
+    const int line_h = 10;
+    const int max_lines = rect.h > 0 ? rect.h / line_h : 0;
+    for (int i = 1; i < max_lines; ++i) {
+        p.DrawHLine({2, static_cast<int16_t>(i * line_h)}, rect.w - 4);
+    }
+    if (!text_.empty()) {
+        p.DrawText({2, 2}, text_.c_str());
+    }
+}
+
+void ListViewWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.SetTextColor(Color::Black);
+    p.DrawRect(rect);
+    const int item_h = 12;
+    const int max_items = rect.h > 0 ? rect.h / item_h : 0;
+    for (int i = 1; i < max_items; ++i) {
+        p.DrawHLine({2, static_cast<int16_t>(i * item_h)}, rect.w - 4);
+    }
+    if (!text_.empty()) {
+        p.DrawText({2, 2}, text_.c_str());
+    }
+}
+
+void TabViewWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.SetTextColor(Color::Black);
+    p.DrawRect(rect);
+    const int tab_h = 12;
+    p.DrawHLine({0, static_cast<int16_t>(tab_h)}, rect.w);
+    const int tab_w = rect.w > 0 ? rect.w / 3 : 0;
+    if (tab_w > 0) {
+        p.DrawVLine({static_cast<int16_t>(tab_w), 0}, tab_h);
+        p.DrawVLine({static_cast<int16_t>(tab_w * 2), 0}, tab_h);
+    }
+    if (!text_.empty()) {
+        p.DrawText({2, 2}, text_.c_str());
+    }
+}
+
+void FrameWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.SetTextColor(Color::Black);
+    p.DrawRect(rect);
+    if (!text_.empty()) {
+        p.DrawText({4, 0}, text_.c_str());
+    }
+}
+
+void MenuWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.SetTextColor(Color::Black);
+    p.DrawRect(rect);
+    const int y1 = rect.h > 0 ? rect.h / 3 : 0;
+    const int y2 = rect.h > 0 ? rect.h * 2 / 3 : 0;
+    p.DrawHLine({2, static_cast<int16_t>(y1)}, rect.w - 4);
+    p.DrawHLine({2, static_cast<int16_t>(y2)}, rect.w - 4);
+    if (!text_.empty()) {
+        p.DrawText({2, 2}, text_.c_str());
+    }
+}
+
+void DialogWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.SetTextColor(Color::Black);
+    p.DrawRect(rect);
+    const int title_h = 12;
+    p.DrawHLine({0, static_cast<int16_t>(title_h)}, rect.w);
+    if (!text_.empty()) {
+        p.DrawText({2, 2}, text_.c_str());
+    }
+}
+
+void SoftKeyboardWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.DrawRect(rect);
+    const int rows = 3;
+    const int cols = 6;
+    const int cell_w = rect.w > 0 ? rect.w / cols : 0;
+    const int cell_h = rect.h > 0 ? rect.h / rows : 0;
+    for (int r = 1; r < rows; ++r) {
+        p.DrawHLine({0, static_cast<int16_t>(r * cell_h)}, rect.w);
+    }
+    for (int c = 1; c < cols; ++c) {
+        p.DrawVLine({static_cast<int16_t>(c * cell_w), 0}, rect.h);
+    }
+}
+
+void TopBarWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.FillRect(rect);
+    p.SetTextColor(Color::White);
+    if (!text_.empty()) {
+        p.DrawText({2, 2}, text_.c_str());
+    }
+}
+
+void BottomBarWidget::OnDraw(Painter& p) {
+    Rect parent = RectInParent();
+    Rect rect{0, 0, parent.w, parent.h};
+    p.SetDrawColor(Color::Black);
+    p.FillRect(rect);
+    p.SetTextColor(Color::White);
+    if (!text_.empty()) {
+        p.DrawText({2, 2}, text_.c_str());
+    }
 }
 
 void CheckboxWidget::SetChecked(bool checked) {
@@ -357,34 +456,6 @@ void ProgressWidget::SetValue(uint8_t value) {
 
 uint8_t ProgressWidget::Value() const {
     return value_;
-}
-
-void MenuItemWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
-    const bool selected = IsSelectedText(text_);
-    p.SetDrawColor(Color::Black);
-    if (selected) {
-        p.InvertRect(rect);
-        p.SetTextColor(Color::White);
-    } else {
-        p.SetTextColor(Color::Black);
-    }
-    p.DrawText({2, 0}, text_.c_str());
-    p.SetTextColor(Color::Black);
-    p.DrawHLine({0, static_cast<int16_t>(rect.h - 1)}, rect.w);
-}
-
-void TabItemWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
-    const bool selected = IsSelectedText(text_);
-    p.SetDrawColor(Color::Black);
-    p.SetTextColor(Color::Black);
-    p.DrawText({2, 0}, text_.c_str());
-    if (selected) {
-        p.FillRect({0, static_cast<int16_t>(rect.h - 2), rect.w, 2});
-    }
 }
 
 } // namespace app_ui

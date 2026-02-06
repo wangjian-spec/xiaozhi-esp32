@@ -4,6 +4,9 @@
 
 #include "types.h"
 
+class CustomEpdDisplay;
+class Adafruit_GFX;
+
 namespace app_ui {
 
 struct Font {};
@@ -44,6 +47,33 @@ public:
     virtual void InvertRect(const Rect& rect) {
         FillRect(rect);
     }
+};
+
+class EpdPainter : public Painter {
+public:
+    EpdPainter(::CustomEpdDisplay* epd, ::Adafruit_GFX& gfx);
+
+    void SetClip(const Rect&) override;
+    void PushClip(const Rect&) override;
+    void PopClip() override;
+    void DrawText(Point, const char*) override;
+    Size MeasureText(const char*, Font*) override;
+    void DrawRect(const Rect&) override;
+    void FillRect(const Rect&) override;
+    void DrawImage(Point, const Image*) override;
+    void SetFont(Font*) override;
+    void SetDrawColor(Color) override;
+    void SetTextColor(Color) override;
+    void DrawCircle(Point center, int radius) override;
+    void SetTransform(const Point& offset) override;
+    void SetAlpha(float alpha) override;
+
+private:
+    ::CustomEpdDisplay* epd_ = nullptr;
+    ::Adafruit_GFX& gfx_;
+    Point offset_{};
+    uint16_t draw_color_ = 0;
+    uint16_t text_color_ = 0;
 };
 
 enum class DirtyReason : uint8_t {

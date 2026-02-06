@@ -8,6 +8,7 @@
 #include <string_view>
 #include <unordered_set>
 
+#include "widget.h"
 #include "widget_builder.h"
 
 namespace app_ui {
@@ -99,13 +100,9 @@ const cJSON* GetObject(const cJSON* obj, const char* key) {
 }
 
 bool IsContainerType(std::string_view type) {
-    return type == "container" || type == "panel" || type == "frame" || type == "groupbox" ||
-           type == "hbox" || type == "vbox" || type == "gridlayout" || type == "menu" ||
-           type == "menubar" || type == "submenu" || type == "contextmenu" ||
-           type == "navbar" || type == "sidemenu" || type == "drawer" ||
-           type == "tabview" || type == "tabwidget" || type == "tabpage" ||
-           type == "dialog" || type == "confirmdialog" || type == "alert" ||
-           type == "toast" || type == "popover" || type == "modal" || type == "overlay";
+    return type == "container" || type == "frame" || type == "menu" || type == "listview" ||
+           type == "tabview" || type == "dialog" || type == "softkeyboard" || type == "topbar" ||
+           type == "bottombar";
 }
 
 std::string ToLower(const char* str) {
@@ -279,6 +276,67 @@ bool UiSchemaValidator::Validate(const cJSON* root, std::string& error) {
         }
     }
 
+    const cJSON* public_section = GetObject(root, "public");
+    if (public_section) {
+        if (!cJSON_IsObject(public_section)) {
+            error = "Public section must be object";
+            return false;
+        }
+        const cJSON* public_page = GetObject(public_section, "page");
+        const cJSON* public_widgets = GetObject(public_section, "widgets");
+        if (!cJSON_IsObject(public_page) || !cJSON_IsObject(public_widgets)) {
+            error = "Public section missing page/widgets";
+            return false;
+        }
+        const cJSON* public_root_id = GetObject(public_page, "root");
+        if (!cJSON_IsString(public_root_id) || !public_root_id->valuestring) {
+            error = "Public page missing root";
+            return false;
+        }
+        const cJSON* public_root_widget =
+            cJSON_GetObjectItemCaseSensitive(public_widgets, public_root_id->valuestring);
+        if (!cJSON_IsObject(public_root_widget)) {
+            error = std::string("Public root widget not found: ") + public_root_id->valuestring;
+            return false;
+        }
+        if (!ValidateWidget(public_widgets, public_root_widget, error)) {
+            return false;
+        }
+        const cJSON* type = GetObject(public_root_widget, "type");
+        const std::string type_lower = (cJSON_IsString(type) && type->valuestring)
+                                             ? ToLower(type->valuestring)
+                                             : std::string();
+        if (!IsContainerType(type_lower)) {
+            error = std::string("Public root must be container: ") + public_root_id->valuestring;
+            return false;
+        }
+
+        std::map<std::string, std::string> public_ownership;
+        std::unordered_set<std::string> public_visiting;
+        if (!TraverseSceneTree(public_widgets, public_root_id->valuestring, "public",
+                               public_ownership, public_visiting, error)) {
+            return false;
+        }
+
+        const cJSON* public_widget = nullptr;
+        cJSON_ArrayForEach(public_widget, public_widgets) {
+            if (!public_widget || !public_widget->string) {
+                error = "Public widget id missing";
+                return false;
+            }
+            if (cJSON_GetObjectItemCaseSensitive(widgets, public_widget->string)) {
+                error = std::string("Public widget id conflicts with page widget: ") +
+                        public_widget->string;
+                return false;
+            }
+            if (!ValidateWidget(public_widgets, public_widget, error)) {
+                error = std::string("Public widget invalid: ") + public_widget->string +
+                        " -> " + error;
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 
@@ -317,14 +375,37 @@ bool SceneManager::LoadFromJson(const cJSON* root, const char* scene_id, uint16_
         return false;
     }
 
+    std::unique_ptr<Widget> public_root;
+    const cJSON* public_section = cJSON_GetObjectItemCaseSensitive(root, "public");
+    if (cJSON_IsObject(public_section)) {
+        const cJSON* public_page = cJSON_GetObjectItemCaseSensitive(public_section, "page");
+        const cJSON* public_widgets = cJSON_GetObjectItemCaseSensitive(public_section, "widgets");
+        if (cJSON_IsObject(public_page) && cJSON_IsObject(public_widgets)) {
+            public_root = WidgetBuilder::BuildScene(public_page, public_widgets, texts);
+        }
+    }
+
+    if (public_root) {
+        Rect root_rect = root_widget->RectInParent();
+        auto container_root = std::make_unique<ContainerWidget>();
+        container_root->SetRectInParent(root_rect);
+        container_root->AddChild(std::move(root_widget));
+        container_root->AddChild(std::move(public_root));
+        root_widget = std::move(container_root);
+    }
+
     scene_.scene_id = scene_index;
-    scene_.root = std::move(root_widget);
+    scene_.root = std::shared_ptr<Widget>(root_widget.release());
     scene_.focus.Build(scene_.root.get());
     return true;
 }
 
 Widget* SceneManager::Root() const {
     return scene_.root.get();
+}
+
+std::shared_ptr<Widget> SceneManager::RootShared() const {
+    return scene_.root;
 }
 
 FocusManager& SceneManager::Focus() {

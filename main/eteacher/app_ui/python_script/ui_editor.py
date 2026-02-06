@@ -60,73 +60,19 @@ WIDGET_TYPES = [
     "Label",
     "Image",
     "Progress",
-    "Canvas",
-    "LineEdit",
     "TextArea",
     "Button",
     "Checkbox",
-    "Radio",
     "Switch",
-    "Dropdown",
-    "ComboBox",
+    "Radio",
     "ListView",
-    "TableView",
-    "GridView",
-    "Slider",
-    "ScrollBar",
-    "ScrollArea",
-    "ScrollView",
-    "Panel",
+    "TabView",
     "Frame",
-    "GroupBox",
-    "TabView",
-    "TabWidget",
-    "HBox",
-    "VBox",
-    "GridLayout",
-    "DatePicker",
-    "TimePicker",
-    "Calendar",
-    "Spinner",
-    "Stepper",
-    "Tooltip",
-    "LabelTip",
-    "CustomWidget",
-
-    # Menu system controls
-    "MenuBar",
     "Menu",
-    "SubMenu",
-    "MenuItem",
-    "CheckMenuItem",
-    "RadioMenuItem",
-    "MenuSeparator",
-
-    # Context menu
-    "ContextMenu",
-    "ContextMenuItem",
-    "ContextSubMenu",
-
-    # Navigation
-    "NavBar",
-    "SideMenu",
-    "Breadcrumb",
-    "Drawer",
-
-    # Tabs
-    "TabView",
-    "TabPage",
-    "TabItem",
-    "TabHeader",
-
-    # Overlays / dialogs
     "Dialog",
-    "ConfirmDialog",
-    "Alert",
-    "Toast",
-    "Popover",
-    "Modal",
-    "Overlay",
+    "SoftKeyboard",
+    "TopBar",
+    "BottomBar",
 ]
 
 # Categorize controls for the palette UI
@@ -137,42 +83,12 @@ CONTROL_CATEGORIES = {
         "Button",
         "Checkbox",
         "Radio",
-        "LineEdit",
         "TextArea",
     ],
-    "Layout": ["Panel", "Frame", "GroupBox", "HBox", "VBox", "GridLayout"],
-    "Menus": [
-        "MenuBar",
-        "Menu",
-        "SubMenu",
-        "MenuItem",
-        "CheckMenuItem",
-        "RadioMenuItem",
-        "MenuSeparator",
-    ],
-    "Context Menus": ["ContextMenu", "ContextMenuItem", "ContextSubMenu"],
-    "Navigation": ["NavBar", "SideMenu", "Drawer", "Breadcrumb"],
-    "Tabs": ["TabView", "TabPage", "TabItem", "TabHeader"],
-    "Overlays": ["Dialog", "ConfirmDialog", "Alert", "Toast", "Popover", "Modal", "Overlay"],
-    "Advanced": [
-        "Progress",
-        "Canvas",
-        "ListView",
-        "TableView",
-        "GridView",
-        "Slider",
-        "ScrollBar",
-        "ScrollArea",
-        "ScrollView",
-        "DatePicker",
-        "TimePicker",
-        "Calendar",
-        "Spinner",
-        "Stepper",
-        "Tooltip",
-        "LabelTip",
-        "CustomWidget",
-    ],
+    "Layout": ["Frame", "TopBar", "BottomBar"],
+    "Menus": ["Menu"],
+    "Tabs": ["TabView"],
+    "Advanced": ["Progress", "ListView", "Dialog", "SoftKeyboard"],
 }
 
 
@@ -201,6 +117,7 @@ class SceneData:
 class ProjectData:
     version: str = "3.0"
     scenes: List[SceneData] = field(default_factory=list)
+    public_page: Optional[SceneData] = None
     styles: List[Dict[str, object]] = field(default_factory=list)
     fonts: List[Dict[str, object]] = field(default_factory=list)
     images: List[Dict[str, object]] = field(default_factory=list)
@@ -720,60 +637,28 @@ class EditorWindow(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
-        # Favorites column
-        fav_layout = QVBoxLayout()
-        fav_layout.addWidget(QLabel("Favorites"))
-        self.favorites_list = QListWidget()
-        self.favorites_list.itemDoubleClicked.connect(self.add_widget_from_palette)
-        fav_layout.addWidget(self.favorites_list)
-        remove_fav_btn = QPushButton("Remove Favorite")
-        remove_fav_btn.clicked.connect(self.remove_favorite)
-        fav_layout.addWidget(remove_fav_btn)
-
-        # Controls categorized in tabs
-        all_layout = QVBoxLayout()
-        all_layout.addWidget(QLabel("All Controls"))
-        self.controls_tabs = QTabWidget()
-        self.category_lists: Dict[str, QListWidget] = {}
-        for cat, types in CONTROL_CATEGORIES.items():
-            lst = QListWidget()
-            lst.itemDoubleClicked.connect(self.add_widget_from_palette)
-            self.category_lists[cat] = lst
-            self.controls_tabs.addTab(lst, cat)
-        all_layout.addWidget(self.controls_tabs)
+        layout.addWidget(QLabel("All Controls"))
+        self.controls_list = QListWidget()
+        self.controls_list.itemDoubleClicked.connect(self.add_widget_from_palette)
+        layout.addWidget(self.controls_list)
 
         btns = QHBoxLayout()
-        add_to_fav_btn = QPushButton("Add to Favorites")
-        add_to_fav_btn.clicked.connect(self.add_to_favorites)
         add_selected_btn = QPushButton("Add Selected")
         add_selected_btn.clicked.connect(self.add_widget_from_palette_button)
-        btns.addWidget(add_to_fav_btn)
         btns.addWidget(add_selected_btn)
-        all_layout.addLayout(btns)
+        layout.addLayout(btns)
 
-        top = QHBoxLayout()
-        top.addLayout(fav_layout)
-        top.addLayout(all_layout)
-
-        layout.addLayout(top)
         layout.addStretch(1)
 
         self.refresh_palette_lists()
         return widget
 
     def refresh_palette_lists(self):
-        # populate favorites and all controls lists
-        self.favorites_list.clear()
-        favs = getattr(self.project, 'favorites', []) or []
-        for f in favs:
-            QListWidgetItem(f, self.favorites_list)
-        # populate category lists
-        for cat, lst in getattr(self, 'category_lists', {}).items():
-            lst.clear()
-            types = CONTROL_CATEGORIES.get(cat, [])
-            for t in types:
-                if t not in favs:
-                    QListWidgetItem(t, lst)
+        if not hasattr(self, "controls_list"):
+            return
+        self.controls_list.clear()
+        for t in WIDGET_TYPES:
+            QListWidgetItem(t, self.controls_list)
 
     def add_to_favorites(self):
         name = self.get_selected_control()
@@ -785,21 +670,15 @@ class EditorWindow(QMainWindow):
         self.refresh_palette_lists()
 
     def get_selected_control(self) -> Optional[str]:
-        # check current tab list
-        if hasattr(self, 'controls_tabs'):
-            w = self.controls_tabs.currentWidget()
-            if isinstance(w, QListWidget):
-                it = w.currentItem()
-                if it:
-                    return it.text()
-        # fallback to favorites selection
-        if hasattr(self, 'favorites_list'):
-            it = self.favorites_list.currentItem()
+        if hasattr(self, "controls_list"):
+            it = self.controls_list.currentItem()
             if it:
                 return it.text()
         return None
 
     def remove_favorite(self):
+        if not hasattr(self, "favorites_list"):
+            return
         item = self.favorites_list.currentItem()
         if not item:
             return
@@ -814,11 +693,8 @@ class EditorWindow(QMainWindow):
         layout = QVBoxLayout(widget)
         self.scene_list_widget = QListWidget()
         layout.addWidget(self.scene_list_widget)
-        for scene in self.project.scenes:
-            item = QListWidgetItem(scene.name)
-            item.setData(Qt.UserRole, scene)
-            self.scene_list_widget.addItem(item)
         self.scene_list_widget.currentRowChanged.connect(self.switch_scene)
+        self.refresh_scene_list()
 
         self.scene_name_edit = QLineEdit()
         # Apply rename when editing finished (press Enter or focus lost)
@@ -833,6 +709,14 @@ class EditorWindow(QMainWindow):
         remove_btn = QPushButton("Remove Current Page")
         remove_btn.clicked.connect(self.remove_scene)
         layout.addWidget(remove_btn)
+
+        add_public_btn = QPushButton("Add PublicPage")
+        add_public_btn.clicked.connect(self.add_public_page)
+        layout.addWidget(add_public_btn)
+
+        remove_public_btn = QPushButton("Remove Current PublicPage")
+        remove_public_btn.clicked.connect(self.remove_public_page)
+        layout.addWidget(remove_public_btn)
 
         save_btn = QPushButton("Save All Pages")
         save_btn.clicked.connect(self.save_json)
@@ -1275,16 +1159,15 @@ class EditorWindow(QMainWindow):
         texts: Dict[str, str] = {}
         text_id_by_value: Dict[str, str] = {}
         widgets: Dict[str, Dict[str, object]] = {}
+        public_widgets: Dict[str, Dict[str, object]] = {}
         pages: Dict[str, Dict[str, object]] = {}
 
-        for scene in self.project.scenes:
-            root_id = f"root_{scene.id}"
-            widgets[root_id] = {
+        def add_scene_widgets(scene: SceneData, root_id: str, target_widgets: Dict[str, Dict[str, object]]):
+            target_widgets[root_id] = {
                 "type": "Container",
                 "rect": {"x": 0, "y": 0, "w": CANVAS_WIDTH, "h": CANVAS_HEIGHT},
                 "children": [],
             }
-            scene_widget_ids: List[str] = []
             for w in scene.widgets:
                 props: Dict[str, object] = {}
                 if w.text:
@@ -1297,18 +1180,32 @@ class EditorWindow(QMainWindow):
                         texts[text_id] = w.text
                     props["textId"] = text_id
 
-                widgets[w.id] = {
+                target_widgets[w.id] = {
                     "type": w.type,
                     "rect": {"x": w.x, "y": w.y, "w": w.w, "h": w.h},
                     "style": w.style or None,
                     "properties": props,
                 }
-                scene_widget_ids.append(w.id)
-                widgets[root_id]["children"].append(w.id)
+                target_widgets[root_id]["children"].append(w.id)
 
+        for scene in self.project.scenes:
+            root_id = f"root_{scene.id}"
+            add_scene_widgets(scene, root_id, widgets)
             pages[scene.id] = {
                 "name": scene.name,
                 "root": root_id,
+            }
+
+        public_section = None
+        if self.project.public_page:
+            root_id = "root_public"
+            add_scene_widgets(self.project.public_page, root_id, public_widgets)
+            public_section = {
+                "page": {
+                    "name": self.project.public_page.name,
+                    "root": root_id,
+                },
+                "widgets": public_widgets,
             }
 
         styles: Dict[str, Dict[str, object]] = {}
@@ -1367,10 +1264,13 @@ class EditorWindow(QMainWindow):
             "data": {},
             "pages": pages,
             "widgets": widgets,
+            "public": public_section,
             "events": [],
             "navigation": {"focus": {}, "scene_flow": {}},
             "states": {},
         }
+        if not public_section:
+            data.pop("public", None)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -1382,6 +1282,7 @@ class EditorWindow(QMainWindow):
             raw = json.load(f)
         if "meta" in raw:
             scenes: List[SceneData] = []
+            public_page: Optional[SceneData] = None
             widgets_raw = raw.get("widgets", {})
             texts = raw.get("resources", {}).get("texts", {})
 
@@ -1396,7 +1297,11 @@ class EditorWindow(QMainWindow):
                     return ""
                 return str(texts.get(text_id, text_id))
 
-            def build_scene_widgets(scene_root: str, widget_map: Dict[str, WidgetData]) -> List[WidgetData]:
+            def build_scene_widgets(
+                scene_root: str,
+                widget_map: Dict[str, WidgetData],
+                widgets_source: Dict[str, Dict[str, object]],
+            ) -> List[WidgetData]:
                 result: List[WidgetData] = []
                 visited: set[str] = set()
 
@@ -1409,7 +1314,7 @@ class EditorWindow(QMainWindow):
                         return
                     if not wid.startswith("root_"):
                         result.append(WidgetData(**asdict(widget)))
-                    raw = widgets_raw.get(wid, {}) if isinstance(widgets_raw, dict) else {}
+                    raw = widgets_source.get(wid, {}) if isinstance(widgets_source, dict) else {}
                     children = raw.get("children", []) if isinstance(raw, dict) else []
                     if isinstance(children, list):
                         for child in children:
@@ -1418,9 +1323,9 @@ class EditorWindow(QMainWindow):
                 dfs(scene_root)
                 return result
 
-            if isinstance(widgets_raw, dict):
+            def build_widget_map(source: Dict[str, Dict[str, object]]) -> Dict[str, WidgetData]:
                 widget_map: Dict[str, WidgetData] = {}
-                for wid, w in widgets_raw.items():
+                for wid, w in source.items():
                     rect = w.get("rect", {}) if isinstance(w, dict) else {}
                     props = w.get("properties", {}) if isinstance(w, dict) else {}
                     widget_map[wid] = WidgetData(
@@ -1435,16 +1340,44 @@ class EditorWindow(QMainWindow):
                         z_order=0,
                         events={},
                     )
+                return widget_map
+
+            if isinstance(widgets_raw, dict):
+                widget_map = build_widget_map(widgets_raw)
 
                 page_map = raw.get("pages", {})
                 if not page_map:
                     page_map = raw.get("scenes", {})
                 for page_id, page in page_map.items():
                     page_root = page.get("root", "") if isinstance(page, dict) else ""
-                    page_widgets = build_scene_widgets(str(page_root), widget_map) if page_root else []
+                    page_widgets = build_scene_widgets(str(page_root), widget_map, widgets_raw) if page_root else []
                     scenes.append(
                         SceneData(id=str(page_id), name=page.get("name", "") if isinstance(page, dict) else "", widgets=page_widgets)
                     )
+
+                public_section = raw.get("public")
+                if isinstance(public_section, dict):
+                    public_page_raw = public_section.get("page")
+                    public_widgets_raw = public_section.get("widgets")
+                    if isinstance(public_page_raw, dict) and isinstance(public_widgets_raw, dict):
+                        public_widget_map = build_widget_map(public_widgets_raw)
+                        public_root = public_page_raw.get("root", "")
+                        public_widgets = (
+                            build_scene_widgets(str(public_root), public_widget_map, public_widgets_raw)
+                            if public_root
+                            else []
+                        )
+                        public_name = public_page_raw.get("name", "PublicPage")
+                        public_page = SceneData(id="public_page", name=str(public_name), widgets=public_widgets)
+                else:
+                    public_raw = raw.get("PublicPage")
+                    if not public_raw:
+                        public_raw = raw.get("publicPage")
+                    if isinstance(public_raw, dict):
+                        public_root = public_raw.get("root", "")
+                        public_widgets = build_scene_widgets(str(public_root), widget_map, widgets_raw) if public_root else []
+                        public_name = public_raw.get("name", "PublicPage")
+                        public_page = SceneData(id="public_page", name=str(public_name), widgets=public_widgets)
             else:
                 properties = raw.get("properties", [])
 
@@ -1522,6 +1455,7 @@ class EditorWindow(QMainWindow):
             self.project = ProjectData(
                 version=raw.get("meta", {}).get("ui_version", "4.0"),
                 scenes=scenes,
+                public_page=public_page,
                 styles=styles,
                 fonts=fonts,
                 images=images,
@@ -1556,21 +1490,26 @@ class EditorWindow(QMainWindow):
             self.project = ProjectData(
                 version=raw.get("version", "3.0"),
                 scenes=scenes,
+                public_page=None,
                 styles=raw.get("styles", []),
                 fonts=raw.get("fonts", []),
                 images=raw.get("images", []),
                 favorites=raw.get("favorites", []),
                 control_defaults=raw.get("control_defaults", {}),
             )
-        self.current_scene = self.project.scenes[0] if self.project.scenes else SceneData("scene", "Scene")
-        self.scene_list_widget.clear()
-        for scene in self.project.scenes:
-            item = QListWidgetItem(scene.name)
-            item.setData(Qt.UserRole, scene)
-            self.scene_list_widget.addItem(item)
         if self.project.scenes:
-            self.scene_list_widget.setCurrentRow(0)
-            self.scene_name_edit.setText(self.current_scene.name)
+            self.current_scene = self.project.scenes[0]
+        elif self.project.public_page:
+            self.current_scene = self.project.public_page
+        else:
+            self.current_scene = SceneData("scene", "Scene")
+        self.refresh_scene_list()
+        if self.project.scenes:
+            self._select_scene_in_list(self.project.scenes[0], is_public=False)
+            self.scene_name_edit.setText(self.project.scenes[0].name)
+        elif self.project.public_page:
+            self._select_scene_in_list(self.project.public_page, is_public=True)
+            self.scene_name_edit.setText(self.project.public_page.name)
         else:
             self.scene_name_edit.setText("")
         self.refresh_scene()
@@ -1588,16 +1527,14 @@ class EditorWindow(QMainWindow):
         defaults = dict(getattr(self.project, "control_defaults", {}))
         self.project = ProjectData(
             scenes=[SceneData(id="page_main", name="MainPage")],
+            public_page=None,
             favorites=favs,
             control_defaults=defaults,
         )
         self.current_scene = self.project.scenes[0]
         if hasattr(self, 'scene_list_widget'):
-            self.scene_list_widget.clear()
-            item = QListWidgetItem(self.current_scene.name)
-            item.setData(Qt.UserRole, self.current_scene)
-            self.scene_list_widget.addItem(item)
-            self.scene_list_widget.setCurrentRow(0)
+            self.refresh_scene_list()
+            self._select_scene_in_list(self.current_scene, is_public=False)
         if hasattr(self, 'scene_name_edit'):
             self.scene_name_edit.setText(self.current_scene.name)
         self.refresh_scene()
@@ -1610,10 +1547,10 @@ class EditorWindow(QMainWindow):
             return
         favs = list(getattr(self.project, "favorites", []))
         defaults = dict(getattr(self.project, "control_defaults", {}))
-        self.project = ProjectData(favorites=favs, control_defaults=defaults)
+        self.project = ProjectData(favorites=favs, control_defaults=defaults, public_page=None)
         self.current_scene = SceneData(id="page", name="Page")
         if hasattr(self, 'scene_list_widget'):
-            self.scene_list_widget.clear()
+            self.refresh_scene_list()
         if hasattr(self, 'scene_name_edit'):
             self.scene_name_edit.setText("")
         self.refresh_scene()
@@ -1628,24 +1565,87 @@ class EditorWindow(QMainWindow):
         self.save_editor_state()
         super().closeEvent(event)
 
+    def refresh_scene_list(self):
+        if not hasattr(self, "scene_list_widget"):
+            return
+        self.scene_list_widget.blockSignals(True)
+        self.scene_list_widget.clear()
+        for scene in self.project.scenes:
+            item = QListWidgetItem(scene.name)
+            item.setData(Qt.UserRole, scene)
+            item.setData(Qt.UserRole + 1, "scene")
+            self.scene_list_widget.addItem(item)
+        if self.project.public_page:
+            item = QListWidgetItem(self.project.public_page.name)
+            item.setData(Qt.UserRole, self.project.public_page)
+            item.setData(Qt.UserRole + 1, "public")
+            self.scene_list_widget.addItem(item)
+        self.scene_list_widget.blockSignals(False)
+
+    def _select_scene_in_list(self, scene: SceneData, is_public: bool = False):
+        if not hasattr(self, "scene_list_widget"):
+            return
+        flag = "public" if is_public else "scene"
+        for i in range(self.scene_list_widget.count()):
+            item = self.scene_list_widget.item(i)
+            if item and item.data(Qt.UserRole) is scene and item.data(Qt.UserRole + 1) == flag:
+                self.scene_list_widget.setCurrentRow(i)
+                return
+
     def add_scene(self):
         scene = SceneData(id=f"page_{uuid.uuid4().hex[:4]}", name="NewPage")
         self.project.scenes.append(scene)
-        item = QListWidgetItem(scene.name)
-        item.setData(Qt.UserRole, scene)
-        self.scene_list_widget.addItem(item)
-        self.scene_list_widget.setCurrentItem(item)
+        self.refresh_scene_list()
+        self._select_scene_in_list(scene, is_public=False)
         self.scene_name_edit.setText(scene.name)
+
+    def add_public_page(self):
+        if self.project.public_page:
+            self.current_scene = self.project.public_page
+            self._select_scene_in_list(self.project.public_page, is_public=True)
+            self.refresh_scene()
+            return
+        self.project.public_page = SceneData(id="public_page", name="PublicPage")
+        self.current_scene = self.project.public_page
+        self.refresh_scene_list()
+        self._select_scene_in_list(self.project.public_page, is_public=True)
+        self.scene_name_edit.setText(self.project.public_page.name)
+        self.refresh_scene()
+
+    def remove_public_page(self):
+        if not self.project.public_page:
+            return
+        if self.current_scene is self.project.public_page:
+            self.current_scene = self.project.scenes[0] if self.project.scenes else SceneData("page", "Page")
+        self.project.public_page = None
+        self.refresh_scene_list()
+        if self.project.scenes:
+            self._select_scene_in_list(self.project.scenes[0], is_public=False)
+        self.refresh_scene()
+        if self.project.scenes:
+            self.scene_name_edit.setText(self.project.scenes[0].name)
+        else:
+            self.scene_name_edit.setText("")
 
     def remove_scene(self):
         row = self.scene_list_widget.currentRow()
         if row < 0:
             return
-        self.project.scenes.pop(row)
-        self.scene_list_widget.takeItem(row)
+        item = self.scene_list_widget.item(row)
+        if not item or item.data(Qt.UserRole + 1) == "public":
+            return
+        scene = item.data(Qt.UserRole)
+        if scene in self.project.scenes:
+            self.project.scenes.remove(scene)
+        self.refresh_scene_list()
         if self.project.scenes:
             self.current_scene = self.project.scenes[0]
-            self.scene_list_widget.setCurrentRow(0)
+            self._select_scene_in_list(self.current_scene, is_public=False)
+            self.refresh_scene()
+            self.scene_name_edit.setText(self.current_scene.name)
+        elif self.project.public_page:
+            self.current_scene = self.project.public_page
+            self._select_scene_in_list(self.current_scene, is_public=True)
             self.refresh_scene()
             self.scene_name_edit.setText(self.current_scene.name)
         else:
@@ -1653,23 +1653,43 @@ class EditorWindow(QMainWindow):
             self.scene_name_edit.setText("")
 
     def switch_scene(self, row: int):
-        if row < 0 or row >= len(self.project.scenes):
+        if row < 0:
             return
-        self.current_scene = self.project.scenes[row]
+        item = self.scene_list_widget.item(row)
+        if not item:
+            return
+        if item.data(Qt.UserRole + 1) == "public":
+            if not self.project.public_page:
+                return
+            self.current_scene = self.project.public_page
+            self.scene_name_edit.setText(self.current_scene.name)
+        else:
+            scene = item.data(Qt.UserRole)
+            if not isinstance(scene, SceneData):
+                return
+            self.current_scene = scene
+            self.scene_name_edit.setText(self.current_scene.name)
         self.refresh_scene()
-        self.scene_name_edit.setText(self.current_scene.name)
 
     def rename_scene(self):
         row = self.scene_list_widget.currentRow()
-        if row < 0 or row >= len(self.project.scenes):
+        if row < 0:
+            return
+        item = self.scene_list_widget.item(row)
+        if not item:
             return
         new_name = self.scene_name_edit.text().strip()
         if not new_name:
             return
-        self.project.scenes[row].name = new_name
-        item = self.scene_list_widget.item(row)
-        if item:
+        if item.data(Qt.UserRole + 1) == "public":
+            if self.project.public_page:
+                self.project.public_page.name = new_name
             item.setText(new_name)
+            return
+        scene = item.data(Qt.UserRole)
+        if isinstance(scene, SceneData):
+            scene.name = new_name
+        item.setText(new_name)
 
     def refresh_widget_list(self):
         if not hasattr(self, "widget_list"):

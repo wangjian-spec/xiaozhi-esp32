@@ -99,12 +99,9 @@ uint32_t HashTextId(const char* text_id) {
 }
 
 bool IsContainerType(std::string_view type) {
-    return type == "container" || type == "panel" || type == "frame" || type == "groupbox" ||
-           type == "hbox" || type == "vbox" || type == "gridlayout" || type == "menu" ||
-           type == "menubar" || type == "submenu" || type == "contextmenu" ||
-           type == "navbar" || type == "sidemenu" || type == "drawer" || type == "tabview" ||
-           type == "tabwidget" || type == "tabpage" || type == "dialog" || type == "confirmdialog" ||
-           type == "alert" || type == "toast" || type == "popover" || type == "modal" || type == "overlay";
+    return type == "container" || type == "frame" || type == "menu" || type == "listview" ||
+           type == "tabview" || type == "dialog" || type == "softkeyboard" || type == "topbar" ||
+           type == "bottombar";
 }
 
 std::unique_ptr<Widget> BuildWidgetRecursive(const cJSON* widgets_json,
@@ -251,11 +248,7 @@ std::unique_ptr<Widget> BuildWidgetRecursive(const cJSON* widgets_json,
 
 bool DefaultFocusable(std::string_view type) {
     return type == "button" || type == "checkbox" || type == "radio" || type == "switch" ||
-           type == "lineedit" || type == "textarea" || type == "dropdown" || type == "combobox" ||
-           type == "listview" || type == "tableview" || type == "gridview" || type == "slider" ||
-           type == "scrollbar" || type == "menuitem" || type == "checkmenuitem" ||
-           type == "radiomenuitem" || type == "contextmenuitem" || type == "contextsubmenu" ||
-           type == "tabitem";
+           type == "textarea" || type == "listview";
 }
 
 std::unique_ptr<Widget> CreateWidgetByType(const std::string& type) {
@@ -268,58 +261,15 @@ std::unique_ptr<Widget> CreateWidgetByType(const std::string& type) {
         {"progress", [] { return std::make_unique<ProgressWidget>(); }},
         {"image", [] { return std::make_unique<ImageWidget>(); }},
         {"container", [] { return std::make_unique<ContainerWidget>(); }},
-        {"canvas", [] { return std::make_unique<ContainerWidget>(); }},
-        {"lineedit", [] { return std::make_unique<LabelWidget>(); }},
-        {"textarea", [] { return std::make_unique<LabelWidget>(); }},
-        {"dropdown", [] { return std::make_unique<ContainerWidget>(); }},
-        {"combobox", [] { return std::make_unique<ContainerWidget>(); }},
-        {"listview", [] { return std::make_unique<ContainerWidget>(); }},
-        {"tableview", [] { return std::make_unique<ContainerWidget>(); }},
-        {"gridview", [] { return std::make_unique<ContainerWidget>(); }},
-        {"slider", [] { return std::make_unique<ProgressWidget>(); }},
-        {"scrollbar", [] { return std::make_unique<ContainerWidget>(); }},
-        {"scrollarea", [] { return std::make_unique<ContainerWidget>(); }},
-        {"scrollview", [] { return std::make_unique<ContainerWidget>(); }},
-        {"panel", [] { return std::make_unique<ContainerWidget>(); }},
-        {"frame", [] { return std::make_unique<ContainerWidget>(); }},
-        {"groupbox", [] { return std::make_unique<ContainerWidget>(); }},
-        {"tabview", [] { return std::make_unique<ContainerWidget>(); }},
-        {"tabwidget", [] { return std::make_unique<ContainerWidget>(); }},
-        {"hbox", [] { return std::make_unique<ContainerWidget>(); }},
-        {"vbox", [] { return std::make_unique<ContainerWidget>(); }},
-        {"gridlayout", [] { return std::make_unique<ContainerWidget>(); }},
-        {"datepicker", [] { return std::make_unique<ContainerWidget>(); }},
-        {"timepicker", [] { return std::make_unique<ContainerWidget>(); }},
-        {"calendar", [] { return std::make_unique<ContainerWidget>(); }},
-        {"spinner", [] { return std::make_unique<ContainerWidget>(); }},
-        {"stepper", [] { return std::make_unique<ContainerWidget>(); }},
-        {"tooltip", [] { return std::make_unique<LabelWidget>(); }},
-        {"labeltip", [] { return std::make_unique<LabelWidget>(); }},
-        {"customwidget", [] { return std::make_unique<ContainerWidget>(); }},
-        {"menubar", [] { return std::make_unique<ContainerWidget>(); }},
-        {"menu", [] { return std::make_unique<ContainerWidget>(); }},
-        {"submenu", [] { return std::make_unique<ContainerWidget>(); }},
-        {"menuitem", [] { return std::make_unique<MenuItemWidget>(); }},
-        {"checkmenuitem", [] { return std::make_unique<MenuItemWidget>(); }},
-        {"radiomenuitem", [] { return std::make_unique<MenuItemWidget>(); }},
-        {"menuseparator", [] { return std::make_unique<SeparatorWidget>(); }},
-        {"contextmenu", [] { return std::make_unique<ContainerWidget>(); }},
-        {"contextmenuitem", [] { return std::make_unique<MenuItemWidget>(); }},
-        {"contextsubmenu", [] { return std::make_unique<MenuItemWidget>(); }},
-        {"navbar", [] { return std::make_unique<ContainerWidget>(); }},
-        {"sidemenu", [] { return std::make_unique<ContainerWidget>(); }},
-        {"breadcrumb", [] { return std::make_unique<LabelWidget>(); }},
-        {"drawer", [] { return std::make_unique<ContainerWidget>(); }},
-        {"tabpage", [] { return std::make_unique<ContainerWidget>(); }},
-        {"tabitem", [] { return std::make_unique<TabItemWidget>(); }},
-        {"tabheader", [] { return std::make_unique<ContainerWidget>(); }},
-        {"dialog", [] { return std::make_unique<ContainerWidget>(); }},
-        {"confirmdialog", [] { return std::make_unique<ContainerWidget>(); }},
-        {"alert", [] { return std::make_unique<ContainerWidget>(); }},
-        {"toast", [] { return std::make_unique<ContainerWidget>(); }},
-        {"popover", [] { return std::make_unique<ContainerWidget>(); }},
-        {"modal", [] { return std::make_unique<ContainerWidget>(); }},
-        {"overlay", [] { return std::make_unique<ContainerWidget>(); }},
+        {"textarea", [] { return std::make_unique<TextAreaWidget>(); }},
+        {"listview", [] { return std::make_unique<ListViewWidget>(); }},
+        {"frame", [] { return std::make_unique<FrameWidget>(); }},
+        {"tabview", [] { return std::make_unique<TabViewWidget>(); }},
+        {"menu", [] { return std::make_unique<MenuWidget>(); }},
+        {"dialog", [] { return std::make_unique<DialogWidget>(); }},
+        {"softkeyboard", [] { return std::make_unique<SoftKeyboardWidget>(); }},
+        {"topbar", [] { return std::make_unique<TopBarWidget>(); }},
+        {"bottombar", [] { return std::make_unique<BottomBarWidget>(); }},
     };
 
     auto it = kWidgetFactory.find(type);
@@ -344,37 +294,25 @@ std::unique_ptr<Widget> CreateWidgetByType(WidgetType type) {
         case WidgetType::Switch:
             return std::make_unique<SwitchWidget>();
         case WidgetType::Progress:
-        case WidgetType::Slider:
             return std::make_unique<ProgressWidget>();
-        case WidgetType::MenuItem:
-        case WidgetType::ContextMenuItem:
-            return std::make_unique<MenuItemWidget>();
-        case WidgetType::MenuSeparator:
-            return std::make_unique<SeparatorWidget>();
-        case WidgetType::Panel:
-        case WidgetType::Frame:
-        case WidgetType::GroupBox:
-        case WidgetType::HBox:
-        case WidgetType::VBox:
-        case WidgetType::GridLayout:
-        case WidgetType::MenuBar:
-        case WidgetType::Menu:
-        case WidgetType::SubMenu:
-        case WidgetType::ContextMenu:
-        case WidgetType::NavBar:
-        case WidgetType::SideMenu:
-        case WidgetType::Drawer:
+        case WidgetType::TextArea:
+            return std::make_unique<TextAreaWidget>();
+        case WidgetType::ListView:
+            return std::make_unique<ListViewWidget>();
         case WidgetType::TabView:
-        case WidgetType::TabWidget:
-        case WidgetType::TabPage:
+            return std::make_unique<TabViewWidget>();
+        case WidgetType::Frame:
+            return std::make_unique<FrameWidget>();
+        case WidgetType::Menu:
+            return std::make_unique<MenuWidget>();
         case WidgetType::Dialog:
-        case WidgetType::ConfirmDialog:
-        case WidgetType::Alert:
-        case WidgetType::Toast:
-        case WidgetType::Popover:
-        case WidgetType::Modal:
-        case WidgetType::Overlay:
-            return std::make_unique<ContainerWidget>();
+            return std::make_unique<DialogWidget>();
+        case WidgetType::SoftKeyboard:
+            return std::make_unique<SoftKeyboardWidget>();
+        case WidgetType::TopBar:
+            return std::make_unique<TopBarWidget>();
+        case WidgetType::BottomBar:
+            return std::make_unique<BottomBarWidget>();
         default:
             return std::make_unique<ContainerWidget>();
     }
