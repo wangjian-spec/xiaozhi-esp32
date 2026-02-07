@@ -1,8 +1,10 @@
 #include "ui_engine.h"
 
 #include "renderer.h"
-#include "scene.h"
 #include "widget.h"
+
+#include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/epd_manager/epd_manager.h"
 
 namespace app_ui {
 
@@ -11,11 +13,43 @@ void UIEngine::OnInput(const InputEvent& e) {
 }
 
 void UIEngine::RequestLayout() {
-    need_layout_ = true;
-    need_render_ = true;
+    MarkLayoutDirty();
+    ScheduleIfNeeded();
 }
 
 void UIEngine::RequestRender() {
+    MarkRenderDirty();
+    ScheduleIfNeeded();
+}
+
+void UIEngine::SetEpd(::CustomEpdDisplay* epd) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    epd_ = epd;
+    if (epd_) {
+        viewport_ = {0, 0, static_cast<int16_t>(epd_->width()),
+                     static_cast<int16_t>(epd_->height())};
+        RequestLayout();
+    }
+}
+
+void UIEngine::SetRoot(std::unique_ptr<Widget> root) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    pending_root_ = std::move(root);
+    MarkLayoutDirty();
+    ScheduleIfNeeded();
+}
+
+void UIEngine::Reset() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    active_root_.reset();
+    pending_root_.reset();
+    cached_root_ = nullptr;
+    focus_.Clear();
+    input_queue_.Clear();
+    dirty_.Clear();
+    animation_.StopAll();
+    style_.MarkDirty(true);
+    need_layout_ = true;
     need_render_ = true;
 }
 
@@ -24,38 +58,80 @@ void UIEngine::SetPainter(Painter* painter) {
 }
 
 void UIEngine::SetViewport(const Rect& rect) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     viewport_ = rect;
-    RequestLayout();
-}
-
-SceneManager& UIEngine::Scenes() {
-    return scenes_;
+    MarkLayoutDirty();
+    ScheduleIfNeeded();
 }
 
 InputQueue& UIEngine::Input() {
     return input_queue_;
 }
 
-Widget* UIEngine::ResolveRoot() {
-    Scene* scene = scenes_.Current();
-    if (!scene) {
-        return nullptr;
-    }
+void UIEngine::MarkLayoutDirty() {
+    need_layout_ = true;
+    need_render_ = true;
+}
 
-    if (!scene->Root()) {
-        cached_root_ = scene->BuildUI();
-        if (!scene->Root()) {
-            return cached_root_;
-        }
-    }
+void UIEngine::MarkRenderDirty() {
+    need_render_ = true;
+}
 
-    cached_root_ = scene->Root();
-    return cached_root_;
+void UIEngine::ScheduleIfNeeded() {
+    if (!epd_) {
+        return;
+    }
+    if (scheduled_.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    EpdManager::GetInstance().Schedule(
+        EpdManager::TaskType::kPartial,
+        &UIEngine::RenderCallback,
+        this,
+        nullptr,
+        EpdManager::Rect(0, 0, epd_->width(), epd_->height()));
+}
+
+void UIEngine::RenderCallback(::Adafruit_GFX& gfx, void* ctx) {
+    auto* engine = static_cast<UIEngine*>(ctx);
+    if (!engine) {
+        return;
+    }
+    engine->RenderInternal(gfx);
+}
+
+void UIEngine::RenderInternal(::Adafruit_GFX& gfx) {
+    if (!epd_) {
+        scheduled_.store(false, std::memory_order_release);
+        return;
+    }
+    EpdPainter painter(epd_, gfx);
+    SetPainter(&painter);
+    Tick(0);
+    SetPainter(nullptr);
+    scheduled_.store(false, std::memory_order_release);
+    if (need_layout_ || need_render_) {
+        ScheduleIfNeeded();
+    }
 }
 
 void UIEngine::Tick(uint32_t delta_ms) {
-    Widget* root = ResolveRoot();
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    if (pending_root_) {
+        active_root_ = std::move(pending_root_);
+        cached_root_ = nullptr;
+        focus_.Clear();
+        dirty_.Clear();
+        animation_.StopAll();
+        style_.MarkDirty(true);
+        input_queue_.Clear();
+        MarkLayoutDirty();
+    }
+    Widget* root = active_root_.get();
     if (!root) {
+        dirty_.Clear();
+        need_layout_ = false;
+        need_render_ = false;
         return;
     }
 
@@ -67,7 +143,7 @@ void UIEngine::Tick(uint32_t delta_ms) {
         style_.MarkDirty(true);
         input_queue_.Clear();
         focus_.Build(root);
-        RequestLayout();
+        MarkLayoutDirty();
     }
 
     InputEvent event;
@@ -76,13 +152,13 @@ void UIEngine::Tick(uint32_t delta_ms) {
     }
 
     if (style_.ConsumeLayoutDirty()) {
-        RequestLayout();
+        MarkLayoutDirty();
     } else if (style_.ConsumeRenderDirty()) {
-        RequestRender();
+        MarkRenderDirty();
     }
 
     if (animation_.Tick(delta_ms)) {
-        RequestRender();
+        MarkRenderDirty();
     }
 
     if (need_layout_) {

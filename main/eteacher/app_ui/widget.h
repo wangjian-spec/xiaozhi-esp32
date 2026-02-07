@@ -7,8 +7,9 @@
 
 #include "types.h"
 
-namespace app_ui {
+struct cJSON;
 
+namespace app_ui {
 struct InputEvent;
 class Painter;
 
@@ -52,6 +53,11 @@ public:
 
     void Draw(Painter& p);
 
+    virtual void InitFromJson(const ::cJSON* widget_json, const ::cJSON* texts) {
+        (void)widget_json;
+        (void)texts;
+    }
+
     virtual bool OnInput(const InputEvent& e) { return false; }
 
     virtual void OnAttach() {}
@@ -69,6 +75,7 @@ public:
     void SetFocusable(bool v);
 
     Rect RectInParent() const;
+    Rect DeclaredRect() const;
     Rect RectInWindow() const;
     Rect RectInScreen() const;
 
@@ -97,6 +104,7 @@ protected:
     std::vector<std::unique_ptr<Widget>> children_;
 
     LayoutCache cache_;
+    Rect design_rect_{};
     WidgetFlags flags_;
     uint8_t z_order_ = 0;
 };
@@ -121,6 +129,7 @@ protected:
 
 class TextWidget : public BasicWidget {
 public:
+    void InitFromJson(const ::cJSON* widget_json, const ::cJSON* texts) override;
     void SetText(const std::string& text);
     const std::string& Text() const;
     void SetTextId(uint32_t text_id);
@@ -194,6 +203,7 @@ protected:
 
 class CheckboxWidget : public TextWidget {
 public:
+    void InitFromJson(const ::cJSON* widget_json, const ::cJSON* texts) override;
     void SetChecked(bool checked);
     bool Checked() const;
 
@@ -206,6 +216,7 @@ private:
 
 class RadioWidget : public TextWidget {
 public:
+    void InitFromJson(const ::cJSON* widget_json, const ::cJSON* texts) override;
     void SetChecked(bool checked);
     bool Checked() const;
 
@@ -218,6 +229,7 @@ private:
 
 class SwitchWidget : public TextWidget {
 public:
+    void InitFromJson(const ::cJSON* widget_json, const ::cJSON* texts) override;
     void SetChecked(bool checked);
     bool Checked() const;
 
@@ -230,6 +242,7 @@ private:
 
 class ProgressWidget : public TextWidget {
 public:
+    void InitFromJson(const ::cJSON* widget_json, const ::cJSON* texts) override;
     void SetValue(uint8_t value);
     uint8_t Value() const;
 

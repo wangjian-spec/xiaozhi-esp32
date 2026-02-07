@@ -6,6 +6,6 @@ struct cJSON;
 
 namespace app_ui {
 
-cJSON* LoadUiJson(const char* name);
+::cJSON* LoadUiJson(const char* name);
 
 } // namespace app_ui

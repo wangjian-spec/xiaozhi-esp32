@@ -93,6 +93,8 @@ public:
     bool HasDirty() const;
     Rect Merge() const;
     bool RequireFullRefresh() const;
+    bool Intersects(const Rect& rect) const;
+    const std::vector<DirtyItem>& Items() const;
     void Clear();
 
 private:
@@ -120,7 +122,7 @@ struct RenderObject {
     Rect rect;
     Widget* widget = nullptr;
     uint8_t z = 0;
-    uint16_t depth = 0;
+    uint32_t depth = 0;
     float alpha = 1.0f;
     uint32_t order = 0;
 };
@@ -132,7 +134,7 @@ public:
     const std::vector<RenderObject>& Items() const;
 
 private:
-    void Traverse(Widget* node, uint16_t depth, uint32_t& order);
+    void Traverse(Widget* node, uint32_t depth, uint32_t& order);
 
     std::vector<RenderObject> items_;
 };
@@ -143,9 +145,6 @@ public:
     void Render(RenderList& list, DirtyTracker& dirty, Painter& painter);
 
 private:
-    void PartialRefresh(const Rect& rect);
-    void FullRefresh();
-
     RenderCapabilities caps_{};
 };
 

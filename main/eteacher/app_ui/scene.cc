@@ -13,82 +13,6 @@
 
 namespace app_ui {
 
-void SceneManager::Push(std::unique_ptr<Scene> scene) {
-    if (!scene) {
-        return;
-    }
-    if (!stack_.empty()) {
-        stack_.back()->OnPause();
-    }
-    scene->OnEnter();
-    stack_.push_back(std::move(scene));
-}
-
-void SceneManager::Pop() {
-    if (stack_.empty()) {
-        return;
-    }
-    stack_.back()->OnExit();
-    stack_.pop_back();
-    if (!stack_.empty()) {
-        stack_.back()->OnResume();
-    }
-}
-
-void SceneManager::Replace(std::unique_ptr<Scene> scene) {
-    Pop();
-    Push(std::move(scene));
-}
-
-Scene* SceneManager::FindByName(const std::string& name) {
-    for (const auto& scene : stack_) {
-        if (scene && name == scene->Name()) {
-            return scene.get();
-        }
-    }
-    return nullptr;
-}
-
-Scene* SceneManager::Current() {
-    if (stack_.empty()) {
-        return nullptr;
-    }
-    return stack_.back().get();
-}
-
-void SceneManager::Clear() {
-    while (!stack_.empty()) {
-        Pop();
-    }
-}
-
-bool SceneManager::PromoteToTop(const std::string& name) {
-    if (stack_.empty()) {
-        return false;
-    }
-    size_t index = stack_.size();
-    for (size_t i = 0; i < stack_.size(); ++i) {
-        if (stack_[i] && name == stack_[i]->Name()) {
-            index = i;
-            break;
-        }
-    }
-    if (index >= stack_.size()) {
-        return false;
-    }
-    if (index == stack_.size() - 1) {
-        return true;
-    }
-    if (!stack_.empty()) {
-        stack_.back()->OnPause();
-    }
-    auto scene = std::move(stack_[index]);
-    stack_.erase(stack_.begin() + static_cast<long>(index));
-    scene->OnResume();
-    stack_.push_back(std::move(scene));
-    return true;
-}
-
 } // namespace app_ui
 
 namespace app_ui {
@@ -119,8 +43,7 @@ bool ValidateWidget(const cJSON* widgets, const cJSON* widget, std::string& erro
         return false;
     }
     if (GetObject(widget, "parent")) {
-        error = "Widget must not contain parent field";
-        return false;
+        printf("[UiSchema] Warning: widget contains parent field, ignored.\n");
     }
     const cJSON* type = GetObject(widget, "type");
     if (!cJSON_IsString(type) || !type->valuestring || !type->valuestring[0]) {
@@ -212,6 +135,27 @@ bool TraverseSceneTree(const cJSON* widgets,
 }
 
 } // namespace
+
+std::vector<std::string> CollectSceneIds(const cJSON* root) {
+    std::vector<std::string> ids;
+    if (!root) {
+        return ids;
+    }
+    const cJSON* scenes = GetObject(root, "pages");
+    if (!cJSON_IsObject(scenes)) {
+        scenes = GetObject(root, "scenes");
+    }
+    if (!cJSON_IsObject(scenes)) {
+        return ids;
+    }
+    const cJSON* scene = nullptr;
+    cJSON_ArrayForEach(scene, scenes) {
+        if (scene && scene->string) {
+            ids.emplace_back(scene->string);
+        }
+    }
+    return ids;
+}
 
 bool UiSchemaValidator::Validate(const cJSON* root, std::string& error) {
     if (!cJSON_IsObject(root)) {
@@ -342,14 +286,9 @@ bool UiSchemaValidator::Validate(const cJSON* root, std::string& error) {
 
 namespace runtime {
 
-bool SceneManager::LoadFromJson(const cJSON* root, const char* scene_id, uint16_t scene_index) {
+bool SceneRuntime::LoadFromJson(const cJSON* root, const char* scene_id, uint16_t scene_index) {
     if (!root || !scene_id) {
         printf("[SceneRuntime] invalid args: root=%p scene_id=%p\n", root, scene_id);
-        return false;
-    }
-    std::string error;
-    if (!UiSchemaValidator::Validate(root, error)) {
-        printf("[SceneRuntime] schema validate failed: %s\n", error.c_str());
         return false;
     }
     const cJSON* scenes = cJSON_GetObjectItemCaseSensitive(root, "pages");
@@ -388,32 +327,27 @@ bool SceneManager::LoadFromJson(const cJSON* root, const char* scene_id, uint16_
     if (public_root) {
         Rect root_rect = root_widget->RectInParent();
         auto container_root = std::make_unique<ContainerWidget>();
-        container_root->SetRectInParent(root_rect);
+        container_root->SetRectInParent({0, 0, root_rect.w, root_rect.h});
         container_root->AddChild(std::move(root_widget));
         container_root->AddChild(std::move(public_root));
         root_widget = std::move(container_root);
     }
 
-    scene_.scene_id = scene_index;
-    scene_.root = std::shared_ptr<Widget>(root_widget.release());
-    scene_.focus.Build(scene_.root.get());
+    scene_id_ = scene_index;
+    root_ = std::move(root_widget);
     return true;
 }
 
-Widget* SceneManager::Root() const {
-    return scene_.root.get();
+Widget* SceneRuntime::Root() const {
+    return root_.get();
 }
 
-std::shared_ptr<Widget> SceneManager::RootShared() const {
-    return scene_.root;
+std::unique_ptr<Widget> SceneRuntime::TakeRoot() {
+    return std::move(root_);
 }
 
-FocusManager& SceneManager::Focus() {
-    return scene_.focus;
-}
-
-uint16_t SceneManager::SceneId() const {
-    return scene_.scene_id;
+uint16_t SceneRuntime::SceneId() const {
+    return scene_id_;
 }
 
 } // namespace runtime

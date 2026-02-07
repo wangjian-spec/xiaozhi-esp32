@@ -1,10 +1,12 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
+#include <memory>
+#include <mutex>
 
 #include "input.h"
 #include "renderer.h"
-#include "scene.h"
 
 namespace app_ui {
 
@@ -47,6 +49,8 @@ private:
     bool dirty_ = false;
 };
 
+class Adafruit_GFX;
+class CustomEpdDisplay;
 class Painter;
 class Widget;
 
@@ -64,7 +68,7 @@ public:
     // - own or persist widget pointers outside of the active root
     // - parse JSON or build widget trees
     // - implement concrete rendering logic
-    // Keep JSON/Widget creation in Scene/SceneManager/WidgetBuilder and
+    // Keep JSON/Widget creation in Scene/SceneRuntime/WidgetBuilder and
     // drawing logic inside Painter/Widget implementations.
     void OnInput(const InputEvent& e);
     void RequestLayout();
@@ -72,17 +76,23 @@ public:
 
     void Tick(uint32_t delta_ms);
 
+    void SetEpd(::CustomEpdDisplay* epd);
+    void SetRoot(std::unique_ptr<Widget> root);
+    void Reset();
+
     void SetPainter(Painter* painter);
     void SetViewport(const Rect& rect);
 
-    SceneManager& Scenes();
     InputQueue& Input();
 
 private:
-    Widget* ResolveRoot();
+    void MarkLayoutDirty();
+    void MarkRenderDirty();
+    void ScheduleIfNeeded();
+    static void RenderCallback(::Adafruit_GFX& gfx, void* ctx);
+    void RenderInternal(::Adafruit_GFX& gfx);
 
     UIPhase phase_ = UIPhase::Idle;
-    SceneManager scenes_;
     LayoutEngine layout_;
     RenderList render_list_;
     DirtyTracker dirty_;
@@ -94,10 +104,15 @@ private:
     FocusManager focus_;
 
     Widget* cached_root_ = nullptr;
+    std::unique_ptr<Widget> active_root_{};
+    std::unique_ptr<Widget> pending_root_{};
     Painter* painter_ = nullptr;
     Rect viewport_{0, 0, 0, 0};
     bool need_layout_ = true;
     bool need_render_ = true;
+    std::atomic_bool scheduled_{false};
+    mutable std::recursive_mutex mutex_{};
+    ::CustomEpdDisplay* epd_ = nullptr;
 };
 
 } // namespace app_ui

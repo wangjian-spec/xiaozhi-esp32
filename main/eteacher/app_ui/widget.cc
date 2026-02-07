@@ -2,10 +2,83 @@
 
 #include "renderer.h"
 
+#include <cJSON.h>
+
 #include <algorithm>
 #include <cctype>
 
 namespace app_ui {
+
+namespace {
+
+const cJSON* GetObject(const cJSON* obj, const char* key) {
+    return obj ? cJSON_GetObjectItemCaseSensitive(obj, key) : nullptr;
+}
+
+std::string GetString(const cJSON* obj, const char* key) {
+    const cJSON* item = GetObject(obj, key);
+    if (cJSON_IsString(item) && item->valuestring) {
+        return item->valuestring;
+    }
+    return {};
+}
+
+int GetInt(const cJSON* obj, const char* key, int fallback = 0) {
+    const cJSON* item = GetObject(obj, key);
+    if (cJSON_IsNumber(item)) {
+        return item->valueint;
+    }
+    return fallback;
+}
+
+bool GetBool(const cJSON* obj, const char* key, bool fallback) {
+    const cJSON* item = GetObject(obj, key);
+    if (cJSON_IsBool(item)) {
+        return cJSON_IsTrue(item);
+    }
+    return fallback;
+}
+
+uint32_t HashTextId(const char* text_id) {
+    if (!text_id) {
+        return 0;
+    }
+    uint32_t h = 0x811C9DC5;
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(text_id);
+    while (*p) {
+        h ^= *p++;
+        h *= 0x01000193;
+    }
+    return h;
+}
+
+std::string ResolveText(const cJSON* props, const cJSON* texts) {
+    if (!props || !cJSON_IsObject(props)) {
+        return {};
+    }
+    const cJSON* text_key = GetObject(props, "textId");
+    if (!text_key) {
+        text_key = GetObject(props, "text");
+    }
+    if (!text_key) {
+        text_key = GetObject(props, "TextID");
+    }
+    if (!text_key) {
+        text_key = GetObject(props, "Text");
+    }
+    if (cJSON_IsString(text_key) && text_key->valuestring) {
+        if (texts && cJSON_IsObject(texts)) {
+            const cJSON* resolved = cJSON_GetObjectItemCaseSensitive(texts, text_key->valuestring);
+            if (cJSON_IsString(resolved) && resolved->valuestring) {
+                return resolved->valuestring;
+            }
+        }
+        return text_key->valuestring;
+    }
+    return {};
+}
+
+} // namespace
 
 Widget* Widget::AddChild(std::unique_ptr<Widget> child) {
     if (!child) {
@@ -103,10 +176,15 @@ Rect Widget::RectInParent() const {
     return cache_.layout;
 }
 
+Rect Widget::DeclaredRect() const {
+    return design_rect_;
+}
+
 void Widget::SetRectInParent(const Rect& rect) {
-    cache_.layout = rect;
-    cache_.layout_valid = true;
-    flags_.layout_dirty = 0;
+    design_rect_ = rect;
+    cache_.layout_valid = false;
+    cache_.measure_valid = false;
+    flags_.layout_dirty = 1;
 }
 
 Rect Widget::RectInWindow() const {
@@ -186,6 +264,35 @@ void TextWidget::SetTextId(uint32_t text_id) {
     }
     text_id_ = text_id;
     MarkDirty();
+}
+
+void TextWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
+    if (!widget_json) {
+        return;
+    }
+    const std::string direct_text = GetString(widget_json, "text");
+    const cJSON* props = GetObject(widget_json, "properties");
+    const std::string resolved_text = direct_text.empty() ? ResolveText(props, texts) : direct_text;
+
+    if (props) {
+        const cJSON* text_key = GetObject(props, "textId");
+        if (!text_key) {
+            text_key = GetObject(props, "text");
+        }
+        if (!text_key) {
+            text_key = GetObject(props, "TextID");
+        }
+        if (!text_key) {
+            text_key = GetObject(props, "Text");
+        }
+        if (cJSON_IsString(text_key) && text_key->valuestring) {
+            SetTextId(HashTextId(text_key->valuestring));
+        }
+    }
+
+    if (!resolved_text.empty()) {
+        SetText(resolved_text);
+    }
 }
 
 uint32_t TextWidget::TextId() const {
@@ -359,6 +466,16 @@ void CheckboxWidget::SetChecked(bool checked) {
     MarkDirty();
 }
 
+void CheckboxWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
+    TextWidget::InitFromJson(widget_json, texts);
+    if (!widget_json) {
+        return;
+    }
+    if (!GetObject(widget_json, "checked") || cJSON_IsBool(GetObject(widget_json, "checked"))) {
+        SetChecked(GetBool(widget_json, "checked", false));
+    }
+}
+
 bool CheckboxWidget::Checked() const {
     return checked_;
 }
@@ -384,6 +501,16 @@ void RadioWidget::SetChecked(bool checked) {
     MarkDirty();
 }
 
+void RadioWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
+    TextWidget::InitFromJson(widget_json, texts);
+    if (!widget_json) {
+        return;
+    }
+    if (!GetObject(widget_json, "checked") || cJSON_IsBool(GetObject(widget_json, "checked"))) {
+        SetChecked(GetBool(widget_json, "checked", false));
+    }
+}
+
 bool RadioWidget::Checked() const {
     return checked_;
 }
@@ -407,6 +534,16 @@ void SwitchWidget::SetChecked(bool checked) {
     }
     checked_ = checked;
     MarkDirty();
+}
+
+void SwitchWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
+    TextWidget::InitFromJson(widget_json, texts);
+    if (!widget_json) {
+        return;
+    }
+    if (!GetObject(widget_json, "checked") || cJSON_IsBool(GetObject(widget_json, "checked"))) {
+        SetChecked(GetBool(widget_json, "checked", false));
+    }
 }
 
 bool SwitchWidget::Checked() const {
@@ -452,6 +589,17 @@ void ProgressWidget::SetValue(uint8_t value) {
     }
     value_ = clamped;
     MarkDirty();
+}
+
+void ProgressWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
+    TextWidget::InitFromJson(widget_json, texts);
+    if (!widget_json) {
+        return;
+    }
+    if (!GetObject(widget_json, "value") || cJSON_IsNumber(GetObject(widget_json, "value"))) {
+        const int value = GetInt(widget_json, "value", 0);
+        SetValue(static_cast<uint8_t>(value));
+    }
 }
 
 uint8_t ProgressWidget::Value() const {

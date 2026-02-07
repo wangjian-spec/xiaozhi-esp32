@@ -72,6 +72,7 @@ enum class WidgetType : uint8_t {
     Radio,
     ListView,
     TabView,
+    Container,
     Frame,
     Menu,
     Dialog,

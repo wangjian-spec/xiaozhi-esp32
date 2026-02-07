@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "input.h"
 #include "widget.h"
 
 struct cJSON;
@@ -32,44 +31,26 @@ private:
     std::unique_ptr<Widget> root_{};
 };
 
-class SceneManager {
-public:
-    void Push(std::unique_ptr<Scene> scene);
-    void Pop();
-    void Replace(std::unique_ptr<Scene> scene);
-    Scene* FindByName(const std::string& name);
-    Scene* Current();
-    void Clear();
-    bool PromoteToTop(const std::string& name);
-
-private:
-    std::vector<std::unique_ptr<Scene>> stack_;
-};
-
 class UiSchemaValidator {
 public:
-    static bool Validate(const cJSON* root, std::string& error);
+    static bool Validate(const ::cJSON* root, std::string& error);
 };
+
+std::vector<std::string> CollectSceneIds(const ::cJSON* root);
 
 namespace runtime {
 
-struct SceneRuntime {
-    uint16_t scene_id = 0;
-    std::shared_ptr<Widget> root;
-    FocusManager focus;
-};
-
-class SceneManager {
+class SceneRuntime {
 public:
-    bool LoadFromJson(const cJSON* root, const char* scene_id, uint16_t scene_index);
+    bool LoadFromJson(const ::cJSON* root, const char* scene_id, uint16_t scene_index);
 
     Widget* Root() const;
-    std::shared_ptr<Widget> RootShared() const;
-    FocusManager& Focus();
+    std::unique_ptr<Widget> TakeRoot();
     uint16_t SceneId() const;
 
 private:
-    SceneRuntime scene_{};
+    uint16_t scene_id_ = 0;
+    std::unique_ptr<Widget> root_{};
 };
 
 } // namespace runtime

@@ -16,21 +16,11 @@
   },
   "resources": {
     "texts": {
-      "TEXT_LABEL_62EB13": "Label",
-      "TEXT_IMAGE_4FE51E": "Image",
-      "TEXT_PROGRESS_EE4103": "Progress",
-      "TEXT_TEXTAREA_7B26DC": "TextArea",
-      "TEXT_BUTTON_BD1FA8": "Button",
-      "TEXT_CHECKBOX_ECF9ED": "Checkbox",
-      "TEXT_LISTVIEW_DA1417": "ListView",
-      "TEXT_SWITCH_00CE4E": "Switch",
-      "TEXT_RADIO_F660EE": "Radio",
-      "TEXT_SOFTKEYBOARD_4D5E76": "SoftKeyboard",
-      "TEXT_DIALOG_CAC2EE": "Dialog",
-      "TEXT_TOPBAR_772738": "TopBar",
-      "TEXT_BOTTOMBAR_5F8290": "BottomBar",
-      "TEXT_TABVIEW_C5FE13": "TabView",
-      "TEXT_FRAME_2C9C24": "Frame"
+      "TEXT_BUTTON_1DDB53": "扫描WIFI",
+      "TEXT_LISTVIEW_CE6360": "ListView",
+      "TEXT_TOPBAR_408ADC": "TopBar",
+      "TEXT_BOTTOMBAR_AABB85": "BottomBar",
+      "TEXT_TABVIEW_439E98": "“WIFI设置”\"语言设置\"\"用户设置\"\"学习偏好\"\"设备信息\""
     },
     "images": {},
     "fonts": {}
@@ -40,16 +30,24 @@
   "data": {},
   "pages": {
     "page_main": {
-      "name": "学习设置",
+      "name": "WIFI设置",
       "root": "root_page_main"
     },
-    "page_8075": {
-      "name": "WiFi设置",
-      "root": "root_page_8075"
+    "page_d3f0": {
+      "name": "语言设置",
+      "root": "root_page_d3f0"
     },
-    "page_8b4d": {
+    "page_1e8a": {
+      "name": "用户设置",
+      "root": "root_page_1e8a"
+    },
+    "page_89db": {
+      "name": "学习偏好",
+      "root": "root_page_89db"
+    },
+    "page_9b37": {
       "name": "设备信息",
-      "root": "root_page_8b4d"
+      "root": "root_page_9b37"
     }
   },
   "widgets": {
@@ -62,160 +60,89 @@
         "h": 300
       },
       "children": [
-        "label_62eb13",
-        "image_4fe51e",
-        "progress_ee4103",
-        "textarea_7b26dc",
-        "progress_70f01a"
+        "button_1ddb53",
+        "button_e1d4be",
+        "frame_1f9aac",
+        "frame_b83959",
+        "listview_ce6360",
+        "listview_92ccf1"
       ]
     },
-    "label_62eb13": {
-      "type": "Label",
-      "rect": {
-        "x": 80,
-        "y": 73,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_LABEL_62EB13"
-      }
-    },
-    "image_4fe51e": {
-      "type": "Image",
-      "rect": {
-        "x": 188,
-        "y": 149,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_IMAGE_4FE51E"
-      }
-    },
-    "progress_ee4103": {
-      "type": "Progress",
-      "rect": {
-        "x": 91,
-        "y": 178,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_PROGRESS_EE4103"
-      }
-    },
-    "textarea_7b26dc": {
-      "type": "TextArea",
-      "rect": {
-        "x": 193,
-        "y": 63,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_TEXTAREA_7B26DC"
-      }
-    },
-    "progress_70f01a": {
-      "type": "Progress",
-      "rect": {
-        "x": 10,
-        "y": 10,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_PROGRESS_EE4103"
-      }
-    },
-    "root_page_8075": {
-      "type": "Container",
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 400,
-        "h": 300
-      },
-      "children": [
-        "image_ada7b3",
-        "button_bd1fa8",
-        "checkbox_ecf9ed",
-        "listview_da1417",
-        "listview_390863"
-      ]
-    },
-    "image_ada7b3": {
-      "type": "Image",
-      "rect": {
-        "x": 251,
-        "y": 201,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_IMAGE_4FE51E"
-      }
-    },
-    "button_bd1fa8": {
+    "button_1ddb53": {
       "type": "Button",
       "rect": {
-        "x": 39,
-        "y": 67,
-        "w": 80,
-        "h": 40
+        "x": 20,
+        "y": 45,
+        "w": 60,
+        "h": 20
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_BUTTON_BD1FA8"
+        "textId": "TEXT_BUTTON_1DDB53"
       }
     },
-    "checkbox_ecf9ed": {
-      "type": "Checkbox",
+    "button_e1d4be": {
+      "type": "Button",
       "rect": {
-        "x": 17,
-        "y": 219,
-        "w": 80,
-        "h": 40
+        "x": 105,
+        "y": 45,
+        "w": 60,
+        "h": 20
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_CHECKBOX_ECF9ED"
+        "textId": "TEXT_BUTTON_1DDB53"
       }
     },
-    "listview_da1417": {
+    "frame_1f9aac": {
+      "type": "Frame",
+      "rect": {
+        "x": 200,
+        "y": 40,
+        "w": 200,
+        "h": 248
+      },
+      "style": null,
+      "properties": {}
+    },
+    "frame_b83959": {
+      "type": "Frame",
+      "rect": {
+        "x": 0,
+        "y": 40,
+        "w": 200,
+        "h": 248
+      },
+      "style": null,
+      "properties": {}
+    },
+    "listview_ce6360": {
       "type": "ListView",
       "rect": {
-        "x": 25,
-        "y": 120,
-        "w": 80,
-        "h": 40
+        "x": 11,
+        "y": 73,
+        "w": 180,
+        "h": 200
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_LISTVIEW_DA1417"
+        "textId": "TEXT_LISTVIEW_CE6360"
       }
     },
-    "listview_390863": {
+    "listview_92ccf1": {
       "type": "ListView",
       "rect": {
-        "x": 241,
-        "y": 127,
-        "w": 80,
-        "h": 40
+        "x": 209,
+        "y": 73,
+        "w": 180,
+        "h": 200
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_LISTVIEW_DA1417"
+        "textId": "TEXT_LISTVIEW_CE6360"
       }
     },
-    "root_page_8b4d": {
+    "root_page_d3f0": {
       "type": "Container",
       "rect": {
         "x": 0,
@@ -223,78 +150,37 @@
         "w": 400,
         "h": 300
       },
-      "children": [
-        "image_c87f3b",
-        "label_1c71db",
-        "switch_00ce4e",
-        "radio_f660ee",
-        "radio_6bf4b2"
-      ]
+      "children": []
     },
-    "image_c87f3b": {
-      "type": "Image",
+    "root_page_1e8a": {
+      "type": "Container",
       "rect": {
-        "x": 284,
-        "y": 206,
-        "w": 80,
-        "h": 40
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
       },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_IMAGE_4FE51E"
-      }
+      "children": []
     },
-    "label_1c71db": {
-      "type": "Label",
+    "root_page_89db": {
+      "type": "Container",
       "rect": {
-        "x": 193,
-        "y": 205,
-        "w": 80,
-        "h": 40
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
       },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_LABEL_62EB13"
-      }
+      "children": []
     },
-    "switch_00ce4e": {
-      "type": "Switch",
+    "root_page_9b37": {
+      "type": "Container",
       "rect": {
-        "x": 31,
-        "y": 186,
-        "w": 80,
-        "h": 40
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
       },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_SWITCH_00CE4E"
-      }
-    },
-    "radio_f660ee": {
-      "type": "Radio",
-      "rect": {
-        "x": 20,
-        "y": 94,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_RADIO_F660EE"
-      }
-    },
-    "radio_6bf4b2": {
-      "type": "Radio",
-      "rect": {
-        "x": 129,
-        "y": 90,
-        "w": 80,
-        "h": 40
-      },
-      "style": null,
-      "properties": {
-        "textId": "TEXT_RADIO_F660EE"
-      }
+      "children": []
     }
   },
   "public": {
@@ -312,90 +198,48 @@
           "h": 300
         },
         "children": [
-          "softkeyboard_4d5e76",
-          "dialog_cac2ee",
-          "topbar_772738",
-          "bottombar_5f8290",
-          "tabview_c5fe13",
-          "frame_2c9c24"
+          "topbar_408adc",
+          "bottombar_aabb85",
+          "tabview_439e98"
         ]
       },
-      "softkeyboard_4d5e76": {
-        "type": "SoftKeyboard",
-        "rect": {
-          "x": 265,
-          "y": 171,
-          "w": 80,
-          "h": 40
-        },
-        "style": null,
-        "properties": {
-          "textId": "TEXT_SOFTKEYBOARD_4D5E76"
-        }
-      },
-      "dialog_cac2ee": {
-        "type": "Dialog",
-        "rect": {
-          "x": 94,
-          "y": 173,
-          "w": 80,
-          "h": 40
-        },
-        "style": null,
-        "properties": {
-          "textId": "TEXT_DIALOG_CAC2EE"
-        }
-      },
-      "topbar_772738": {
+      "topbar_408adc": {
         "type": "TopBar",
         "rect": {
-          "x": 142,
-          "y": 24,
-          "w": 80,
-          "h": 40
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 20
         },
         "style": null,
         "properties": {
-          "textId": "TEXT_TOPBAR_772738"
+          "textId": "TEXT_TOPBAR_408ADC"
         }
       },
-      "bottombar_5f8290": {
+      "bottombar_aabb85": {
         "type": "BottomBar",
         "rect": {
-          "x": 161,
-          "y": 244,
-          "w": 80,
-          "h": 40
+          "x": 0,
+          "y": 284,
+          "w": 400,
+          "h": 16
         },
         "style": null,
         "properties": {
-          "textId": "TEXT_BOTTOMBAR_5F8290"
+          "textId": "TEXT_BOTTOMBAR_AABB85"
         }
       },
-      "tabview_c5fe13": {
+      "tabview_439e98": {
         "type": "TabView",
         "rect": {
-          "x": 143,
-          "y": 71,
-          "w": 80,
-          "h": 40
+          "x": 0,
+          "y": 20,
+          "w": 400,
+          "h": 20
         },
         "style": null,
         "properties": {
-          "textId": "TEXT_TABVIEW_C5FE13"
-        }
-      },
-      "frame_2c9c24": {
-        "type": "Frame",
-        "rect": {
-          "x": 80,
-          "y": 66,
-          "w": 200,
-          "h": 200
-        },
-        "style": null,
-        "properties": {
-          "textId": "TEXT_FRAME_2C9C24"
+          "textId": "TEXT_TABVIEW_439E98"
         }
       }
     }

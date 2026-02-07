@@ -117,6 +117,19 @@ bool DirtyTracker::RequireFullRefresh() const {
     return false;
 }
 
+bool DirtyTracker::Intersects(const Rect& rect) const {
+    for (const auto& item : dirty_) {
+        if (item.rect.Intersects(rect)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const std::vector<DirtyItem>& DirtyTracker::Items() const {
+    return dirty_;
+}
+
 void DirtyTracker::Clear() {
     dirty_.clear();
 }
@@ -137,7 +150,7 @@ void LayoutEngine::LayoutRecursive(Widget* node, const Rect& area) {
 
     const Rect parent_rect = node->RectInParent();
     for (const auto& child : node->Children()) {
-        Rect child_rect = child->RectInParent();
+        Rect child_rect = child->DeclaredRect();
         if (child_rect.IsEmpty()) {
             child_rect = {0, 0, parent_rect.w, parent_rect.h};
         }
@@ -168,7 +181,7 @@ const std::vector<RenderObject>& RenderList::Items() const {
     return items_;
 }
 
-void RenderList::Traverse(Widget* node, uint16_t depth, uint32_t& order) {
+void RenderList::Traverse(Widget* node, uint32_t depth, uint32_t& order) {
     if (!node || !node->Visible()) {
         return;
     }
@@ -181,7 +194,7 @@ void RenderList::Traverse(Widget* node, uint16_t depth, uint32_t& order) {
     items_.push_back(obj);
 
     for (const auto& child : node->Children()) {
-        Traverse(child.get(), static_cast<uint16_t>(depth + 1), order);
+        Traverse(child.get(), depth + 1, order);
     }
 }
 
@@ -193,31 +206,28 @@ void Renderer::Render(RenderList& list, DirtyTracker& dirty, Painter& painter) {
     if (!dirty.HasDirty()) {
         return;
     }
-
-    if (dirty.RequireFullRefresh()) {
-        FullRefresh();
-    } else {
-        PartialRefresh(dirty.Merge());
+    // Clipping is not supported by current Painter implementations.
+    const bool clip_to_dirty = !dirty.RequireFullRefresh();
+    if (clip_to_dirty) {
+        painter.SetDrawColor(Color::White);
+        for (const auto& item : dirty.Items()) {
+            painter.FillRect(item.rect);
+        }
+        painter.SetDrawColor(Color::Black);
     }
-
     for (const auto& item : list.Items()) {
         if (!item.widget) {
             continue;
         }
-        painter.PushClip(item.rect);
+        if (clip_to_dirty && !dirty.Intersects(item.rect)) {
+            continue;
+        }
         painter.SetTransform({item.rect.x, item.rect.y});
         item.widget->Draw(painter);
         painter.SetTransform({0, 0});
-        painter.PopClip();
     }
 
     dirty.Clear();
-}
-
-void Renderer::PartialRefresh(const Rect&) {
-}
-
-void Renderer::FullRefresh() {
 }
 
 } // namespace app_ui
