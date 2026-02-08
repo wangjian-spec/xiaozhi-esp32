@@ -1,0 +1,275 @@
+{
+  "meta": {
+    "project": "ui_word_practice",
+    "ui_version": "1.0",
+    "target": "esp32-s3",
+    "display": {
+      "type": "eink",
+      "width": 400,
+      "height": 300,
+      "color": "mono"
+    },
+    "generator": {
+      "tool": "ui_editor",
+      "version": "0.3.1"
+    }
+  },
+  "resources": {
+    "texts": {
+      "TEXT_MENU_94D40E": "Menu",
+      "TEXT_IMAGE_1FF9C6": "Image",
+      "TEXT_BUTTON_8020A6": "Button",
+      "TEXT_TEXTAREA_251DB0": "TextArea",
+      "TEXT_TOPBAR_F84F1F": "TopBar",
+      "TEXT_BOTTOMBAR_86B332": "BottomBar",
+      "TEXT_SOFTKEYBOARD_8A59EC": "SoftKeyboard",
+      "TEXT_DIALOG_E8631B": "Dialog"
+    },
+    "images": {},
+    "fonts": {}
+  },
+  "styles": {},
+  "themes": {},
+  "data": {},
+  "pages": {
+    "page_main": {
+      "name": "造句",
+      "root": "root_page_main"
+    },
+    "page_71d5": {
+      "name": "朗读",
+      "root": "root_page_71d5"
+    }
+  },
+  "widgets": {
+    "root_page_main": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      },
+      "children": [
+        "menu_94d40e",
+        "image_1ff9c6",
+        "image_ba2b90",
+        "button_8020a6"
+      ]
+    },
+    "menu_94d40e": {
+      "type": "Menu",
+      "rect": {
+        "x": 147,
+        "y": 40,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_MENU_94D40E"
+      }
+    },
+    "image_1ff9c6": {
+      "type": "Image",
+      "rect": {
+        "x": 39,
+        "y": 114,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_IMAGE_1FF9C6"
+      }
+    },
+    "image_ba2b90": {
+      "type": "Image",
+      "rect": {
+        "x": 255,
+        "y": 109,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_IMAGE_1FF9C6"
+      }
+    },
+    "button_8020a6": {
+      "type": "Button",
+      "rect": {
+        "x": 156,
+        "y": 206,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_8020A6"
+      }
+    },
+    "root_page_71d5": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      },
+      "children": [
+        "button_fbe7b5",
+        "image_45f92b",
+        "image_cbeed7",
+        "button_f2f198",
+        "textarea_251db0"
+      ]
+    },
+    "button_fbe7b5": {
+      "type": "Button",
+      "rect": {
+        "x": 49,
+        "y": 66,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_8020A6"
+      }
+    },
+    "image_45f92b": {
+      "type": "Image",
+      "rect": {
+        "x": 49,
+        "y": 124,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_IMAGE_1FF9C6"
+      }
+    },
+    "image_cbeed7": {
+      "type": "Image",
+      "rect": {
+        "x": 265,
+        "y": 119,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_IMAGE_1FF9C6"
+      }
+    },
+    "button_f2f198": {
+      "type": "Button",
+      "rect": {
+        "x": 262,
+        "y": 66,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_8020A6"
+      }
+    },
+    "textarea_251db0": {
+      "type": "TextArea",
+      "rect": {
+        "x": 154,
+        "y": 93,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_TEXTAREA_251DB0"
+      }
+    }
+  },
+  "public": {
+    "page": {
+      "name": "PublicPage",
+      "root": "root_public"
+    },
+    "widgets": {
+      "root_public": {
+        "type": "Container",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 300
+        },
+        "children": [
+          "topbar_f84f1f",
+          "bottombar_86b332",
+          "softkeyboard_8a59ec",
+          "dialog_e8631b"
+        ]
+      },
+      "topbar_f84f1f": {
+        "type": "TopBar",
+        "rect": {
+          "x": 134,
+          "y": 24,
+          "w": 80,
+          "h": 40
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_TOPBAR_F84F1F"
+        }
+      },
+      "bottombar_86b332": {
+        "type": "BottomBar",
+        "rect": {
+          "x": 144,
+          "y": 239,
+          "w": 80,
+          "h": 40
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_BOTTOMBAR_86B332"
+        }
+      },
+      "softkeyboard_8a59ec": {
+        "type": "SoftKeyboard",
+        "rect": {
+          "x": 192,
+          "y": 133,
+          "w": 80,
+          "h": 40
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_SOFTKEYBOARD_8A59EC"
+        }
+      },
+      "dialog_e8631b": {
+        "type": "Dialog",
+        "rect": {
+          "x": 85,
+          "y": 135,
+          "w": 80,
+          "h": 40
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_DIALOG_E8631B"
+        }
+      }
+    }
+  },
+  "events": [],
+  "navigation": {
+    "focus": {},
+    "scene_flow": {}
+  },
+  "states": {}
+}

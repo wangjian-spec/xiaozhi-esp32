@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <memory>
 
+#include "ui_desc.h"
 #include "types.h"
 
 struct cJSON;
@@ -12,6 +13,10 @@ namespace app_ui {
 class Widget;
 
 std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
+                                        size_t count,
+                                        uint32_t root_id);
+
+std::unique_ptr<Widget> BuildWidgetTree(const desc::WidgetDesc* widgets,
                                         size_t count,
                                         uint32_t root_id);
 

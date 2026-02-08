@@ -2,7 +2,12 @@
 
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/app_ui/scene.h"
+#include "eteacher/app_ui/ui_desc.h"
+#if APP_UI_USE_GENERATED_DESC
+#include "eteacher/apps/dictionary/dictionary_ui.h"
+#else
 #include "eteacher/app_ui/ui_json_loader.h"
+#endif
 
 #include "display.h"
 
@@ -13,6 +18,12 @@
 #include <vector>
 
 #include <cJSON.h>
+
+#if APP_UI_USE_GENERATED_DESC
+namespace {
+constexpr const app_ui::desc::UiDesc* kUiDesc = &app_ui::generated::dictionary::kUi;
+}
+#endif
 
 MenuMeta DictionaryApp::GetMenuMeta() const {
     return MenuMeta{"dictionary", "词典", "示例"};
@@ -84,7 +95,11 @@ void DictionaryApp::Render(AppContext &ctx) {
 }
 
 bool DictionaryApp::LoadScene(AppContext &ctx, const std::string& scene_id, uint16_t scene_index) {
+#if APP_UI_USE_GENERATED_DESC
+    if (!scene_runtime_.LoadFromDesc(*kUiDesc, scene_id.c_str(), scene_index)) {
+#else
     if (!scene_runtime_.LoadFromJson(ui_root_.get(), scene_id.c_str(), scene_index)) {
+#endif
         ctx.board.GetDisplay()->SetChatMessage("system", "Dictionary UI: failed to load scene");
         return false;
     }
@@ -98,6 +113,16 @@ bool DictionaryApp::LoadScene(AppContext &ctx, const std::string& scene_id, uint
 }
 
 bool DictionaryApp::LoadUi(AppContext &ctx) {
+#if APP_UI_USE_GENERATED_DESC
+    auto scene_ids = app_ui::CollectSceneIds(*kUiDesc);
+    if (scene_ids.empty()) {
+        ctx.board.GetDisplay()->SetChatMessage("system", "Dictionary UI: no scenes");
+        return false;
+    }
+    router_.SetScenes(std::move(scene_ids));
+    ui_ready_ = true;
+    return true;
+#else
     ui_root_.reset(app_ui::LoadUiJson("dictionary"));
     if (!ui_root_) {
         ctx.board.GetDisplay()->SetChatMessage("system", "Dictionary UI: json missing");
@@ -111,6 +136,7 @@ bool DictionaryApp::LoadUi(AppContext &ctx) {
     router_.SetScenes(std::move(scene_ids));
     ui_ready_ = true;
     return true;
+#endif
 }
 
 void DictionaryApp::InitUiEngine() {

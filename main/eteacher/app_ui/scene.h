@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "ui_desc.h"
 #include "widget.h"
 
 struct cJSON;
@@ -37,12 +38,14 @@ public:
 };
 
 std::vector<std::string> CollectSceneIds(const ::cJSON* root);
+std::vector<std::string> CollectSceneIds(const desc::UiDesc& ui);
 
 namespace runtime {
 
 class SceneRuntime {
 public:
     bool LoadFromJson(const ::cJSON* root, const char* scene_id, uint16_t scene_index);
+    bool LoadFromDesc(const desc::UiDesc& ui, const char* scene_id, uint16_t scene_index);
 
     Widget* Root() const;
     std::unique_ptr<Widget> TakeRoot();

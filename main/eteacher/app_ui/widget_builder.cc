@@ -23,6 +23,8 @@ bool DefaultFocusable(WidgetType type);
 bool IsContainerType(WidgetType type);
 WidgetType ParseWidgetType(std::string_view type);
 std::unique_ptr<Widget> CreateWidgetByType(WidgetType type);
+void ApplyWidgetCommon(Widget* widget, const desc::WidgetDesc& desc);
+void ApplyWidgetSpecific(Widget* widget, const desc::WidgetDesc& desc);
 
 std::string ToLower(std::string_view value) {
     std::string out(value.begin(), value.end());
@@ -245,6 +247,104 @@ std::unique_ptr<Widget> CreateWidgetByType(WidgetType type) {
     }
 }
 
+void ApplyWidgetCommon(Widget* widget, const desc::WidgetDesc& desc) {
+    if (!widget) {
+        return;
+    }
+    widget->SetRectInParent(desc.rect);
+    widget->SetVisible((desc.flags & desc::kWidgetFlagVisible) != 0);
+    widget->SetEnabled((desc.flags & desc::kWidgetFlagEnabled) != 0);
+    widget->SetFocusable((desc.flags & desc::kWidgetFlagFocusable) != 0);
+
+    auto* basic = static_cast<BasicWidget*>(widget);
+    basic->ApplyStyle(static_cast<uint16_t>(desc.style_id));
+}
+
+void ApplyTextDesc(TextWidget* widget, const desc::TextDesc* desc) {
+    if (!widget || !desc) {
+        return;
+    }
+    if (desc->text_id != 0) {
+        widget->SetTextId(desc->text_id);
+    }
+    if (desc->text && desc->text[0]) {
+        widget->SetText(desc->text);
+    }
+}
+
+void ApplyCheckableDesc(TextWidget* widget, const desc::CheckableDesc* desc, WidgetType type) {
+    if (!widget || !desc) {
+        return;
+    }
+    if (desc->text_id != 0) {
+        widget->SetTextId(desc->text_id);
+    }
+    if (desc->text && desc->text[0]) {
+        widget->SetText(desc->text);
+    }
+    switch (type) {
+        case WidgetType::Checkbox:
+            static_cast<CheckboxWidget*>(widget)->SetChecked(desc->checked);
+            break;
+        case WidgetType::Radio:
+            static_cast<RadioWidget*>(widget)->SetChecked(desc->checked);
+            break;
+        case WidgetType::Switch:
+            static_cast<SwitchWidget*>(widget)->SetChecked(desc->checked);
+            break;
+        default:
+            break;
+    }
+}
+
+void ApplyProgressDesc(TextWidget* widget, const desc::ProgressDesc* desc) {
+    if (!widget || !desc) {
+        return;
+    }
+    if (desc->text_id != 0) {
+        widget->SetTextId(desc->text_id);
+    }
+    if (desc->text && desc->text[0]) {
+        widget->SetText(desc->text);
+    }
+    static_cast<ProgressWidget*>(widget)->SetValue(desc->value);
+}
+
+void ApplyWidgetSpecific(Widget* widget, const desc::WidgetDesc& desc) {
+    if (!widget || !desc.specific) {
+        return;
+    }
+    switch (desc.type) {
+        case WidgetType::Label:
+        case WidgetType::Image:
+        case WidgetType::Button:
+        case WidgetType::TextArea:
+        case WidgetType::ListView:
+        case WidgetType::TabView:
+        case WidgetType::Frame:
+        case WidgetType::Menu:
+        case WidgetType::Dialog:
+        case WidgetType::TopBar:
+        case WidgetType::BottomBar:
+            ApplyTextDesc(static_cast<TextWidget*>(widget),
+                          static_cast<const desc::TextDesc*>(desc.specific));
+            break;
+        case WidgetType::Checkbox:
+        case WidgetType::Radio:
+        case WidgetType::Switch:
+            ApplyCheckableDesc(static_cast<TextWidget*>(widget),
+                               static_cast<const desc::CheckableDesc*>(desc.specific),
+                               desc.type);
+            break;
+        case WidgetType::Progress:
+            ApplyProgressDesc(static_cast<TextWidget*>(widget),
+                              static_cast<const desc::ProgressDesc*>(desc.specific));
+            break;
+        default:
+            break;
+    }
+}
+
 } // namespace
 
 std::unique_ptr<Widget> WidgetBuilder::BuildWidget(const cJSON* widget_json, const cJSON* texts) {
@@ -318,6 +418,62 @@ std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
             continue;
         }
         const uint32_t parent_id = init.parent_id;
+        auto parent_it = raw.find(parent_id);
+        if (parent_it == raw.end()) {
+            continue;
+        }
+        parent_it->second->AddChild(std::move(child_it->second));
+        owned.erase(child_it);
+    }
+
+    return root;
+}
+
+std::unique_ptr<Widget> BuildWidgetTree(const desc::WidgetDesc* widgets,
+                                        size_t count,
+                                        uint32_t root_id) {
+    if (!widgets || count == 0 || root_id == 0) {
+        return nullptr;
+    }
+
+    std::unordered_map<uint32_t, std::unique_ptr<Widget>> owned;
+    owned.reserve(count);
+
+    std::unordered_map<uint32_t, Widget*> raw;
+    raw.reserve(count);
+
+    for (size_t i = 0; i < count; ++i) {
+        const auto& desc = widgets[i];
+        auto widget = CreateWidgetByType(desc.type);
+        if (!widget) {
+            continue;
+        }
+        ApplyWidgetCommon(widget.get(), desc);
+        ApplyWidgetSpecific(widget.get(), desc);
+        auto* raw_ptr = widget.get();
+        owned.emplace(desc.id, std::move(widget));
+        raw.emplace(desc.id, raw_ptr);
+    }
+
+    auto root_it = owned.find(root_id);
+    if (root_it == owned.end()) {
+        return nullptr;
+    }
+
+    std::unique_ptr<Widget> root = std::move(root_it->second);
+    owned.erase(root_it);
+    raw[root_id] = root.get();
+
+    for (size_t i = 0; i < count; ++i) {
+        const auto& desc = widgets[i];
+        if (desc.id == root_id) {
+            continue;
+        }
+        auto child_it = owned.find(desc.id);
+        if (child_it == owned.end()) {
+            continue;
+        }
+        const uint32_t parent_id = desc.parent_id;
         auto parent_it = raw.find(parent_id);
         if (parent_it == raw.end()) {
             continue;
