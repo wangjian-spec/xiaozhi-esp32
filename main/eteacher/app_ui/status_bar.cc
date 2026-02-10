@@ -1,3 +1,6 @@
+// 状态栏绘制实现
+// 本文件实现顶部/底部状态栏相关的图标、文本绘制及资源加载逻辑，负责在屏幕上显示电量、时间、音量等状态信息。
+
 #include "eteacher/app_ui/status_bar.h"
 
 #include <Adafruit_GFX.h>

@@ -119,7 +119,7 @@ static const app_ui::desc::TextDesc kText_public_bottombar_aabb85 = {
 };
 
 static const app_ui::desc::TextDesc kText_public_tabview_439e98 = {
-    "\u201CWIFI\u8BBE\u7F6E\u201D\"\u8BED\u8A00\u8BBE\u7F6E\"\"\u7528\u6237\u8BBE\u7F6E\"\"\u5B66\u4E60\u504F\u597D\"\"\u8BBE\u5907\u4FE1\u606F\"",
+    "\u201CWIFI\u8BBE\u7F6E\u201D\"\u8BED\u8A00\u8BBE\u7F6E\"\"\u7528\u6237\u8BBE\u7F6E\"\"\u5B66\u4E60\u504F\u597D\"\"\u7535\u6E90\u8BBE\u7F6E\"",
     0xC1E6DB0Eu
 };
 

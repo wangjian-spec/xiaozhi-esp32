@@ -1,14 +1,11 @@
+// Widget 构建器实现
+// 本文件实现从静态描述符（生产用）构建 Widget 树的逻辑。
+
 #include "widget_builder.h"
 
-#include <cJSON.h>
-
 #include <algorithm>
-#include <cctype>
-#include <functional>
-#include <string>
-#include <string_view>
-#include <unordered_map>
-#include <unordered_set>
+#include <cstdio>
+#include <vector>
 
 #include "scene.h"
 #include "widget.h"
@@ -17,195 +14,43 @@ namespace app_ui {
 
 namespace {
 
-using WidgetFactoryFn = std::function<std::unique_ptr<Widget>()>;
-
-bool DefaultFocusable(WidgetType type);
-bool IsContainerType(WidgetType type);
-WidgetType ParseWidgetType(std::string_view type);
 std::unique_ptr<Widget> CreateWidgetByType(WidgetType type);
 void ApplyWidgetCommon(Widget* widget, const desc::WidgetDesc& desc);
 void ApplyWidgetSpecific(Widget* widget, const desc::WidgetDesc& desc);
 
-std::string ToLower(std::string_view value) {
-    std::string out(value.begin(), value.end());
-    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
+struct Node {
+    uint32_t id = 0;
+    uint32_t parent = 0;
+    std::unique_ptr<Widget> widget;
+    std::vector<size_t> children;
+};
+
+size_t FindNodeIndex(const std::vector<Node>& nodes, uint32_t id) {
+    auto it = std::lower_bound(nodes.begin(), nodes.end(), id, [](const Node& node, uint32_t value) {
+        return node.id < value;
     });
-    return out;
+    if (it == nodes.end() || it->id != id) {
+        return nodes.size();
+    }
+    return static_cast<size_t>(std::distance(nodes.begin(), it));
 }
 
-const cJSON* GetObject(const cJSON* obj, const char* key) {
-    return obj ? cJSON_GetObjectItemCaseSensitive(obj, key) : nullptr;
-}
-
-std::string GetString(const cJSON* obj, const char* key) {
-    const cJSON* item = GetObject(obj, key);
-    if (cJSON_IsString(item) && item->valuestring) {
-        return item->valuestring;
-    }
-    return {};
-}
-
-bool GetBool(const cJSON* obj, const char* key, bool fallback) {
-    const cJSON* item = GetObject(obj, key);
-    if (cJSON_IsBool(item)) {
-        return cJSON_IsTrue(item);
-    }
-    return fallback;
-}
-
-std::unique_ptr<Widget> BuildWidgetRecursive(const cJSON* widgets_json,
-                                             const cJSON* widget_json,
-                                             const cJSON* texts,
-                                             std::unordered_set<std::string>& stack) {
-    if (!widget_json) {
+std::unique_ptr<Widget> BuildSubtree(size_t index, std::vector<Node>& nodes) {
+    if (index >= nodes.size() || !nodes[index].widget) {
         return nullptr;
     }
-
-    const std::string type_raw = GetString(widget_json, "type");
-    if (type_raw.empty()) {
-        return nullptr;
-    }
-    const std::string type_lower = ToLower(type_raw);
-    const WidgetType type = ParseWidgetType(type_lower);
-    if (type == WidgetType::Unknown) {
-        printf("[WidgetBuilder] Unknown widget type: %s\n", type_raw.c_str());
-        return nullptr;
-    }
-
-    auto widget = CreateWidgetByType(type);
-    if (!widget) {
-        return nullptr;
-    }
-
-    const cJSON* rect_json = GetObject(widget_json, "rect");
-    if (!cJSON_IsObject(rect_json)) {
-        printf("[WidgetBuilder] Widget rect missing or invalid\n");
-        return nullptr;
-    }
-
-    const cJSON* x_item = GetObject(rect_json, "x");
-    const cJSON* y_item = GetObject(rect_json, "y");
-    const cJSON* w_item = GetObject(rect_json, "w");
-    const cJSON* h_item = GetObject(rect_json, "h");
-    if (!cJSON_IsNumber(x_item) || !cJSON_IsNumber(y_item) ||
-        !cJSON_IsNumber(w_item) || !cJSON_IsNumber(h_item)) {
-        printf("[WidgetBuilder] Widget rect missing x/y/w/h\n");
-        return nullptr;
-    }
-    Rect rect{
-        static_cast<int16_t>(x_item->valueint),
-        static_cast<int16_t>(y_item->valueint),
-        static_cast<int16_t>(w_item->valueint),
-        static_cast<int16_t>(h_item->valueint),
-    };
-    widget->SetRectInParent(rect);
-
-    const cJSON* visible_item = GetObject(widget_json, "visible");
-    if (visible_item && !cJSON_IsBool(visible_item)) {
-        printf("[WidgetBuilder] Widget visible must be bool\n");
-        return nullptr;
-    }
-    const cJSON* enabled_item = GetObject(widget_json, "enabled");
-    if (enabled_item && !cJSON_IsBool(enabled_item)) {
-        printf("[WidgetBuilder] Widget enabled must be bool\n");
-        return nullptr;
-    }
-    const cJSON* focusable_item = GetObject(widget_json, "focusable");
-    if (focusable_item && !cJSON_IsBool(focusable_item)) {
-        printf("[WidgetBuilder] Widget focusable must be bool\n");
-        return nullptr;
-    }
-
-    const bool visible = GetBool(widget_json, "visible", true);
-    const bool enabled = GetBool(widget_json, "enabled", true);
-    const bool focusable = GetBool(widget_json, "focusable", DefaultFocusable(type));
-
-    widget->SetVisible(visible);
-    widget->SetEnabled(enabled);
-    widget->SetFocusable(focusable);
-
-    widget->InitFromJson(widget_json, texts);
-
-    const cJSON* children = GetObject(widget_json, "children");
-    if (children && cJSON_IsArray(children)) {
-        if (!widgets_json) {
-            printf("[WidgetBuilder] Widget children missing widgets table\n");
-            return nullptr;
-        }
-        if (!IsContainerType(type)) {
-            printf("[WidgetBuilder] Widget is not container but has children\n");
-            return nullptr;
-        }
-        const cJSON* child_id = nullptr;
-        cJSON_ArrayForEach(child_id, children) {
-            if (!cJSON_IsString(child_id) || !child_id->valuestring) {
-                printf("[WidgetBuilder] Skip child: invalid id\n");
-                continue;
-            }
-            const std::string child_key = child_id->valuestring;
-            if (stack.find(child_key) != stack.end()) {
-                printf("[WidgetBuilder] Skip child: cycle detected (%s)\n", child_key.c_str());
-                continue;
-            }
-            const cJSON* child_json = cJSON_GetObjectItemCaseSensitive(widgets_json, child_key.c_str());
-            if (!cJSON_IsObject(child_json)) {
-                printf("[WidgetBuilder] Skip child: not found (%s)\n", child_key.c_str());
-                continue;
-            }
-            stack.insert(child_key);
-            auto child = BuildWidgetRecursive(widgets_json, child_json, texts, stack);
-            stack.erase(child_key);
-            if (!child) {
-                printf("[WidgetBuilder] Skip child: build failed (%s)\n", child_key.c_str());
-                continue;
-            }
-            widget->AddChild(std::move(child));
+    std::unique_ptr<Widget> root = std::move(nodes[index].widget);
+    for (size_t child_index : nodes[index].children) {
+        std::unique_ptr<Widget> child = BuildSubtree(child_index, nodes);
+        if (child) {
+            root->AddChild(std::move(child));
         }
     }
-
-    return widget;
-}
-
-bool DefaultFocusable(WidgetType type) {
-    return type == WidgetType::Button || type == WidgetType::Checkbox || type == WidgetType::Radio ||
-           type == WidgetType::Switch || type == WidgetType::TextArea || type == WidgetType::ListView;
-}
-
-bool IsContainerType(WidgetType type) {
-    return type == WidgetType::Container || type == WidgetType::Frame || type == WidgetType::Menu ||
-           type == WidgetType::ListView || type == WidgetType::TabView || type == WidgetType::Dialog ||
-           type == WidgetType::SoftKeyboard || type == WidgetType::TopBar || type == WidgetType::BottomBar;
-}
-
-WidgetType ParseWidgetType(std::string_view type) {
-    static const std::unordered_map<std::string_view, WidgetType> kTypeMap = {
-        {"label", WidgetType::Label},
-        {"image", WidgetType::Image},
-        {"button", WidgetType::Button},
-        {"checkbox", WidgetType::Checkbox},
-        {"radio", WidgetType::Radio},
-        {"switch", WidgetType::Switch},
-        {"progress", WidgetType::Progress},
-        {"textarea", WidgetType::TextArea},
-        {"listview", WidgetType::ListView},
-        {"tabview", WidgetType::TabView},
-        {"frame", WidgetType::Frame},
-        {"menu", WidgetType::Menu},
-        {"dialog", WidgetType::Dialog},
-        {"softkeyboard", WidgetType::SoftKeyboard},
-        {"topbar", WidgetType::TopBar},
-        {"bottombar", WidgetType::BottomBar},
-        {"container", WidgetType::Container},
-    };
-    auto it = kTypeMap.find(type);
-    if (it != kTypeMap.end()) {
-        return it->second;
-    }
-    return WidgetType::Unknown;
+    return root;
 }
 
 std::unique_ptr<Widget> CreateWidgetByType(WidgetType type) {
+    // 通用：根据 WidgetType 创建对应的 Widget 实例。
     switch (type) {
         case WidgetType::Label:
             return std::make_unique<LabelWidget>();
@@ -251,6 +96,8 @@ void ApplyWidgetCommon(Widget* widget, const desc::WidgetDesc& desc) {
     if (!widget) {
         return;
     }
+    // 从静态描述符填充通用属性（静态构建路径使用）
+    widget->SetId(desc.id);
     widget->SetRectInParent(desc.rect);
     widget->SetVisible((desc.flags & desc::kWidgetFlagVisible) != 0);
     widget->SetEnabled((desc.flags & desc::kWidgetFlagEnabled) != 0);
@@ -264,6 +111,7 @@ void ApplyTextDesc(TextWidget* widget, const desc::TextDesc* desc) {
     if (!widget || !desc) {
         return;
     }
+    // 将静态文本描述应用到 TextWidget（静态描述符路径）
     if (desc->text_id != 0) {
         widget->SetTextId(desc->text_id);
     }
@@ -276,6 +124,7 @@ void ApplyCheckableDesc(TextWidget* widget, const desc::CheckableDesc* desc, Wid
     if (!widget || !desc) {
         return;
     }
+    // 将可选中控件的静态描述应用到 widget（静态描述符路径）
     if (desc->text_id != 0) {
         widget->SetTextId(desc->text_id);
     }
@@ -301,6 +150,7 @@ void ApplyProgressDesc(TextWidget* widget, const desc::ProgressDesc* desc) {
     if (!widget || !desc) {
         return;
     }
+    // 将进度控件的静态描述应用到 widget（静态描述符路径）
     if (desc->text_id != 0) {
         widget->SetTextId(desc->text_id);
     }
@@ -310,6 +160,7 @@ void ApplyProgressDesc(TextWidget* widget, const desc::ProgressDesc* desc) {
     static_cast<ProgressWidget*>(widget)->SetValue(desc->value);
 }
 
+// 静态描述符填充函数（用于生产路径，从 desc::WidgetDesc 填充 Widget 特定字段）
 void ApplyWidgetSpecific(Widget* widget, const desc::WidgetDesc& desc) {
     if (!widget || !desc.specific) {
         return;
@@ -347,33 +198,17 @@ void ApplyWidgetSpecific(Widget* widget, const desc::WidgetDesc& desc) {
 
 } // namespace
 
-std::unique_ptr<Widget> WidgetBuilder::BuildWidget(const cJSON* widget_json, const cJSON* texts) {
-    if (!widget_json || !cJSON_IsObject(widget_json)) {
-        return nullptr;
-    }
-    std::unordered_set<std::string> stack;
-    return BuildWidgetRecursive(nullptr, widget_json, texts, stack);
-}
-
-std::unique_ptr<Widget> WidgetBuilder::BuildScene(const cJSON* scene_json,
-                                                  const cJSON* widgets_json,
-                                                  const cJSON* texts) {
-    if (!scene_json || !widgets_json || !cJSON_IsObject(scene_json) || !cJSON_IsObject(widgets_json)) {
-        return nullptr;
-    }
-    const cJSON* root_id = GetObject(scene_json, "root");
-    if (!cJSON_IsString(root_id) || !root_id->valuestring) {
-        return nullptr;
-    }
-    const cJSON* root_json = cJSON_GetObjectItemCaseSensitive(widgets_json, root_id->valuestring);
-    if (!cJSON_IsObject(root_json)) {
-        return nullptr;
-    }
-    std::unordered_set<std::string> stack;
-    stack.insert(root_id->valuestring);
-    return BuildWidgetRecursive(widgets_json, root_json, texts, stack);
-}
-
+// 静态/资源构建接口（生产用）。
+// 这些函数使用编译期生成的描述符或资源初始化表构建 Widget 树。
+//
+// 下面两个重载的区别：
+// - `BuildWidgetTree(const resource::WidgetInit*)`：接受更简单的资源初始化表，通常由资源打包器
+//   或工具链生成，包含每个控件的 `id`/`parent_id`/`type`/`rect` 等基本信息，适用于资源驱动的轻量初始化。
+// - `BuildWidgetTree(const desc::WidgetDesc*)`：接受 richer 的静态描述符，包含样式 id、特定控件的详细描述（`specific`）、
+//   flags 等，更适合完整 UI 描述用于生产路径。
+//
+// 两个接口共存是为了兼容不同的生成/打包流程，调用者根据编译时配置选择合适的数据源，
+// 而实现内部复用相似的构建流程以生成 `Widget` 树。
 std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
                                         size_t count,
                                         uint32_t root_id) {
@@ -381,11 +216,8 @@ std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
         return nullptr;
     }
 
-    std::unordered_map<uint32_t, std::unique_ptr<Widget>> owned;
-    owned.reserve(count);
-
-    std::unordered_map<uint32_t, Widget*> raw;
-    raw.reserve(count);
+    std::vector<Node> nodes;
+    nodes.reserve(count);
 
     for (size_t i = 0; i < count; ++i) {
         const auto& init = inits[i];
@@ -393,54 +225,49 @@ std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
         if (!widget) {
             continue;
         }
+        widget->SetId(init.id);
         widget->SetRectInParent(init.rect);
-        auto* raw_ptr = widget.get();
-        owned.emplace(init.id, std::move(widget));
-        raw.emplace(init.id, raw_ptr);
+        nodes.push_back({init.id, init.parent_id, std::move(widget), {}});
     }
-
-    auto root_it = owned.find(root_id);
-    if (root_it == owned.end()) {
+    if (nodes.empty()) {
         return nullptr;
     }
-
-    std::unique_ptr<Widget> root = std::move(root_it->second);
-    owned.erase(root_it);
-    raw[root_id] = root.get();
-
-    for (size_t i = 0; i < count; ++i) {
-        const auto& init = inits[i];
-        if (init.id == root_id) {
+    std::sort(nodes.begin(), nodes.end(), [](const Node& a, const Node& b) {
+        return a.id < b.id;
+    });
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        if (nodes[i].id == root_id) {
             continue;
         }
-        auto child_it = owned.find(init.id);
-        if (child_it == owned.end()) {
+        const size_t parent_index = FindNodeIndex(nodes, nodes[i].parent);
+        if (parent_index == nodes.size()) {
             continue;
         }
-        const uint32_t parent_id = init.parent_id;
-        auto parent_it = raw.find(parent_id);
-        if (parent_it == raw.end()) {
-            continue;
-        }
-        parent_it->second->AddChild(std::move(child_it->second));
-        owned.erase(child_it);
+        nodes[parent_index].children.push_back(i);
     }
-
-    return root;
+    const size_t root_index = FindNodeIndex(nodes, root_id);
+    if (root_index == nodes.size()) {
+        return nullptr;
+    }
+    return BuildSubtree(root_index, nodes);
 }
 
 std::unique_ptr<Widget> BuildWidgetTree(const desc::WidgetDesc* widgets,
                                         size_t count,
                                         uint32_t root_id) {
+    // 从 `desc::WidgetDesc` 静态描述符构建 Widget 树（生产路径）
+    // - `widgets`：静态描述符数组，包含控件类型、rect、parent_id、flags、style_id、specific 指针等信息。
+    // - `count`：描述符数量。
+    // - `root_id`：根控件 id（必须与描述符中的 id 对应）。
+    // 返回：拥有根 `Widget` 的 `std::unique_ptr<Widget>`，失败返回 `nullptr`。
+
+    // 注意：此处为注释说明，不改变现有构建逻辑。
     if (!widgets || count == 0 || root_id == 0) {
         return nullptr;
     }
 
-    std::unordered_map<uint32_t, std::unique_ptr<Widget>> owned;
-    owned.reserve(count);
-
-    std::unordered_map<uint32_t, Widget*> raw;
-    raw.reserve(count);
+    std::vector<Node> nodes;
+    nodes.reserve(count);
 
     for (size_t i = 0; i < count; ++i) {
         const auto& desc = widgets[i];
@@ -450,39 +277,29 @@ std::unique_ptr<Widget> BuildWidgetTree(const desc::WidgetDesc* widgets,
         }
         ApplyWidgetCommon(widget.get(), desc);
         ApplyWidgetSpecific(widget.get(), desc);
-        auto* raw_ptr = widget.get();
-        owned.emplace(desc.id, std::move(widget));
-        raw.emplace(desc.id, raw_ptr);
+        nodes.push_back({desc.id, desc.parent_id, std::move(widget), {}});
     }
-
-    auto root_it = owned.find(root_id);
-    if (root_it == owned.end()) {
+    if (nodes.empty()) {
         return nullptr;
     }
-
-    std::unique_ptr<Widget> root = std::move(root_it->second);
-    owned.erase(root_it);
-    raw[root_id] = root.get();
-
-    for (size_t i = 0; i < count; ++i) {
-        const auto& desc = widgets[i];
-        if (desc.id == root_id) {
+    std::sort(nodes.begin(), nodes.end(), [](const Node& a, const Node& b) {
+        return a.id < b.id;
+    });
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        if (nodes[i].id == root_id) {
             continue;
         }
-        auto child_it = owned.find(desc.id);
-        if (child_it == owned.end()) {
+        const size_t parent_index = FindNodeIndex(nodes, nodes[i].parent);
+        if (parent_index == nodes.size()) {
             continue;
         }
-        const uint32_t parent_id = desc.parent_id;
-        auto parent_it = raw.find(parent_id);
-        if (parent_it == raw.end()) {
-            continue;
-        }
-        parent_it->second->AddChild(std::move(child_it->second));
-        owned.erase(child_it);
+        nodes[parent_index].children.push_back(i);
     }
-
-    return root;
+    const size_t root_index = FindNodeIndex(nodes, root_id);
+    if (root_index == nodes.size()) {
+        return nullptr;
+    }
+    return BuildSubtree(root_index, nodes);
 }
 
 } // namespace app_ui

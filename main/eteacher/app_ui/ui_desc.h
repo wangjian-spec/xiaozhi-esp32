@@ -1,8 +1,4 @@
 #pragma once
-// 等于1使用头文件的方式定义UI描述符结构体和常量，等于0使用加载JSON方式。
-#ifndef APP_UI_USE_GENERATED_DESC
-#define APP_UI_USE_GENERATED_DESC 1
-#endif
 
 #include <cstddef>
 #include <cstdint>

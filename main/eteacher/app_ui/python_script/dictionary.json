@@ -16,10 +16,12 @@
   },
   "resources": {
     "texts": {
+      "TEXT_TEXTAREA_DD2B8B": "TextArea",
+      "TEXT_LABEL_8BA487": "输入英文单词",
+      "TEXT_FRAME_E86A40": "查询结果显示区",
       "TEXT_BOTTOMBAR_C9BB2E": "BottomBar",
       "TEXT_TOPBAR_F8A80A": "TopBar",
-      "TEXT_SOFTKEYBOARD_9365DD": "SoftKeyboard",
-      "TEXT_DIALOG_21C226": "Dialog"
+      "TEXT_SOFTKEYBOARD_9365DD": "SoftKeyboard"
     },
     "images": {},
     "fonts": {}
@@ -28,30 +30,12 @@
   "themes": {},
   "data": {},
   "pages": {
-    "page_main": {
-      "name": "中查英",
-      "root": "root_page_main"
-    },
     "page_f3a5": {
       "name": "英查中",
       "root": "root_page_f3a5"
-    },
-    "page_9784": {
-      "name": "例句",
-      "root": "root_page_9784"
     }
   },
   "widgets": {
-    "root_page_main": {
-      "type": "Container",
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 400,
-        "h": 300
-      },
-      "children": []
-    },
     "root_page_f3a5": {
       "type": "Container",
       "rect": {
@@ -60,17 +44,50 @@
         "w": 400,
         "h": 300
       },
-      "children": []
+      "children": [
+        "textarea_dd2b8b",
+        "label_8ba487",
+        "frame_e86a40"
+      ]
     },
-    "root_page_9784": {
-      "type": "Container",
+    "textarea_dd2b8b": {
+      "type": "TextArea",
       "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 400,
-        "h": 300
+        "x": 146,
+        "y": 30,
+        "w": 120,
+        "h": 40
       },
-      "children": []
+      "style": null,
+      "properties": {
+        "textId": "TEXT_TEXTAREA_DD2B8B"
+      }
+    },
+    "label_8ba487": {
+      "type": "Label",
+      "rect": {
+        "x": 44,
+        "y": 29,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_8BA487"
+      }
+    },
+    "frame_e86a40": {
+      "type": "Frame",
+      "rect": {
+        "x": 10,
+        "y": 78,
+        "w": 380,
+        "h": 200
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_FRAME_E86A40"
+      }
     }
   },
   "public": {
@@ -90,17 +107,16 @@
         "children": [
           "bottombar_c9bb2e",
           "topbar_f8a80a",
-          "softkeyboard_9365dd",
-          "dialog_21c226"
+          "softkeyboard_9365dd"
         ]
       },
       "bottombar_c9bb2e": {
         "type": "BottomBar",
         "rect": {
-          "x": 135,
-          "y": 243,
-          "w": 80,
-          "h": 40
+          "x": 0,
+          "y": 284,
+          "w": 400,
+          "h": 16
         },
         "style": null,
         "properties": {
@@ -110,10 +126,10 @@
       "topbar_f8a80a": {
         "type": "TopBar",
         "rect": {
-          "x": 130,
-          "y": 23,
-          "w": 80,
-          "h": 40
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 20
         },
         "style": null,
         "properties": {
@@ -123,27 +139,14 @@
       "softkeyboard_9365dd": {
         "type": "SoftKeyboard",
         "rect": {
-          "x": 136,
-          "y": 133,
-          "w": 80,
-          "h": 40
+          "x": 50,
+          "y": 184,
+          "w": 300,
+          "h": 100
         },
         "style": null,
         "properties": {
           "textId": "TEXT_SOFTKEYBOARD_9365DD"
-        }
-      },
-      "dialog_21c226": {
-        "type": "Dialog",
-        "rect": {
-          "x": 32,
-          "y": 133,
-          "w": 80,
-          "h": 40
-        },
-        "style": null,
-        "properties": {
-          "textId": "TEXT_DIALOG_21C226"
         }
       }
     }

@@ -9,7 +9,6 @@
 #include "eteacher/app_ui/ui_engine.h"
 #include "eteacher/app_ui/ui_router.h"
 
-struct cJSON;
 class CustomEpdDisplay;
 
 // Demo app: cycle words and mark as practiced.
@@ -23,8 +22,6 @@ public:
 	void OnButton(AppContext &ctx, const ButtonEvent &event) override;
 
 private:
-	using JsonPtr = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
-
 	bool LoadUi(AppContext &ctx);
 	void InitUiEngine();
 	void HandleAppLevelKeys(AppContext &ctx, const ButtonEvent &event);
@@ -39,7 +36,6 @@ private:
 
 	app_ui::UIEngine ui_engine_{};
 	app_ui::runtime::SceneRuntime scene_runtime_{};
-	JsonPtr ui_root_{nullptr, cJSON_Delete};
 	UiRouter router_{};
 	uint16_t scene_load_id_ = 0;
 	CustomEpdDisplay* epd_ = nullptr;

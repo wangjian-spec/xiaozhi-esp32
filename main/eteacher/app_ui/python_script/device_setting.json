@@ -17,10 +17,43 @@
   "resources": {
     "texts": {
       "TEXT_BUTTON_1DDB53": "扫描WIFI",
-      "TEXT_LISTVIEW_CE6360": "ListView",
+      "TEXT_BUTTON_E1D4BE": "添加新网络",
+      "TEXT_LISTVIEW_CE6360": "扫描网络列表",
+      "TEXT_LISTVIEW_92CCF1": "已保存网络列表",
+      "TEXT_LABEL_C2A90A": "语言选择",
+      "TEXT_LABEL_596C5F": "语速设置",
+      "TEXT_RADIO_65B136": "中文",
+      "TEXT_RADIO_00BB98": "英文",
+      "TEXT_RADIO_0689D6": "中速",
+      "TEXT_RADIO_847F39": "慢速",
+      "TEXT_RADIO_B5ED3E": "快速",
+      "TEXT_LABEL_290F0D": "当前用户名称",
+      "TEXT_BUTTON_ED0B73": "新建用户",
+      "TEXT_BUTTON_480CDD": "切换用户",
+      "TEXT_LISTVIEW_73F87F": "所有用户列表",
+      "TEXT_LABEL_A7787B": "学习进度",
+      "TEXT_FRAME_DD16A9": "Frame",
+      "TEXT_LABEL_667A92": "掌握单词数量",
+      "TEXT_LABEL_643532": "完成对话",
+      "TEXT_LABEL_EB4A64": "英语水平",
+      "TEXT_LABEL_688A8F": "Label",
+      "TEXT_LABEL_6A175C": "自动关机时间",
+      "TEXT_LABEL_77B11D": "待机时间",
+      "TEXT_RADIO_F39191": "30分钟",
+      "TEXT_RADIO_43DDE5": "10分钟",
+      "TEXT_RADIO_52B717": "从不",
+      "TEXT_RADIO_AD67F9": "60分钟",
+      "TEXT_LABEL_8B983F": "MAC地址",
+      "TEXT_LABEL_B54AE9": "固件版本号",
+      "TEXT_LABEL_7BDD5D": "设备型号",
       "TEXT_TOPBAR_408ADC": "TopBar",
       "TEXT_BOTTOMBAR_AABB85": "BottomBar",
-      "TEXT_TABVIEW_439E98": "“WIFI设置”\"语言设置\"\"用户设置\"\"学习偏好\"\"设备信息\""
+      "TEXT_TABVIEW_439E98": "\"WIFI设置\"\"语言设置\"\"用户设置\"\"学习偏好\"\"设备信息\"",
+      "TEXT_SOFTKEYBOARD_F652D3": "SoftKeyboard",
+      "TEXT_DIALOG_368924": "用户名密码输入",
+      "TEXT_LABEL_4E4CE9": "SSI名称",
+      "TEXT_LABEL_04D7F6": "输入密码",
+      "TEXT_TEXTAREA_ECC8AF": "TextArea"
     },
     "images": {},
     "fonts": {}
@@ -46,7 +79,7 @@
       "root": "root_page_89db"
     },
     "page_9b37": {
-      "name": "设备信息",
+      "name": "电源设置",
       "root": "root_page_9b37"
     }
   },
@@ -91,7 +124,7 @@
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_BUTTON_1DDB53"
+        "textId": "TEXT_BUTTON_E1D4BE"
       }
     },
     "frame_1f9aac": {
@@ -139,7 +172,7 @@
       },
       "style": null,
       "properties": {
-        "textId": "TEXT_LISTVIEW_CE6360"
+        "textId": "TEXT_LISTVIEW_92CCF1"
       }
     },
     "root_page_d3f0": {
@@ -150,7 +183,106 @@
         "w": 400,
         "h": 300
       },
-      "children": []
+      "children": [
+        "label_c2a90a",
+        "label_596c5f",
+        "radio_65b136",
+        "radio_00bb98",
+        "radio_0689d6",
+        "radio_847f39",
+        "radio_b5ed3e"
+      ]
+    },
+    "label_c2a90a": {
+      "type": "Label",
+      "rect": {
+        "x": 7,
+        "y": 59,
+        "w": 100,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_C2A90A"
+      }
+    },
+    "label_596c5f": {
+      "type": "Label",
+      "rect": {
+        "x": 7,
+        "y": 115,
+        "w": 100,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_596C5F"
+      }
+    },
+    "radio_65b136": {
+      "type": "Radio",
+      "rect": {
+        "x": 134,
+        "y": 59,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_65B136"
+      }
+    },
+    "radio_00bb98": {
+      "type": "Radio",
+      "rect": {
+        "x": 225,
+        "y": 59,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_00BB98"
+      }
+    },
+    "radio_0689d6": {
+      "type": "Radio",
+      "rect": {
+        "x": 225,
+        "y": 115,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_0689D6"
+      }
+    },
+    "radio_847f39": {
+      "type": "Radio",
+      "rect": {
+        "x": 134,
+        "y": 115,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_847F39"
+      }
+    },
+    "radio_b5ed3e": {
+      "type": "Radio",
+      "rect": {
+        "x": 317,
+        "y": 115,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_B5ED3E"
+      }
     },
     "root_page_1e8a": {
       "type": "Container",
@@ -160,7 +292,148 @@
         "w": 400,
         "h": 300
       },
-      "children": []
+      "children": [
+        "label_290f0d",
+        "button_ed0b73",
+        "button_480cdd",
+        "listview_73f87f",
+        "label_a7787b",
+        "frame_dd16a9",
+        "frame_91b350",
+        "label_667a92",
+        "label_643532",
+        "label_eb4a64"
+      ]
+    },
+    "label_290f0d": {
+      "type": "Label",
+      "rect": {
+        "x": 21,
+        "y": 60,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_290F0D"
+      }
+    },
+    "button_ed0b73": {
+      "type": "Button",
+      "rect": {
+        "x": 22,
+        "y": 101,
+        "w": 60,
+        "h": 20
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_ED0B73"
+      }
+    },
+    "button_480cdd": {
+      "type": "Button",
+      "rect": {
+        "x": 90,
+        "y": 101,
+        "w": 60,
+        "h": 20
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_BUTTON_480CDD"
+      }
+    },
+    "listview_73f87f": {
+      "type": "ListView",
+      "rect": {
+        "x": 16,
+        "y": 142,
+        "w": 150,
+        "h": 130
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LISTVIEW_73F87F"
+      }
+    },
+    "label_a7787b": {
+      "type": "Label",
+      "rect": {
+        "x": 223,
+        "y": 54,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_A7787B"
+      }
+    },
+    "frame_dd16a9": {
+      "type": "Frame",
+      "rect": {
+        "x": 1,
+        "y": 44,
+        "w": 180,
+        "h": 240
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_FRAME_DD16A9"
+      }
+    },
+    "frame_91b350": {
+      "type": "Frame",
+      "rect": {
+        "x": 218,
+        "y": 44,
+        "w": 180,
+        "h": 240
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_FRAME_DD16A9"
+      }
+    },
+    "label_667a92": {
+      "type": "Label",
+      "rect": {
+        "x": 223,
+        "y": 95,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_667A92"
+      }
+    },
+    "label_643532": {
+      "type": "Label",
+      "rect": {
+        "x": 223,
+        "y": 136,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_643532"
+      }
+    },
+    "label_eb4a64": {
+      "type": "Label",
+      "rect": {
+        "x": 223,
+        "y": 177,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_EB4A64"
+      }
     },
     "root_page_89db": {
       "type": "Container",
@@ -170,7 +443,22 @@
         "w": 400,
         "h": 300
       },
-      "children": []
+      "children": [
+        "label_688a8f"
+      ]
+    },
+    "label_688a8f": {
+      "type": "Label",
+      "rect": {
+        "x": 13,
+        "y": 84,
+        "w": 100,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_688A8F"
+      }
     },
     "root_page_9b37": {
       "type": "Container",
@@ -180,7 +468,190 @@
         "w": 400,
         "h": 300
       },
-      "children": []
+      "children": [
+        "label_6a175c",
+        "label_77b11d",
+        "radio_f39191",
+        "radio_43dde5",
+        "radio_52b717",
+        "radio_ad67f9",
+        "radio_13a8af",
+        "radio_374721",
+        "radio_482365",
+        "radio_5f557e",
+        "label_8b983f",
+        "label_b54ae9",
+        "label_7bdd5d"
+      ]
+    },
+    "label_6a175c": {
+      "type": "Label",
+      "rect": {
+        "x": 19,
+        "y": 66,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_6A175C"
+      }
+    },
+    "label_77b11d": {
+      "type": "Label",
+      "rect": {
+        "x": 20,
+        "y": 134,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_77B11D"
+      }
+    },
+    "radio_f39191": {
+      "type": "Radio",
+      "rect": {
+        "x": 271,
+        "y": 125,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_F39191"
+      }
+    },
+    "radio_43dde5": {
+      "type": "Radio",
+      "rect": {
+        "x": 204,
+        "y": 125,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_43DDE5"
+      }
+    },
+    "radio_52b717": {
+      "type": "Radio",
+      "rect": {
+        "x": 138,
+        "y": 125,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_52B717"
+      }
+    },
+    "radio_ad67f9": {
+      "type": "Radio",
+      "rect": {
+        "x": 338,
+        "y": 125,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_AD67F9"
+      }
+    },
+    "radio_13a8af": {
+      "type": "Radio",
+      "rect": {
+        "x": 338,
+        "y": 58,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_AD67F9"
+      }
+    },
+    "radio_374721": {
+      "type": "Radio",
+      "rect": {
+        "x": 204,
+        "y": 58,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_43DDE5"
+      }
+    },
+    "radio_482365": {
+      "type": "Radio",
+      "rect": {
+        "x": 271,
+        "y": 58,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_F39191"
+      }
+    },
+    "radio_5f557e": {
+      "type": "Radio",
+      "rect": {
+        "x": 138,
+        "y": 58,
+        "w": 50,
+        "h": 40
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_RADIO_52B717"
+      }
+    },
+    "label_8b983f": {
+      "type": "Label",
+      "rect": {
+        "x": 270,
+        "y": 221,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_8B983F"
+      }
+    },
+    "label_b54ae9": {
+      "type": "Label",
+      "rect": {
+        "x": 149,
+        "y": 221,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_B54AE9"
+      }
+    },
+    "label_7bdd5d": {
+      "type": "Label",
+      "rect": {
+        "x": 29,
+        "y": 221,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "properties": {
+        "textId": "TEXT_LABEL_7BDD5D"
+      }
     }
   },
   "public": {
@@ -200,7 +671,12 @@
         "children": [
           "topbar_408adc",
           "bottombar_aabb85",
-          "tabview_439e98"
+          "tabview_439e98",
+          "softkeyboard_f652d3",
+          "dialog_368924",
+          "label_4e4ce9",
+          "label_04d7f6",
+          "textarea_ecc8af"
         ]
       },
       "topbar_408adc": {
@@ -240,6 +716,71 @@
         "style": null,
         "properties": {
           "textId": "TEXT_TABVIEW_439E98"
+        }
+      },
+      "softkeyboard_f652d3": {
+        "type": "SoftKeyboard",
+        "rect": {
+          "x": 50,
+          "y": 184,
+          "w": 300,
+          "h": 100
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_SOFTKEYBOARD_F652D3"
+        }
+      },
+      "dialog_368924": {
+        "type": "Dialog",
+        "rect": {
+          "x": 100,
+          "y": 70,
+          "w": 200,
+          "h": 100
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_DIALOG_368924"
+        }
+      },
+      "label_4e4ce9": {
+        "type": "Label",
+        "rect": {
+          "x": 115,
+          "y": 75,
+          "w": 160,
+          "h": 40
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_LABEL_4E4CE9"
+        }
+      },
+      "label_04d7f6": {
+        "type": "Label",
+        "rect": {
+          "x": 115,
+          "y": 125,
+          "w": 50,
+          "h": 40
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_LABEL_04D7F6"
+        }
+      },
+      "textarea_ecc8af": {
+        "type": "TextArea",
+        "rect": {
+          "x": 180,
+          "y": 125,
+          "w": 100,
+          "h": 40
+        },
+        "style": null,
+        "properties": {
+          "textId": "TEXT_TEXTAREA_ECC8AF"
         }
       }
     }

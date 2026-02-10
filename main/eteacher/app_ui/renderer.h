@@ -4,6 +4,9 @@
 
 #include "types.h"
 
+// 渲染器接口定义
+// 本头文件定义绘制器、脏区域跟踪及渲染列表等接口，供 UI 引擎进行绘制。
+
 class CustomEpdDisplay;
 class Adafruit_GFX;
 
@@ -53,6 +56,10 @@ class EpdPainter : public Painter {
 public:
     EpdPainter(::CustomEpdDisplay* epd, ::Adafruit_GFX& gfx);
 
+    ::CustomEpdDisplay* Epd() { return epd_; }
+    ::Adafruit_GFX& Gfx() { return gfx_; }
+    Point Offset() const { return offset_; }
+
     void SetClip(const Rect&) override;
     void PushClip(const Rect&) override;
     void PopClip() override;
@@ -96,9 +103,11 @@ public:
     bool Intersects(const Rect& rect) const;
     const std::vector<DirtyItem>& Items() const;
     void Clear();
+    void SetFullRect(const Rect& rect);
 
 private:
     std::vector<DirtyItem> dirty_;
+    Rect full_rect_{};
 };
 
 class Widget;

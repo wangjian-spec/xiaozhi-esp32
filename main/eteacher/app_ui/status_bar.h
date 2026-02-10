@@ -13,6 +13,9 @@ class Board;
 
 namespace eteacher::app_ui {
 
+// 状态栏接口
+// 本头文件声明用于绘制顶部/底部状态栏及相关状态文本/图标的函数，供应用 UI 使用。
+
 void DrawTopBar(Adafruit_GFX& gfx,
                 CustomEpdDisplay* epd,
                 const eteacher::app_menu::MenuStyle& style,

@@ -1,82 +1,153 @@
 #include "widget.h"
 
 #include "renderer.h"
-
-#include <cJSON.h>
+#include "input.h"
+#include "ui_engine.h"
+#include "eteacher/app_ui/status_bar.h"
+#include "boards/common/board.h"
+#include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/font_manager/font_manager.h"
 
 #include <algorithm>
 #include <cctype>
-
+#include <cstring>
+#include "debug.h"
 namespace app_ui {
 
 namespace {
 
-const cJSON* GetObject(const cJSON* obj, const char* key) {
-    return obj ? cJSON_GetObjectItemCaseSensitive(obj, key) : nullptr;
+constexpr int kKeyboardRows = 4;
+constexpr int kKeyboardCols = 9;
+constexpr int kKeyboardPageSize = kKeyboardRows * kKeyboardCols;
+constexpr int kKeyboardPages = 3;
+
+const char* kKeyboardPage1[kKeyboardPageSize] = {
+    "a", "b", "c", "d", "e", "f", "g", "h", "i",
+    "j", "k", "l", "m", "n", "o", "p", "q", "r",
+    "s", "t", "u", "v", "w", "x", "y", "z", "0",
+    "1", "2", "3", "4", "5", "6", "7", "8", "9"
+};
+
+const char* kKeyboardPage2[kKeyboardPageSize] = {
+    "A", "B", "C", "D", "E", "F", "G", "H", "I",
+    "J", "K", "L", "M", "N", "O", "P", "Q", "R",
+    "S", "T", "U", "V", "W", "X", "Y", "Z", "!",
+    "\"", "#", "$", "%", "&", "'", "(", ")", "*"
+};
+
+const char* kKeyboardPage3[kKeyboardPageSize] = {
+    "+", ",", "-", ".", "/", ":", ";", "<", "=",
+    ">", "?", "@", "[", "\\", "]", "^", "_", "`",
+    "{", "|", "}", "~", "空格", "", "", "", "",
+    "", "", "", "", "", "", "", "", ""
+};
+
+std::string TrimCopy(const std::string& value) {
+    size_t start = 0;
+    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start]))) {
+        ++start;
+    }
+    size_t end = value.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1]))) {
+        --end;
+    }
+    return value.substr(start, end - start);
 }
 
-std::string GetString(const cJSON* obj, const char* key) {
-    const cJSON* item = GetObject(obj, key);
-    if (cJSON_IsString(item) && item->valuestring) {
-        return item->valuestring;
-    }
-    return {};
-}
-
-int GetInt(const cJSON* obj, const char* key, int fallback = 0) {
-    const cJSON* item = GetObject(obj, key);
-    if (cJSON_IsNumber(item)) {
-        return item->valueint;
-    }
-    return fallback;
-}
-
-bool GetBool(const cJSON* obj, const char* key, bool fallback) {
-    const cJSON* item = GetObject(obj, key);
-    if (cJSON_IsBool(item)) {
-        return cJSON_IsTrue(item);
-    }
-    return fallback;
-}
-
-uint32_t HashTextId(const char* text_id) {
-    if (!text_id) {
-        return 0;
-    }
-    uint32_t h = 0x811C9DC5;
-    const unsigned char* p = reinterpret_cast<const unsigned char*>(text_id);
-    while (*p) {
-        h ^= *p++;
-        h *= 0x01000193;
-    }
-    return h;
-}
-
-std::string ResolveText(const cJSON* props, const cJSON* texts) {
-    if (!props || !cJSON_IsObject(props)) {
-        return {};
-    }
-    const cJSON* text_key = GetObject(props, "textId");
-    if (!text_key) {
-        text_key = GetObject(props, "text");
-    }
-    if (!text_key) {
-        text_key = GetObject(props, "TextID");
-    }
-    if (!text_key) {
-        text_key = GetObject(props, "Text");
-    }
-    if (cJSON_IsString(text_key) && text_key->valuestring) {
-        if (texts && cJSON_IsObject(texts)) {
-            const cJSON* resolved = cJSON_GetObjectItemCaseSensitive(texts, text_key->valuestring);
-            if (cJSON_IsString(resolved) && resolved->valuestring) {
-                return resolved->valuestring;
-            }
+void ExtractQuotedItems(const std::string& text,
+                        const std::string& open,
+                        const std::string& close,
+                        std::vector<std::string>& out) {
+    size_t pos = 0;
+    while (true) {
+        size_t start = text.find(open, pos);
+        if (start == std::string::npos) {
+            break;
         }
-        return text_key->valuestring;
+        start += open.size();
+        size_t end = text.find(close, start);
+        if (end == std::string::npos) {
+            break;
+        }
+        std::string item = TrimCopy(text.substr(start, end - start));
+        if (!item.empty()) {
+            out.push_back(std::move(item));
+        }
+        pos = end + close.size();
     }
-    return {};
 }
+
+std::vector<std::string> ParseItemsFromText(const std::string& text) {
+    std::vector<std::string> items;
+    if (text.empty()) {
+        return items;
+    }
+
+    ExtractQuotedItems(text, "\"", "\"", items);
+    ExtractQuotedItems(text, "\xE2\x80\x9C", "\xE2\x80\x9D", items);
+
+    if (!items.empty()) {
+        return items;
+    }
+
+    std::string current;
+    for (char c : text) {
+        if (c == '\n' || c == '|' || c == ',' || c == ';') {
+            std::string item = TrimCopy(current);
+            if (!item.empty()) {
+                items.push_back(std::move(item));
+            }
+            current.clear();
+        } else {
+            current.push_back(c);
+        }
+    }
+    std::string item = TrimCopy(current);
+    if (!item.empty()) {
+        items.push_back(std::move(item));
+    }
+    return items;
+}
+
+class StaticVectorModel : public ItemModel {
+public:
+    explicit StaticVectorModel(std::vector<std::string> items)
+        : items_(std::move(items)) {}
+
+    int Count() const override {
+        return static_cast<int>(items_.size());
+    }
+
+    const char* Label(int index) const override {
+        if (index < 0 || index >= static_cast<int>(items_.size())) {
+            return "";
+        }
+        return items_[index].c_str();
+    }
+
+private:
+    std::vector<std::string> items_{};
+};
+
+class TextParsedModel : public ItemModel {
+public:
+    explicit TextParsedModel(const std::string& text)
+        : items_(ParseItemsFromText(text)) {}
+
+    int Count() const override {
+        return static_cast<int>(items_.size());
+    }
+
+    const char* Label(int index) const override {
+        if (index < 0 || index >= static_cast<int>(items_.size())) {
+            return "";
+        }
+        return items_[index].c_str();
+    }
+
+private:
+    std::vector<std::string> items_{};
+};
 
 } // namespace
 
@@ -85,10 +156,13 @@ Widget* Widget::AddChild(std::unique_ptr<Widget> child) {
         return nullptr;
     }
     child->parent_ = this;
+    child->SetEngine(engine_);
     Widget* raw = child.get();
     children_.push_back(std::move(child));
-    flags_.layout_dirty = 1;
-    flags_.dirty = 1;
+    MarkLayoutDirty();
+    if (engine_) {
+        engine_->MarkFocusDirty();
+    }
     return raw;
 }
 
@@ -101,22 +175,39 @@ const std::vector<std::unique_ptr<Widget>>& Widget::Children() const {
 }
 
 Size Widget::Measure(const Size& constraint) {
-    if (cache_.measure_valid && cache_.last_constraint == constraint) {
+    if ((dirty_bits_ & DirtyMeasure) == 0 && cache_.measure_valid && cache_.last_constraint == constraint) {
         return cache_.measured;
     }
     cache_.measured = OnMeasure(constraint);
     cache_.last_constraint = constraint;
     cache_.measure_valid = true;
+    dirty_bits_ &= static_cast<uint16_t>(~DirtyMeasure);
     cache_.measure_version++;
     return cache_.measured;
 }
 
 void Widget::Layout(const Rect& rect) {
+    const Rect old_rect = RectInWindow();
     cache_.layout = rect;
     cache_.layout_valid = true;
     cache_.layout_version++;
-    flags_.layout_dirty = 0;
+    if (parent_) {
+        cache_.global_rect = rect.Offset({parent_->cache_.global_rect.x, parent_->cache_.global_rect.y});
+    } else {
+        cache_.global_rect = rect;
+    }
+    dirty_bits_ &= static_cast<uint16_t>(~DirtyLayout);
+    dirty_bits_ &= static_cast<uint16_t>(~DirtyMeasure);
     OnLayout(rect);
+
+    const Rect new_rect = RectInWindow();
+    if (old_rect.x != new_rect.x || old_rect.y != new_rect.y || old_rect.w != new_rect.w || old_rect.h != new_rect.h) {
+        dirty_bits_ |= DirtyVisual;
+        if (engine_) {
+            engine_->AddDirty(old_rect, DirtyReason::Layout);
+            engine_->AddDirty(new_rect, DirtyReason::Layout);
+        }
+    }
 }
 
 void Widget::Draw(Painter& p) {
@@ -124,28 +215,147 @@ void Widget::Draw(Painter& p) {
         return;
     }
     OnDraw(p);
-    flags_.dirty = 0;
+    dirty_bits_ &= static_cast<uint16_t>(~DirtyVisual);
+}
+
+void Widget::Draw(Painter& p, const Rect& dirty) {
+    if (!Visible()) {
+        return;
+    }
+    OnDraw(p, dirty);
+    dirty_bits_ &= static_cast<uint16_t>(~DirtyVisual);
+}
+void Widget::OnDraw(Painter& p, const Rect&) {
+    OnDraw(p);
+}
+void Widget::SetId(uint32_t id) {
+    id_ = id;
+}
+
+uint32_t Widget::Id() const {
+    return id_;
+}
+
+Widget* Widget::FindById(uint32_t id) {
+    if (id_ == id) {
+        return this;
+    }
+    for (const auto& child : children_) {
+        if (!child) {
+            continue;
+        }
+        Widget* found = child->FindById(id);
+        if (found) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+const Widget* Widget::FindById(uint32_t id) const {
+    if (id_ == id) {
+        return this;
+    }
+    for (const auto& child : children_) {
+        if (!child) {
+            continue;
+        }
+        const Widget* found = child->FindById(id);
+        if (found) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+void Widget::SetLayoutMode(LayoutMode mode) {
+    if (layout_mode_ == mode) {
+        return;
+    }
+    layout_mode_ = mode;
+    MarkLayoutDirty();
+}
+
+Widget::LayoutMode Widget::GetLayoutMode() const {
+    return layout_mode_;
 }
 
 void Widget::MarkDirty() {
-    flags_.dirty = 1;
+    dirty_bits_ |= DirtyVisual;
+    if (engine_) {
+        engine_->AddDirty(RectInWindow(), DirtyReason::Visual);
+    }
 }
 
 void Widget::MarkLayoutDirty() {
-    flags_.layout_dirty = 1;
+    if (dirty_bits_ & DirtyLayout) {
+        dirty_bits_ |= DirtyVisual;
+        return;
+    }
+    dirty_bits_ |= static_cast<uint16_t>(DirtyLayout | DirtyVisual);
     cache_.layout_valid = false;
-    cache_.measure_valid = false;
     if (parent_) {
         parent_->MarkLayoutDirty();
     }
 }
+
+void Widget::MarkMeasureDirty() {
+    if (dirty_bits_ & DirtyMeasure) {
+        dirty_bits_ |= static_cast<uint16_t>(DirtyLayout | DirtyVisual);
+        return;
+    }
+    cache_.measure_valid = false;
+    cache_.layout_valid = false;
+    dirty_bits_ |= static_cast<uint16_t>(DirtyMeasure | DirtyLayout | DirtyVisual);
+}
+
+void Widget::SetEngine(UIEngine* engine) {
+    if (engine_ == engine) {
+        return;
+    }
+    engine_ = engine;
+    for (const auto& child : children_) {
+        if (child) {
+            child->SetEngine(engine_);
+        }
+    }
+}
+
+bool Widget::IsDirty() const {
+    return dirty_bits_ != DirtyNone;
+}
+
+bool Widget::IsLayoutDirty() const {
+    return (dirty_bits_ & DirtyLayout) != 0;
+}
+
+bool Widget::IsMeasureDirty() const {
+    return (dirty_bits_ & DirtyMeasure) != 0;
+}
+
+bool Widget::IsLayoutValid() const {
+    return cache_.layout_valid;
+}
+
+bool Widget::IsMeasureValid() const {
+    return cache_.measure_valid;
+}
+
+uint16_t Widget::DirtyBits() const {
+    return dirty_bits_;
+}
+
 
 void Widget::SetVisible(bool v) {
     if (flags_.visible == static_cast<uint8_t>(v)) {
         return;
     }
     flags_.visible = v ? 1 : 0;
+    app_ui::debug::PrintVisibleChange(id_, this, v);
     MarkDirty();
+    if (engine_) {
+        engine_->MarkFocusDirty();
+    }
 }
 
 bool Widget::Visible() const {
@@ -158,6 +368,9 @@ void Widget::SetEnabled(bool v) {
     }
     flags_.enabled = v ? 1 : 0;
     MarkDirty();
+    if (engine_) {
+        engine_->MarkFocusDirty();
+    }
 }
 
 void Widget::SetFocusable(bool v) {
@@ -166,6 +379,21 @@ void Widget::SetFocusable(bool v) {
     }
     flags_.focusable = v ? 1 : 0;
     MarkDirty();
+    if (engine_) {
+        engine_->MarkFocusDirty();
+    }
+}
+
+void Widget::SetFocused(bool v) {
+    if (flags_.focused == static_cast<uint8_t>(v)) {
+        return;
+    }
+    flags_.focused = v ? 1 : 0;
+    MarkDirty();
+}
+
+bool Widget::Focused() const {
+    return flags_.focused != 0;
 }
 
 bool Widget::Enabled() const {
@@ -183,16 +411,19 @@ Rect Widget::DeclaredRect() const {
 void Widget::SetRectInParent(const Rect& rect) {
     design_rect_ = rect;
     cache_.layout_valid = false;
-    cache_.measure_valid = false;
-    flags_.layout_dirty = 1;
+    dirty_bits_ |= static_cast<uint16_t>(DirtyLayout | DirtyVisual);
+    layout_mode_ = rect.IsEmpty() ? LayoutMode::MatchParent : LayoutMode::Fixed;
+    if (parent_) {
+        parent_->MarkLayoutDirty();
+    }
+}
+
+Rect Widget::LocalRect() const {
+    return {0, 0, cache_.layout.w, cache_.layout.h};
 }
 
 Rect Widget::RectInWindow() const {
-    Point global = MapToGlobal({0, 0});
-    Rect rect = cache_.layout;
-    rect.x = global.x;
-    rect.y = global.y;
-    return rect;
+    return cache_.global_rect;
 }
 
 Rect Widget::RectInScreen() const {
@@ -200,33 +431,20 @@ Rect Widget::RectInScreen() const {
 }
 
 Point Widget::MapToGlobal(Point local) const {
-    Point p = local;
-    const Widget* current = this;
-    while (current) {
-        p.x = static_cast<int16_t>(p.x + current->cache_.layout.x);
-        p.y = static_cast<int16_t>(p.y + current->cache_.layout.y);
-        current = current->parent_;
-    }
-    return p;
+    return {static_cast<int16_t>(cache_.global_rect.x + local.x),
+            static_cast<int16_t>(cache_.global_rect.y + local.y)};
 }
 
 Point Widget::MapFromGlobal(Point global) const {
-    Point p = global;
-    const Widget* current = this;
-    while (current) {
-        p.x = static_cast<int16_t>(p.x - current->cache_.layout.x);
-        p.y = static_cast<int16_t>(p.y - current->cache_.layout.y);
-        current = current->parent_;
-    }
-    return p;
+    return {static_cast<int16_t>(global.x - cache_.global_rect.x),
+            static_cast<int16_t>(global.y - cache_.global_rect.y)};
 }
 
 bool Widget::HitTest(Point global) const {
     if (!Visible()) {
         return false;
     }
-    Rect rect = RectInWindow();
-    return rect.Contains(global);
+    return cache_.global_rect.Contains(global);
 }
 
 } // namespace app_ui
@@ -255,6 +473,8 @@ void ContainerWidget::OnDraw(Painter&) {
 
 void TextWidget::SetText(const std::string& text) {
     text_ = text;
+    OnTextChanged();
+    MarkMeasureDirty();
     MarkDirty();
 }
 
@@ -263,36 +483,8 @@ void TextWidget::SetTextId(uint32_t text_id) {
         return;
     }
     text_id_ = text_id;
+    MarkMeasureDirty();
     MarkDirty();
-}
-
-void TextWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
-    if (!widget_json) {
-        return;
-    }
-    const std::string direct_text = GetString(widget_json, "text");
-    const cJSON* props = GetObject(widget_json, "properties");
-    const std::string resolved_text = direct_text.empty() ? ResolveText(props, texts) : direct_text;
-
-    if (props) {
-        const cJSON* text_key = GetObject(props, "textId");
-        if (!text_key) {
-            text_key = GetObject(props, "text");
-        }
-        if (!text_key) {
-            text_key = GetObject(props, "TextID");
-        }
-        if (!text_key) {
-            text_key = GetObject(props, "Text");
-        }
-        if (cJSON_IsString(text_key) && text_key->valuestring) {
-            SetTextId(HashTextId(text_key->valuestring));
-        }
-    }
-
-    if (!resolved_text.empty()) {
-        SetText(resolved_text);
-    }
 }
 
 uint32_t TextWidget::TextId() const {
@@ -312,17 +504,18 @@ void LabelWidget::OnDraw(Painter& p) {
 }
 
 void ButtonWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
+    const bool focused = Focused();
+    p.SetDrawColor(focused ? Color::Black : Color::White);
+    p.FillRect(rect);
     p.SetDrawColor(Color::Black);
-    p.SetTextColor(Color::Black);
     p.DrawRect(rect);
+    p.SetTextColor(focused ? Color::White : Color::Black);
     p.DrawText({2, 2}, text_.c_str());
 }
 
 void ImageWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.DrawRect(rect);
     if (!text_.empty()) {
@@ -331,8 +524,7 @@ void ImageWidget::OnDraw(Painter& p) {
 }
 
 void TextAreaWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
     p.DrawRect(rect);
@@ -346,43 +538,436 @@ void TextAreaWidget::OnDraw(Painter& p) {
     }
 }
 
+InputResult ListViewWidget::OnInput(const InputEvent& e, InputPhase phase) {
+    if (phase == InputPhase::Capture) {
+        return InputResult::Continue;
+    }
+    if (!Enabled() || !Visible()) {
+        return InputResult::Continue;
+    }
+    if (e.type != InputType::KeyDown && e.type != InputType::KeyRepeat) {
+        return InputResult::Continue;
+    }
+
+    ClampSelection();
+    if (ItemCount() <= 0) {
+        return InputResult::Continue;
+    }
+
+    const int key = e.key;
+    if (key == static_cast<int>(KeyCode::Start)) {
+        if (on_activated_) {
+            on_activated_(this, selected_index_, on_activated_ctx_);
+        }
+        return InputResult::Consume;
+    }
+    return InputResult::Continue;
+}
+
+FocusIntent ListViewWidget::OnFocusKey(KeyCode key) {
+    ClampSelection();
+    const int count = ItemCount();
+    if (count <= 0) {
+        return FocusIntent::Bubble;
+    }
+
+    if (key == KeyCode::Up) {
+        if (selected_index_ > 0) {
+            selected_index_--;
+            MarkDirty();
+            return FocusIntent::Consume;
+        }
+        return FocusIntent::EscapeUp;
+    }
+    if (key == KeyCode::Down) {
+        if (selected_index_ + 1 < count) {
+            selected_index_++;
+            MarkDirty();
+            return FocusIntent::Consume;
+        }
+        return FocusIntent::EscapeDown;
+    }
+    if (key == KeyCode::Left) {
+        return FocusIntent::EscapeLeft;
+    }
+    if (key == KeyCode::Right) {
+        return FocusIntent::EscapeRight;
+    }
+    return FocusIntent::None;
+}
+
+void ListViewWidget::SetItems(std::vector<std::string> items) {
+    model_ = std::make_unique<StaticVectorModel>(std::move(items));
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+void ListViewWidget::SetItemModel(std::unique_ptr<ItemModel> model) {
+    model_ = std::move(model);
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+void ListViewWidget::SetRows(int rows) {
+    rows_ = rows > 0 ? rows : 0;
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+int ListViewWidget::Rows() const {
+    return rows_;
+}
+
+int ListViewWidget::SelectedIndex() const {
+    return selected_index_;
+}
+
+std::string ListViewWidget::SelectedItem() const {
+    const char* label = ItemLabel(selected_index_);
+    if (!label) {
+        return {};
+    }
+    return std::string(label);
+}
+
+void ListViewWidget::SetOnActivated(ActivateCallback callback, void* ctx) {
+    on_activated_ = callback;
+    on_activated_ctx_ = ctx;
+}
+
+void ListViewWidget::OnTextChanged() {
+    SetModelFromText();
+}
+
+void ListViewWidget::SetModelFromText() {
+    model_ = std::make_unique<TextParsedModel>(text_);
+    ClampSelection();
+}
+
+int ListViewWidget::EffectiveRowCount() const {
+    if (rows_ > 0) {
+        return rows_;
+    }
+    return ItemCount();
+}
+
+int ListViewWidget::ItemCount() const {
+    return model_ ? model_->Count() : 0;
+}
+
+const char* ListViewWidget::ItemLabel(int index) const {
+    if (!model_) {
+        return "";
+    }
+    const char* label = model_->Label(index);
+    return label ? label : "";
+}
+
+void ListViewWidget::ClampSelection() {
+    const int count = ItemCount();
+    if (count <= 0) {
+        selected_index_ = 0;
+        return;
+    }
+    const int max_index = count - 1;
+    if (selected_index_ < 0) {
+        selected_index_ = 0;
+    } else if (selected_index_ > max_index) {
+        selected_index_ = max_index;
+    }
+}
+
 void ListViewWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    ClampSelection();
+    Rect rect = LocalRect();
+    if (rect.w <= 0 || rect.h <= 0) {
+        return;
+    }
+
+    const int item_count = ItemCount();
+    const int item_h = 25;
+    const int rows = std::max<int>(1, rect.h / item_h);
+    const bool focused = Focused();
+
+    for (int row = 0; row < rows; ++row) {
+        const int y = row * item_h;
+        if (y >= rect.h) {
+            break;
+        }
+        const int h = (row == rows - 1) ? std::min(item_h, rect.h - y) : item_h;
+        const bool selected = focused && (row == selected_index_);
+        p.SetDrawColor(selected ? Color::Black : Color::White);
+        p.FillRect({0, static_cast<int16_t>(y), rect.w, static_cast<int16_t>(h)});
+        p.SetTextColor(selected ? Color::White : Color::Black);
+
+        if (row < item_count) {
+            const char* label = ItemLabel(row);
+            if (label && label[0]) {
+                p.DrawText({2, static_cast<int16_t>(y + 2)}, label);
+            }
+        }
+    }
+
     p.SetDrawColor(Color::Black);
-    p.SetTextColor(Color::Black);
     p.DrawRect(rect);
-    const int item_h = 12;
-    const int max_items = rect.h > 0 ? rect.h / item_h : 0;
-    for (int i = 1; i < max_items; ++i) {
-        p.DrawHLine({2, static_cast<int16_t>(i * item_h)}, rect.w - 4);
-    }
-    if (!text_.empty()) {
-        p.DrawText({2, 2}, text_.c_str());
-    }
 }
 
 void TabViewWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
-    p.SetDrawColor(Color::Black);
-    p.SetTextColor(Color::Black);
-    p.DrawRect(rect);
-    const int tab_h = 12;
-    p.DrawHLine({0, static_cast<int16_t>(tab_h)}, rect.w);
-    const int tab_w = rect.w > 0 ? rect.w / 3 : 0;
-    if (tab_w > 0) {
-        p.DrawVLine({static_cast<int16_t>(tab_w), 0}, tab_h);
-        p.DrawVLine({static_cast<int16_t>(tab_w * 2), 0}, tab_h);
+    ClampSelection();
+    Rect rect = LocalRect();
+    const int rows = EffectiveRows();
+    const int cols = EffectiveCols();
+    if (rows <= 0 || cols <= 0 || rect.w <= 0 || rect.h <= 0) {
+        return;
     }
-    if (!text_.empty()) {
-        p.DrawText({2, 2}, text_.c_str());
+
+    const int cell_w = rect.w / cols;
+    const int cell_h = rect.h / rows;
+    const bool focused = Focused();
+    auto* epd_painter = dynamic_cast<EpdPainter*>(&p);
+
+    for (int r = 0; r < rows; ++r) {
+        const int y = r * cell_h;
+        if (y >= rect.h) {
+            break;
+        }
+        for (int c = 0; c < cols; ++c) {
+            const int index = r * cols + c;
+            const int x = c * cell_w;
+            const int w = (c == cols - 1) ? (rect.w - x) : cell_w;
+            const int h = (r == rows - 1) ? std::min(cell_h, rect.h - y) : cell_h;
+            const bool selected = focused && (index == selected_index_);
+
+            p.SetDrawColor(selected ? Color::Black : Color::White);
+            p.FillRect({static_cast<int16_t>(x), static_cast<int16_t>(y), static_cast<int16_t>(w), static_cast<int16_t>(h)});
+            p.SetTextColor(selected ? Color::White : Color::Black);
+
+            if (index < ItemCount()) {
+                const char* label = ItemLabel(index);
+                if (epd_painter && epd_painter->Epd()) {
+                    const char* font_name = "wenquanyi_11pt";
+                    const int16_t text_w = static_cast<int16_t>(epd_painter->Epd()->MeasureUtf8Width(label, font_name));
+                    const int16_t font_h = eteacher::app_ui::GetFontHeight(font_name);
+                    const int16_t font_ascent = eteacher::app_ui::GetFontAscent(font_name);
+                    const int16_t font_descent = static_cast<int16_t>(font_h - font_ascent);
+                    int16_t tx = static_cast<int16_t>(x + (w - text_w) / 2);
+                    const int16_t glyph_center_offset = static_cast<int16_t>((font_ascent - font_descent) / 2);
+                    int16_t baseline = static_cast<int16_t>(y + h / 2 + glyph_center_offset);
+                    if (text_w > w) {
+                        tx = static_cast<int16_t>(x + 2);
+                    }
+                    if (font_h > h) {
+                        baseline = static_cast<int16_t>(y + 2 + font_ascent);
+                    }
+                    const Point offset = epd_painter->Offset();
+                    const uint16_t text_color = selected ? GxEPD_WHITE : GxEPD_BLACK;
+                    epd_painter->Epd()->DrawUtf8(static_cast<int16_t>(tx + offset.x),
+                                                 static_cast<int16_t>(baseline + offset.y),
+                                                 label,
+                                                 font_name,
+                                                 text_color);
+                } else {
+                    const Size text_size = p.MeasureText(label, nullptr);
+                    int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
+                    int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
+                    if (text_size.w > w) {
+                        tx = static_cast<int16_t>(x + 2);
+                    }
+                    if (text_size.h > h) {
+                        ty = static_cast<int16_t>(y + 2);
+                    }
+                    p.DrawText({tx, ty}, label);
+                }
+            }
+        }
+    }
+
+    p.SetDrawColor(Color::Black);
+    p.DrawRect(rect);
+    for (int r = 1; r < rows; ++r) {
+        const int y = r * cell_h;
+        p.DrawHLine({0, static_cast<int16_t>(y)}, rect.w);
+    }
+    for (int c = 1; c < cols; ++c) {
+        const int x = c * cell_w;
+        p.DrawVLine({static_cast<int16_t>(x), 0}, rect.h);
     }
 }
 
+InputResult TabViewWidget::OnInput(const InputEvent& e, InputPhase phase) {
+    if (phase == InputPhase::Capture) {
+        return InputResult::Continue;
+    }
+    if (!Enabled() || !Visible()) {
+        return InputResult::Continue;
+    }
+    if (e.type != InputType::KeyDown && e.type != InputType::KeyRepeat) {
+        return InputResult::Continue;
+    }
+
+    ClampSelection();
+    if (ItemCount() <= 0) {
+        return InputResult::Continue;
+    }
+
+    return InputResult::Continue;
+}
+
+FocusIntent TabViewWidget::OnFocusKey(KeyCode key) {
+    ClampSelection();
+    if (ItemCount() <= 0) {
+        return FocusIntent::Bubble;
+    }
+
+    const int count = ItemCount();
+    if (key == KeyCode::Up) {
+        if (selected_index_ > 0) {
+            selected_index_ -= 1;
+            MarkDirty();
+            return FocusIntent::Consume;
+        }
+        return FocusIntent::EscapeUp;
+    }
+    if (key == KeyCode::Down) {
+        if (selected_index_ + 1 < count) {
+            selected_index_ += 1;
+            MarkDirty();
+            return FocusIntent::Consume;
+        }
+        return FocusIntent::EscapeDown;
+    }
+    if (key == KeyCode::Left) {
+        return FocusIntent::EscapeLeft;
+    }
+    if (key == KeyCode::Right) {
+        return FocusIntent::EscapeRight;
+    }
+    return FocusIntent::None;
+}
+
+void TabViewWidget::SetItems(std::vector<std::string> items) {
+    model_ = std::make_unique<StaticVectorModel>(std::move(items));
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+void TabViewWidget::SetItemModel(std::unique_ptr<ItemModel> model) {
+    model_ = std::move(model);
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+void TabViewWidget::SetGrid(int rows, int cols) {
+    if (rows > 0) {
+        rows_ = rows;
+    }
+    if (cols > 0) {
+        cols_ = cols;
+    }
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+int TabViewWidget::Rows() const {
+    return rows_;
+}
+
+int TabViewWidget::Cols() const {
+    return cols_;
+}
+
+int TabViewWidget::SelectedIndex() const {
+    return selected_index_;
+}
+
+void TabViewWidget::SetSelectedIndex(int index) {
+    const int count = ItemCount();
+    if (count <= 0) {
+        selected_index_ = index < 0 ? 0 : index;
+        MarkDirty();
+        return;
+    }
+    const int max_index = count - 1;
+    const int clamped = index < 0 ? 0 : (index > max_index ? max_index : index);
+    if (selected_index_ == clamped) {
+        return;
+    }
+    selected_index_ = clamped;
+    MarkDirty();
+}
+
+std::string TabViewWidget::SelectedItem() const {
+    const char* label = ItemLabel(selected_index_);
+    if (!label) {
+        return {};
+    }
+    return std::string(label);
+}
+
+void TabViewWidget::OnTextChanged() {
+    SetModelFromText();
+}
+
+void TabViewWidget::SetModelFromText() {
+    model_ = std::make_unique<TextParsedModel>(text_);
+    ClampSelection();
+}
+
+int TabViewWidget::ItemCount() const {
+    return model_ ? model_->Count() : 0;
+}
+
+const char* TabViewWidget::ItemLabel(int index) const {
+    if (!model_) {
+        return "";
+    }
+    const char* label = model_->Label(index);
+    return label ? label : "";
+}
+
+void TabViewWidget::ClampSelection() {
+    const int count = ItemCount();
+    if (count <= 0) {
+        selected_index_ = 0;
+        return;
+    }
+    const int max_index = count - 1;
+    if (selected_index_ < 0) {
+        selected_index_ = 0;
+    } else if (selected_index_ > max_index) {
+        selected_index_ = max_index;
+    }
+}
+
+int TabViewWidget::EffectiveRows() const {
+    if (rows_ > 0) {
+        return rows_;
+    }
+    return 1;
+}
+
+int TabViewWidget::EffectiveCols() const {
+    if (cols_ > 0) {
+        return cols_;
+    }
+    const int rows = EffectiveRows();
+    if (rows <= 0) {
+        return 1;
+    }
+    if (ItemCount() <= 0) {
+        return 1;
+    }
+    return static_cast<int>((ItemCount() + rows - 1) / rows);
+}
+
 void FrameWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
     p.DrawRect(rect);
@@ -392,8 +977,7 @@ void FrameWidget::OnDraw(Painter& p) {
 }
 
 void MenuWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
     p.DrawRect(rect);
@@ -407,8 +991,7 @@ void MenuWidget::OnDraw(Painter& p) {
 }
 
 void DialogWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
     p.DrawRect(rect);
@@ -419,43 +1002,211 @@ void DialogWidget::OnDraw(Painter& p) {
     }
 }
 
+SoftKeyboardWidget::SoftKeyboardWidget() {
+    SetFocusable(true);
+}
+
+InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
+    if (phase == InputPhase::Capture) {
+        return InputResult::Continue;
+    }
+    if (!Enabled() || !Visible()) {
+        return InputResult::Continue;
+    }
+    if (e.type != InputType::KeyDown && e.type != InputType::KeyRepeat) {
+        return InputResult::Continue;
+    }
+
+    const KeyCode key = static_cast<KeyCode>(e.key);
+    if (key == KeyCode::Up || key == KeyCode::Down || key == KeyCode::Left || key == KeyCode::Right) {
+        int row = selected_index_ / kKeyboardCols;
+        int col = selected_index_ % kKeyboardCols;
+        if (key == KeyCode::Up) {
+            row = (row + kKeyboardRows - 1) % kKeyboardRows;
+        } else if (key == KeyCode::Down) {
+            row = (row + 1) % kKeyboardRows;
+        } else if (key == KeyCode::Left) {
+            col = (col + kKeyboardCols - 1) % kKeyboardCols;
+        } else if (key == KeyCode::Right) {
+            col = (col + 1) % kKeyboardCols;
+        }
+        const int next_index = row * kKeyboardCols + col;
+        if (next_index != selected_index_) {
+            selected_index_ = next_index;
+            MarkDirty();
+        }
+        return InputResult::Consume;
+    }
+
+    if (key == KeyCode::C) {
+        const char* label = KeyLabel(page_, selected_index_);
+        if (label && label[0]) {
+            if (std::strcmp(label, "空格") == 0) {
+                last_output_ = " ";
+            } else {
+                last_output_ = label;
+            }
+            if (on_key_) {
+                on_key_(this, last_output_.c_str(), on_key_ctx_);
+            }
+        }
+        return InputResult::Consume;
+    }
+
+    if (key == KeyCode::D) {
+        page_ = (page_ + 1) % kKeyboardPages;
+        MarkDirty();
+        return InputResult::Consume;
+    }
+
+    return InputResult::Continue;
+}
+
+void SoftKeyboardWidget::SetOnKey(KeyCallback callback, void* ctx) {
+    on_key_ = callback;
+    on_key_ctx_ = ctx;
+}
+
+int SoftKeyboardWidget::Page() const {
+    return page_;
+}
+
+void SoftKeyboardWidget::SetPage(int page) {
+    const int next = (page < 0) ? 0 : (page >= kKeyboardPages ? (kKeyboardPages - 1) : page);
+    if (page_ == next) {
+        return;
+    }
+    page_ = next;
+    MarkDirty();
+}
+
+int SoftKeyboardWidget::SelectedIndex() const {
+    return selected_index_;
+}
+
+void SoftKeyboardWidget::SetSelectedIndex(int index) {
+    selected_index_ = index;
+    ClampSelection();
+    MarkDirty();
+}
+
+const std::string& SoftKeyboardWidget::LastOutput() const {
+    return last_output_;
+}
+
+void SoftKeyboardWidget::ClampSelection() {
+    if (selected_index_ < 0) {
+        selected_index_ = 0;
+    } else if (selected_index_ >= kKeyboardPageSize) {
+        selected_index_ = kKeyboardPageSize - 1;
+    }
+}
+
+const char* SoftKeyboardWidget::KeyLabel(int page, int index) const {
+    if (index < 0 || index >= kKeyboardPageSize) {
+        return "";
+    }
+    switch (page) {
+        case 0:
+            return kKeyboardPage1[index];
+        case 1:
+            return kKeyboardPage2[index];
+        case 2:
+            return kKeyboardPage3[index];
+        default:
+            return "";
+    }
+}
+
 void SoftKeyboardWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    ClampSelection();
+    Rect rect = LocalRect();
+    if (rect.w <= 0 || rect.h <= 0) {
+        return;
+    }
+
+    const int cell_w = rect.w / kKeyboardCols;
+    const int cell_h = rect.h / kKeyboardRows;
+
+    for (int r = 0; r < kKeyboardRows; ++r) {
+        const int y = r * cell_h;
+        const int h = (r == kKeyboardRows - 1) ? (rect.h - y) : cell_h;
+        for (int c = 0; c < kKeyboardCols; ++c) {
+            const int x = c * cell_w;
+            const int w = (c == kKeyboardCols - 1) ? (rect.w - x) : cell_w;
+            const int index = r * kKeyboardCols + c;
+            const bool selected = (index == selected_index_);
+            p.SetDrawColor(selected ? Color::Black : Color::White);
+            p.FillRect({static_cast<int16_t>(x), static_cast<int16_t>(y), static_cast<int16_t>(w), static_cast<int16_t>(h)});
+            p.SetTextColor(selected ? Color::White : Color::Black);
+
+            const char* label = KeyLabel(page_, index);
+            if (label && label[0]) {
+                const Size text_size = p.MeasureText(label, nullptr);
+                int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
+                int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
+                if (text_size.w > w) {
+                    tx = static_cast<int16_t>(x + 2);
+                }
+                if (text_size.h > h) {
+                    ty = static_cast<int16_t>(y + 2);
+                }
+                p.DrawText({tx, ty}, label);
+            }
+        }
+    }
+
     p.SetDrawColor(Color::Black);
     p.DrawRect(rect);
-    const int rows = 3;
-    const int cols = 6;
-    const int cell_w = rect.w > 0 ? rect.w / cols : 0;
-    const int cell_h = rect.h > 0 ? rect.h / rows : 0;
-    for (int r = 1; r < rows; ++r) {
+    for (int r = 1; r < kKeyboardRows; ++r) {
         p.DrawHLine({0, static_cast<int16_t>(r * cell_h)}, rect.w);
     }
-    for (int c = 1; c < cols; ++c) {
+    for (int c = 1; c < kKeyboardCols; ++c) {
         p.DrawVLine({static_cast<int16_t>(c * cell_w), 0}, rect.h);
     }
 }
 
 void TopBarWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
-    p.SetDrawColor(Color::Black);
-    p.FillRect(rect);
-    p.SetTextColor(Color::White);
-    if (!text_.empty()) {
-        p.DrawText({2, 2}, text_.c_str());
+    auto* epd_painter = dynamic_cast<EpdPainter*>(&p);
+    if (!epd_painter || !epd_painter->Epd()) {
+        Rect rect = LocalRect();
+        p.SetDrawColor(Color::Black);
+        p.FillRect(rect);
+        p.SetTextColor(Color::White);
+        if (!text_.empty()) {
+            p.DrawText({2, 2}, text_.c_str());
+        }
+        return;
     }
+
+    eteacher::app_menu::MenuStyle style;
+    const Rect rect = LocalRect();
+    if (rect.h > 0) {
+        style.top_height = rect.h;
+    }
+    const auto status = eteacher::app_ui::BuildMenuStatus(Board::GetInstance());
+    eteacher::app_ui::DrawTopBar(epd_painter->Gfx(), epd_painter->Epd(), style, status);
 }
 
 void BottomBarWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
-    p.SetDrawColor(Color::Black);
-    p.FillRect(rect);
-    p.SetTextColor(Color::White);
-    if (!text_.empty()) {
-        p.DrawText({2, 2}, text_.c_str());
+    auto* epd_painter = dynamic_cast<EpdPainter*>(&p);
+    if (!epd_painter || !epd_painter->Epd()) {
+        Rect rect = LocalRect();
+        p.SetDrawColor(Color::Black);
+        p.FillRect(rect);
+        p.SetTextColor(Color::White);
+        if (!text_.empty()) {
+            p.DrawText({2, 2}, text_.c_str());
+        }
+        return;
     }
+
+    eteacher::app_menu::MenuStyle style;
+    const Rect rect = LocalRect();
+    if (rect.h > 0) {
+        style.bottom_height = rect.h;
+    }
+    eteacher::app_ui::DrawBottomBar(epd_painter->Gfx(), epd_painter->Epd(), style, text_);
 }
 
 void CheckboxWidget::SetChecked(bool checked) {
@@ -466,23 +1217,12 @@ void CheckboxWidget::SetChecked(bool checked) {
     MarkDirty();
 }
 
-void CheckboxWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
-    TextWidget::InitFromJson(widget_json, texts);
-    if (!widget_json) {
-        return;
-    }
-    if (!GetObject(widget_json, "checked") || cJSON_IsBool(GetObject(widget_json, "checked"))) {
-        SetChecked(GetBool(widget_json, "checked", false));
-    }
-}
-
 bool CheckboxWidget::Checked() const {
     return checked_;
 }
 
 void CheckboxWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
     const int box = std::min(12, rect.h > 0 ? rect.h : 12);
@@ -501,23 +1241,12 @@ void RadioWidget::SetChecked(bool checked) {
     MarkDirty();
 }
 
-void RadioWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
-    TextWidget::InitFromJson(widget_json, texts);
-    if (!widget_json) {
-        return;
-    }
-    if (!GetObject(widget_json, "checked") || cJSON_IsBool(GetObject(widget_json, "checked"))) {
-        SetChecked(GetBool(widget_json, "checked", false));
-    }
-}
-
 bool RadioWidget::Checked() const {
     return checked_;
 }
 
 void RadioWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     const int radius = std::min(5, rect.h / 2);
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
@@ -536,23 +1265,12 @@ void SwitchWidget::SetChecked(bool checked) {
     MarkDirty();
 }
 
-void SwitchWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
-    TextWidget::InitFromJson(widget_json, texts);
-    if (!widget_json) {
-        return;
-    }
-    if (!GetObject(widget_json, "checked") || cJSON_IsBool(GetObject(widget_json, "checked"))) {
-        SetChecked(GetBool(widget_json, "checked", false));
-    }
-}
-
 bool SwitchWidget::Checked() const {
     return checked_;
 }
 
 void SwitchWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     const int box_w = 28;
     const int box_h = std::min(12, rect.h > 0 ? rect.h : 12);
     const bool is_on = checked_;
@@ -571,8 +1289,7 @@ void SwitchWidget::OnDraw(Painter& p) {
 }
 
 void ProgressWidget::OnDraw(Painter& p) {
-    Rect parent = RectInParent();
-    Rect rect{0, 0, parent.w, parent.h};
+    Rect rect = LocalRect();
     const int percent = value_ > 100 ? 100 : value_;
     p.SetDrawColor(Color::Black);
     p.DrawRect(rect);
@@ -589,17 +1306,6 @@ void ProgressWidget::SetValue(uint8_t value) {
     }
     value_ = clamped;
     MarkDirty();
-}
-
-void ProgressWidget::InitFromJson(const cJSON* widget_json, const cJSON* texts) {
-    TextWidget::InitFromJson(widget_json, texts);
-    if (!widget_json) {
-        return;
-    }
-    if (!GetObject(widget_json, "value") || cJSON_IsNumber(GetObject(widget_json, "value"))) {
-        const int value = GetInt(widget_json, "value", 0);
-        SetValue(static_cast<uint8_t>(value));
-    }
 }
 
 uint8_t ProgressWidget::Value() const {

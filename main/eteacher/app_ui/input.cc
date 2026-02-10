@@ -1,6 +1,14 @@
 #include "input.h"
 
+// 输入处理模块
+// 本文件实现了输入事件队列、焦点管理等逻辑，用于将按键/触摸等输入分发到 UI widget。
+// 注意：本模块无关 UI 描述加载方式，仅负责事件派发和焦点管理。
+
 #include "widget.h"
+#include "debug.h"
+
+#include <algorithm>
+#include <cstdio>
 
 namespace app_ui {
 
@@ -40,64 +48,229 @@ size_t InputQueue::Size() const {
 }
 
 void FocusManager::Build(Widget* root) {
-    focusables_.clear();
+    focus_ids_.clear();
+    root_ = root;
     current_index_ = -1;
     Traverse(root);
-    if (!focusables_.empty()) {
+    if (!focus_ids_.empty()) {
         current_index_ = 0;
+        if (Widget* current = ResolveByIndex(current_index_)) {
+            current->SetFocused(true);
+        }
     }
+    dirty_ = false;
 }
 
 void FocusManager::Clear() {
-    focusables_.clear();
+    if (Widget* current = ResolveByIndex(current_index_)) {
+        current->SetFocused(false);
+    }
+    focus_ids_.clear();
     current_index_ = -1;
+    dirty_ = true;
+    root_ = nullptr;
 }
 
-void FocusManager::MoveUp() {
-    Move(-1);
+void FocusManager::RebuildIfNeeded(Widget* root) {
+    if (!dirty_) {
+        return;
+    }
+    Clear();
+    if (root) {
+        Build(root);
+    } else {
+        dirty_ = false;
+    }
 }
 
-void FocusManager::MoveDown() {
-    Move(1);
+bool FocusManager::HandleDirectionalKey(KeyCode key) {
+    if (key != KeyCode::Up && key != KeyCode::Down && key != KeyCode::Left && key != KeyCode::Right) {
+        return false;
+    }
+    Widget* target = Current();
+    if (!target) {
+        return false;
+    }
+    const FocusIntent intent = target->OnFocusKey(key);
+    switch (intent) {
+        case FocusIntent::Consume:
+            return true;
+        case FocusIntent::EscapeUp:
+            return MoveSpatial(KeyCode::Up);
+        case FocusIntent::EscapeDown:
+            return MoveSpatial(KeyCode::Down);
+        case FocusIntent::EscapeLeft:
+            return MoveSpatial(KeyCode::Left);
+        case FocusIntent::EscapeRight:
+            return MoveSpatial(KeyCode::Right);
+        case FocusIntent::Bubble:
+        case FocusIntent::None:
+        default:
+            return MoveSpatial(key);
+    }
 }
 
-void FocusManager::MoveLeft() {
-    Move(-1);
-}
-
-void FocusManager::MoveRight() {
-    Move(1);
+bool FocusManager::SetCurrentById(uint32_t id) {
+    if (!root_ || id == 0) {
+        return false;
+    }
+    Widget* target = root_->FindById(id);
+    app_ui::debug::PrintFocusSetById(id, target);
+    return SetCurrent(target);
 }
 
 Widget* FocusManager::Current() const {
-    if (current_index_ < 0 || current_index_ >= static_cast<int>(focusables_.size())) {
-        return nullptr;
-    }
-    return focusables_[current_index_];
+    return ResolveByIndex(current_index_);
 }
 
 void FocusManager::SetWrap(bool wrap) {
     wrap_ = wrap;
 }
 
-void FocusManager::Move(int delta) {
-    if (focusables_.empty()) {
+bool FocusManager::MoveSpatial(KeyCode key) {
+    Widget* target = Current();
+    Widget* spatial = FindSpatialTarget(target, key);
+    if (spatial) {
+        return SetCurrent(spatial);
+    }
+    if (!wrap_) {
+        return false;
+    }
+    if (key == KeyCode::Up || key == KeyCode::Left) {
+        MoveLinear(-1);
+        return true;
+    }
+    if (key == KeyCode::Down || key == KeyCode::Right) {
+        MoveLinear(1);
+        return true;
+    }
+    return false;
+}
+
+void FocusManager::MoveLinear(int delta) {
+    if (focus_ids_.empty()) {
         return;
     }
     int next = current_index_ + delta;
     if (wrap_) {
         if (next < 0) {
-            next = static_cast<int>(focusables_.size()) - 1;
+            next = static_cast<int>(focus_ids_.size()) - 1;
         }
-        if (next >= static_cast<int>(focusables_.size())) {
+        if (next >= static_cast<int>(focus_ids_.size())) {
             next = 0;
         }
     } else {
-        if (next < 0 || next >= static_cast<int>(focusables_.size())) {
+        if (next < 0 || next >= static_cast<int>(focus_ids_.size())) {
             return;
         }
     }
+    if (next == current_index_) {
+        return;
+    }
+    if (Widget* current = ResolveByIndex(current_index_)) {
+        current->SetFocused(false);
+    }
     current_index_ = next;
+    if (Widget* current = ResolveByIndex(current_index_)) {
+        current->SetFocused(true);
+    }
+}
+
+bool FocusManager::SetCurrent(Widget* target) {
+    if (!target) {
+        printf("[FocusManager] SetCurrent called with null target\n");
+        return false;
+    }
+    const uint32_t id = target->Id();
+    if (id == 0) {
+        return false;
+    }
+    Widget* cur = ResolveByIndex(current_index_);
+    const uint32_t cur_id = cur ? cur->Id() : 0;
+    app_ui::debug::PrintFocusSwitch(cur_id, cur, id, target);
+    auto it = std::find(focus_ids_.begin(), focus_ids_.end(), id);
+    if (it == focus_ids_.end()) {
+        return false;
+    }
+    const int next = static_cast<int>(std::distance(focus_ids_.begin(), it));
+    if (next == current_index_) {
+        return true;
+    }
+    if (Widget* current = ResolveByIndex(current_index_)) {
+        current->SetFocused(false);
+    }
+    current_index_ = next;
+    if (Widget* current = ResolveByIndex(current_index_)) {
+        current->SetFocused(true);
+    }
+    return true;
+}
+
+Widget* FocusManager::FindSpatialTarget(Widget* current, KeyCode key) const {
+    if (!current) {
+        return nullptr;
+    }
+    if (focus_ids_.empty()) {
+        return nullptr;
+    }
+
+    const Rect current_rect = current->RectInWindow();
+    const int32_t cx = current_rect.x + current_rect.w / 2;
+    const int32_t cy = current_rect.y + current_rect.h / 2;
+
+    Widget* best = nullptr;
+    int32_t best_score = INT32_MAX;
+
+    for (uint32_t candidate_id : focus_ids_) {
+        Widget* candidate = root_ ? root_->FindById(candidate_id) : nullptr;
+        if (!candidate || candidate == current) {
+            continue;
+        }
+        const Rect rect = candidate->RectInWindow();
+        const int32_t tx = rect.x + rect.w / 2;
+        const int32_t ty = rect.y + rect.h / 2;
+        const int32_t dx = tx - cx;
+        const int32_t dy = ty - cy;
+
+        bool in_dir = false;
+        int32_t primary = 0;
+        int32_t secondary = 0;
+        switch (key) {
+            case KeyCode::Up:
+                in_dir = dy < 0;
+                primary = -dy;
+                secondary = dx < 0 ? -dx : dx;
+                break;
+            case KeyCode::Down:
+                in_dir = dy > 0;
+                primary = dy;
+                secondary = dx < 0 ? -dx : dx;
+                break;
+            case KeyCode::Left:
+                in_dir = dx < 0;
+                primary = -dx;
+                secondary = dy < 0 ? -dy : dy;
+                break;
+            case KeyCode::Right:
+                in_dir = dx > 0;
+                primary = dx;
+                secondary = dy < 0 ? -dy : dy;
+                break;
+            default:
+                break;
+        }
+        if (!in_dir) {
+            continue;
+        }
+
+        const int32_t score = primary * 1024 + secondary;
+        if (score < best_score) {
+            best_score = score;
+            best = candidate;
+        }
+    }
+
+    return best;
 }
 
 void FocusManager::Traverse(Widget* node) {
@@ -105,11 +278,21 @@ void FocusManager::Traverse(Widget* node) {
         return;
     }
     if (node->Focusable() && node->Enabled()) {
-        focusables_.push_back(node);
+        const uint32_t id = node->Id();
+        if (id != 0) {
+            focus_ids_.push_back(id);
+        }
     }
     for (const auto& child : node->Children()) {
         Traverse(child.get());
     }
+}
+
+Widget* FocusManager::ResolveByIndex(int index) const {
+    if (!root_ || index < 0 || index >= static_cast<int>(focus_ids_.size())) {
+        return nullptr;
+    }
+    return root_->FindById(focus_ids_[index]);
 }
 
 void InputDispatcher::Dispatch(const InputEvent& event, Widget* root, FocusManager& focus) {
@@ -132,7 +315,16 @@ void InputDispatcher::Dispatch(const InputEvent& event, Widget* root, FocusManag
         }
     }
 
-    DispatchPath(path, event);
+    const bool handled = DispatchPath(path, event);
+    if (handled) {
+        return;
+    }
+
+    if (event.type != InputType::KeyDown && event.type != InputType::KeyRepeat) {
+        return;
+    }
+
+    focus.HandleDirectionalKey(static_cast<KeyCode>(event.key));
 }
 
 bool InputDispatcher::DispatchPath(const std::vector<Widget*>& path, const InputEvent& event) {
@@ -140,22 +332,42 @@ bool InputDispatcher::DispatchPath(const std::vector<Widget*>& path, const Input
         return false;
     }
 
+    bool handled = false;
+    bool stop_bubble = false;
+
+    // Capture: only Continue or StopBubble (Consume is ignored in capture).
     for (size_t i = 0; i + 1 < path.size(); ++i) {
-        if (path[i]->OnInput(event)) {
-            return true;
+        const InputResult result = path[i]->OnInput(event, InputPhase::Capture);
+        if (result == InputResult::StopBubble) {
+            handled = true;
+            stop_bubble = true;
         }
     }
 
-    if (path.back()->OnInput(event)) {
+    const InputResult target_result = path.back()->OnInput(event, InputPhase::Target);
+    if (target_result == InputResult::Consume) {
         return true;
     }
+    if (target_result == InputResult::StopBubble) {
+        handled = true;
+        stop_bubble = true;
+    }
 
-    for (size_t i = path.size(); i-- > 1;) {
-        if (path[i - 1]->OnInput(event)) {
-            return true;
+    if (!stop_bubble) {
+        // Bubble: allow Consume or StopBubble.
+        for (size_t i = path.size(); i-- > 1;) {
+            const InputResult result = path[i - 1]->OnInput(event, InputPhase::Bubble);
+            if (result == InputResult::Consume) {
+                return true;
+            }
+            if (result == InputResult::StopBubble) {
+                handled = true;
+                break;
+            }
         }
     }
-    return false;
+
+    return handled;
 }
 
 bool InputDispatcher::FindPathTo(Widget* node, Widget* target, std::vector<Widget*>& path) {

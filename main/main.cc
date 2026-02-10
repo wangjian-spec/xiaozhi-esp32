@@ -21,7 +21,7 @@
 #include "eteacher/apps/word_practice/word_practice.h"
 #include "eteacher/apps/calendar_schedule/calendar_schedule.h"
 #include "eteacher/apps/sd_file_mgr/sd_file_mgr.h"
-#include "eteacher/apps/dictionary/dictionary.h"
+//#include "eteacher/apps/dictionary/dictionary.h"
 #include "eteacher/apps/words_book/words_book.h"
 #include "eteacher/apps/daily_reading/daily_reading.h"
 #include "eteacher/apps/mission_game/mission_game.h"
@@ -61,7 +61,7 @@ extern "C" void app_main(void)
     app_mgr.Register(MakeDeviceSettingApp());
     app_mgr.Register(MakeMissionGameApp());
     app_mgr.Register(MakeWordsGameApp());
-    app_mgr.Register(MakeDictionaryApp());
+    //app_mgr.Register(MakeDictionaryApp());
     app_mgr.Register(MakeWordsBookApp());
     app_mgr.Register(MakeSdFileMgrApp());
     app_mgr.FinalizeRegistration();

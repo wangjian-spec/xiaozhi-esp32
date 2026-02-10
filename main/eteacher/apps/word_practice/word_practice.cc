@@ -3,21 +3,13 @@
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/app_ui/scene.h"
 #include "eteacher/app_ui/ui_desc.h"
-#if APP_UI_USE_GENERATED_DESC
 #include "eteacher/apps/word_practice/word_practice_ui.h"
-#else
-#include "eteacher/app_ui/ui_json_loader.h"
-#endif
 
 #include "display.h"
 
-#include <cJSON.h>
-
-#if APP_UI_USE_GENERATED_DESC
 namespace {
 constexpr const app_ui::desc::UiDesc* kUiDesc = &app_ui::generated::word_practice::kUi;
 }
-#endif
 
 WordPracticeApp::WordPracticeApp()
 {
@@ -32,7 +24,6 @@ MenuMeta WordPracticeApp::GetMenuMeta() const
 void WordPracticeApp::OnEnter(AppContext &ctx)
 {
 	ui_ready_ = false;
-	ui_root_.reset();
 	router_.Reset();
 	scene_load_id_ = 0;
 	epd_ = dynamic_cast<CustomEpdDisplay*>(ctx.board.GetDisplay());
@@ -54,7 +45,6 @@ void WordPracticeApp::OnEnter(AppContext &ctx)
 void WordPracticeApp::OnExit(AppContext &ctx)
 {
 	ui_ready_ = false;
-	ui_root_.reset();
 	epd_ = nullptr;
 	router_.Reset();
 	ui_engine_.Reset();
@@ -109,11 +99,7 @@ void WordPracticeApp::NextScene(AppContext &ctx)
 
 bool WordPracticeApp::LoadScene(AppContext &ctx, const std::string& scene_id, uint16_t scene_index)
 {
-#if APP_UI_USE_GENERATED_DESC
 	if (!scene_runtime_.LoadFromDesc(*kUiDesc, scene_id.c_str(), scene_index))
-#else
-	if (!scene_runtime_.LoadFromJson(ui_root_.get(), scene_id.c_str(), scene_index))
-#endif
 	{
 		ctx.board.GetDisplay()->SetChatMessage("system", "Word Practice UI: failed to load scene");
 		return false;
@@ -130,7 +116,6 @@ bool WordPracticeApp::LoadScene(AppContext &ctx, const std::string& scene_id, ui
 
 bool WordPracticeApp::LoadUi(AppContext &ctx)
 {
-#if APP_UI_USE_GENERATED_DESC
 	auto scene_ids = app_ui::CollectSceneIds(*kUiDesc);
 	if (scene_ids.empty())
 	{
@@ -140,23 +125,6 @@ bool WordPracticeApp::LoadUi(AppContext &ctx)
 	router_.SetScenes(std::move(scene_ids));
 	ui_ready_ = true;
 	return true;
-#else
-	ui_root_.reset(app_ui::LoadUiJson("word_practice"));
-	if (!ui_root_)
-	{
-		ctx.board.GetDisplay()->SetChatMessage("system", "Word Practice UI: json missing");
-		return false;
-	}
-	auto scene_ids = app_ui::CollectSceneIds(ui_root_.get());
-	if (scene_ids.empty())
-	{
-		ctx.board.GetDisplay()->SetChatMessage("system", "Word Practice UI: no scenes");
-		return false;
-	}
-	router_.SetScenes(std::move(scene_ids));
-	ui_ready_ = true;
-	return true;
-#endif
 }
 
 void WordPracticeApp::InitUiEngine()

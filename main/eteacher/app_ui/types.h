@@ -5,6 +5,10 @@
 
 namespace app_ui {
 
+// 基础类型定义
+// 本文件定义 UI 框架使用的基础几何类型（Size/Point/Rect）、枚举（WidgetType/Anchor 等）
+// 以及生成器/资源相关的数据结构。此处为核心类型，供 UI 构建与渲染使用。
+
 struct Size {
     int16_t w = 0;
     int16_t h = 0;
@@ -114,6 +118,12 @@ enum class Gravity : uint8_t {
     Right,
     Top,
     Bottom,
+};
+
+enum class InputResult : uint8_t {
+    Continue,
+    Consume,
+    StopBubble
 };
 
 constexpr uint16_t kInvalidWidgetIndex = 0xFFFF;

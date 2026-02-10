@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "input.h"
 #include "renderer.h"
@@ -62,14 +63,12 @@ enum class UIPhase {
 
 class UIEngine {
 public:
-    // Design note:
-    // UIEngine is an orchestrator only. It MUST NOT:
-    // - create widgets
-    // - own or persist widget pointers outside of the active root
-    // - parse JSON or build widget trees
-    // - implement concrete rendering logic
-    // Keep JSON/Widget creation in Scene/SceneRuntime/WidgetBuilder and
-    // drawing logic inside Painter/Widget implementations.
+    // 设计说明：
+    // UIEngine 仅为编排器（orchestrator）。它不应承担以下职责：
+    // - 创建 widget
+    // - 在 active root 之外持有或持久化 widget 指针
+    // - 构建 widget 树（该职责由 Scene/SceneRuntime/WidgetBuilder 完成）
+    // - 实现具体的渲染逻辑（绘制由 Painter/Widget 实现完成）
     void OnInput(const InputEvent& e);
     void RequestLayout();
     void RequestRender();
@@ -84,6 +83,9 @@ public:
     void SetViewport(const Rect& rect);
 
     InputQueue& Input();
+    void AddDirty(const Rect& rect, DirtyReason reason);
+    void MarkFocusDirty();
+    void RequestFocus(uint32_t widget_id);
 
 private:
     void MarkLayoutDirty();
@@ -100,8 +102,10 @@ private:
     StyleManager style_;
     AnimationEngine animation_;
     InputQueue input_queue_;
+    std::vector<InputEvent> deferred_inputs_{};
     InputDispatcher dispatcher_;
     FocusManager focus_;
+    uint32_t pending_focus_id_ = 0;
 
     Widget* cached_root_ = nullptr;
     std::unique_ptr<Widget> active_root_{};

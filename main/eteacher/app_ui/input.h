@@ -7,6 +7,9 @@
 
 #include "types.h"
 
+// 输入接口定义
+// 本头文件定义了输入事件类型、输入队列和焦点管理器的接口，供 UI 引擎使用。
+
 namespace app_ui {
 
 enum class InputType {
@@ -21,11 +24,32 @@ enum class InputType {
     PointerMove
 };
 
+enum class KeyCode : int {
+    Up = 0,
+    Down = 1,
+    Left = 2,
+    Right = 3,
+    A = 4,
+    B = 5,
+    C = 6,
+    D = 7,
+    Select = 8,
+    Start = 9,
+    VolumeUp = 10,
+    VolumeDown = 11,
+};
+
 struct InputEvent {
     InputType type = InputType::KeyDown;
     int key = 0;
     Point pos{};
     uint32_t timestamp = 0;
+};
+
+enum class InputPhase : uint8_t {
+    Capture,
+    Target,
+    Bubble,
 };
 
 class InputQueue {
@@ -41,27 +65,35 @@ private:
 };
 
 class Widget;
+enum class FocusIntent : uint8_t;
 
 class FocusManager {
 public:
     void Build(Widget* root);
     void Clear();
-    void MoveUp();
-    void MoveDown();
-    void MoveLeft();
-    void MoveRight();
+    void MarkDirty() { dirty_ = true; }
+    void RebuildIfNeeded(Widget* root);
+    bool HandleDirectionalKey(KeyCode key);
+
+    bool SetCurrentById(uint32_t id);
 
     Widget* Current() const;
 
     void SetWrap(bool wrap);
 
 private:
-    void Move(int delta);
+    bool MoveSpatial(KeyCode key);
+    void MoveLinear(int delta);
+    bool SetCurrent(Widget* target);
+    Widget* FindSpatialTarget(Widget* current, KeyCode key) const;
     void Traverse(Widget* node);
+    Widget* ResolveByIndex(int index) const;
 
-    std::vector<Widget*> focusables_{};
+    std::vector<uint32_t> focus_ids_{};
     int current_index_ = -1;
     bool wrap_ = true;
+    bool dirty_ = true;
+    Widget* root_ = nullptr;
 };
 
 class InputDispatcher {

@@ -1,17 +1,40 @@
 #include "renderer.h"
 
+// 渲染器实现
+// 本文件实现 UI 渲染相关功能（脏区域跟踪、绘制器封装等），负责将 Widget 树绘制到 EPD/画布。
+// 与 UI 布局描述的来源无关。
+
 #include <algorithm>
 #include <string_view>
 
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/font_manager/font_manager.h"
 #include "widget.h"
+#include "debug.h"
 
 namespace app_ui {
 
 namespace {
 constexpr size_t kFullRefreshThreshold = 32;
+constexpr size_t kMaxDirtyItems = 64;
 constexpr const char* kStatusFont = "wenquanyi_9pt";
+
+bool RectEquals(const Rect& a, const Rect& b) {
+    return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
+}
+
+Rect RectIntersect(const Rect& a, const Rect& b) {
+    const int16_t x1 = (a.x > b.x) ? a.x : b.x;
+    const int16_t y1 = (a.y > b.y) ? a.y : b.y;
+    const int16_t x2 = ((a.x + a.w) < (b.x + b.w)) ? (a.x + a.w) : (b.x + b.w);
+    const int16_t y2 = ((a.y + a.h) < (b.y + b.h)) ? (a.y + a.h) : (b.y + b.h);
+    const int16_t w = static_cast<int16_t>(x2 - x1);
+    const int16_t h = static_cast<int16_t>(y2 - y1);
+    if (w <= 0 || h <= 0) {
+        return {0, 0, 0, 0};
+    }
+    return {x1, y1, w, h};
+}
 
 int GetFontHeight(std::string_view name) {
     const auto* font = eteacher::font_manager::GetBuiltinFont(name);
@@ -31,6 +54,12 @@ int GetFontAscent(std::string_view name) {
 }
 
 void DirtyTracker::Add(const Rect& rect, DirtyReason reason) {
+    if (dirty_.size() >= kMaxDirtyItems) {
+        dirty_.clear();
+        Rect full = full_rect_.IsEmpty() ? rect : full_rect_;
+        dirty_.push_back({full, DirtyReason::Full});
+        return;
+    }
     dirty_.push_back({rect, reason});
 }
 
@@ -134,6 +163,10 @@ void DirtyTracker::Clear() {
     dirty_.clear();
 }
 
+void DirtyTracker::SetFullRect(const Rect& rect) {
+    full_rect_ = rect;
+}
+
 void LayoutEngine::LayoutTree(Widget* root, const Rect& area) {
     if (!root) {
         return;
@@ -146,13 +179,27 @@ void LayoutEngine::LayoutRecursive(Widget* node, const Rect& area) {
         return;
     }
     node->Measure({area.w, area.h});
-    node->Layout(area);
+    const bool need_layout = node->IsLayoutDirty() || !node->IsLayoutValid() || !RectEquals(node->RectInParent(), area);
+    if (need_layout) {
+        node->Layout(area);
+    }
 
     const Rect parent_rect = node->RectInParent();
     for (const auto& child : node->Children()) {
-        Rect child_rect = child->DeclaredRect();
-        if (child_rect.IsEmpty()) {
-            child_rect = {0, 0, parent_rect.w, parent_rect.h};
+        Rect child_rect{};
+        switch (child->GetLayoutMode()) {
+            case Widget::LayoutMode::Fixed:
+                child_rect = child->DeclaredRect();
+                break;
+            case Widget::LayoutMode::MatchParent:
+                child_rect = {0, 0, parent_rect.w, parent_rect.h};
+                break;
+            case Widget::LayoutMode::WrapContent: {
+                const Rect declared = child->DeclaredRect();
+                const Size measured = child->Measure({parent_rect.w, parent_rect.h});
+                child_rect = {declared.x, declared.y, measured.w, measured.h};
+                break;
+            }
         }
         LayoutRecursive(child.get(), child_rect);
     }
@@ -192,6 +239,7 @@ void RenderList::Traverse(Widget* node, uint32_t depth, uint32_t& order) {
     obj.depth = depth;
     obj.order = order++;
     items_.push_back(obj);
+    ::app_ui::debug::PrintRenderItem(items_.back());
 
     for (const auto& child : node->Children()) {
         Traverse(child.get(), depth + 1, order);
@@ -220,10 +268,38 @@ void Renderer::Render(RenderList& list, DirtyTracker& dirty, Painter& painter) {
             continue;
         }
         if (clip_to_dirty && !dirty.Intersects(item.rect)) {
+            ::app_ui::debug::PrintRenderSkip(item, "not_in_dirty");
             continue;
         }
+        Rect local_dirty{0, 0, item.rect.w, item.rect.h};
+        if (clip_to_dirty) {
+            Rect merged{};
+            bool has_dirty = false;
+            for (const auto& dirty_item : dirty.Items()) {
+                if (!dirty_item.rect.Intersects(item.rect)) {
+                    continue;
+                }
+                Rect intersect = RectIntersect(item.rect, dirty_item.rect);
+                if (intersect.IsEmpty()) {
+                    continue;
+                }
+                intersect.x = static_cast<int16_t>(intersect.x - item.rect.x);
+                intersect.y = static_cast<int16_t>(intersect.y - item.rect.y);
+                if (!has_dirty) {
+                    merged = intersect;
+                    has_dirty = true;
+                } else {
+                    merged = merged.Union(intersect);
+                }
+            }
+            if (has_dirty) {
+                local_dirty = merged;
+            }
+        }
+
         painter.SetTransform({item.rect.x, item.rect.y});
-        item.widget->Draw(painter);
+        ::app_ui::debug::PrintRenderItem(item);
+        item.widget->Draw(painter, local_dirty);
         painter.SetTransform({0, 0});
     }
 

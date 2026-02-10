@@ -7,8 +7,6 @@
 #include "ui_desc.h"
 #include "widget.h"
 
-struct cJSON;
-
 namespace app_ui {
 
 class Scene {
@@ -32,19 +30,13 @@ private:
     std::unique_ptr<Widget> root_{};
 };
 
-class UiSchemaValidator {
-public:
-    static bool Validate(const ::cJSON* root, std::string& error);
-};
-
-std::vector<std::string> CollectSceneIds(const ::cJSON* root);
 std::vector<std::string> CollectSceneIds(const desc::UiDesc& ui);
 
 namespace runtime {
 
 class SceneRuntime {
 public:
-    bool LoadFromJson(const ::cJSON* root, const char* scene_id, uint16_t scene_index);
+    // 生产（静态）：从生成的 `UiDesc` 结构加载 UI。
     bool LoadFromDesc(const desc::UiDesc& ui, const char* scene_id, uint16_t scene_index);
 
     Widget* Root() const;
