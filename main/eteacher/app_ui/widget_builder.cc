@@ -99,6 +99,7 @@ void ApplyWidgetCommon(Widget* widget, const desc::WidgetDesc& desc) {
     // 从静态描述符填充通用属性（静态构建路径使用）
     widget->SetId(desc.id);
     widget->SetRectInParent(desc.rect);
+    widget->SetZOrder(desc.z_order);
     widget->SetVisible((desc.flags & desc::kWidgetFlagVisible) != 0);
     widget->SetEnabled((desc.flags & desc::kWidgetFlagEnabled) != 0);
     widget->SetFocusable((desc.flags & desc::kWidgetFlagFocusable) != 0);
@@ -227,6 +228,7 @@ std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
         }
         widget->SetId(init.id);
         widget->SetRectInParent(init.rect);
+        widget->SetZOrder(init.z_order);
         nodes.push_back({init.id, init.parent_id, std::move(widget), {}});
     }
     if (nodes.empty()) {

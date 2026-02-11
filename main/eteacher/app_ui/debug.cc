@@ -6,6 +6,8 @@
 
 namespace app_ui {
 namespace debug {
+// Only compile the real debug output when APP_UI_DEBUG is enabled.
+#if APP_UI_DEBUG
 
 void PrintSceneLoaded(const char* scene_id, uint16_t scene_index, Widget* root, bool has_public) {
     printf("[SceneRuntime] Loaded scene '%s' index=%u root=%p public=%d\n",
@@ -67,10 +69,10 @@ void PrintVisibleChange(uint32_t id, Widget* ptr, bool visible) {
 }
 
 void PrintRenderItem(const RenderObject& obj) {
-    printf("[Renderer] RenderItem widget=%p id=%lu rect=%d,%d,%d,%d depth=%lu z=%u order=%lu\n",
+        printf("[Renderer] RenderItem widget=%p id=%lu rect=%d,%d,%d,%d depth=%lu z=%d order=%lu\n",
            obj.widget, obj.widget ? static_cast<unsigned long>(obj.widget->Id()) : 0UL,
            obj.rect.x, obj.rect.y, obj.rect.w, obj.rect.h,
-           static_cast<unsigned long>(obj.depth), static_cast<unsigned int>(obj.z), static_cast<unsigned long>(obj.order));
+            static_cast<unsigned long>(obj.depth), static_cast<int>(obj.z), static_cast<unsigned long>(obj.order));
 }
 
 void PrintRenderSkip(const RenderObject& obj, const char* reason) {
@@ -78,6 +80,8 @@ void PrintRenderSkip(const RenderObject& obj, const char* reason) {
            obj.widget, obj.widget ? static_cast<unsigned long>(obj.widget->Id()) : 0UL,
            reason, obj.rect.x, obj.rect.y, obj.rect.w, obj.rect.h);
 }
+
+#endif // APP_UI_DEBUG
 
 } // namespace debug
 } // namespace app_ui

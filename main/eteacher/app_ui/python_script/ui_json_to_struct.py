@@ -101,6 +101,18 @@ def get_int(obj: Dict, key: str, default: int) -> int:
     return default
 
 
+def get_widget_z(widget: Dict) -> int:
+    if not isinstance(widget, dict):
+        return 0
+    val = widget.get("z", None)
+    if isinstance(val, int):
+        return val
+    val = widget.get("z_order", None)
+    if isinstance(val, int):
+        return val
+    return 0
+
+
 def extract_text(widget: Dict, texts: Dict[str, str]) -> Tuple[str, int]:
     direct_text = widget.get("text", "")
     if isinstance(direct_text, str) and direct_text:
@@ -123,6 +135,20 @@ def walk_widgets(root_id: str, widgets: Dict[str, Dict]) -> List[Tuple[str, str,
     ordered: List[Tuple[str, str, Dict]] = []
     stack = set()
 
+    children_by_parent: Dict[str, List[str]] = {}
+    for wid, widget in widgets.items():
+        if not isinstance(widget, dict):
+            continue
+        if wid != root_id and isinstance(wid, str) and wid.startswith("root_"):
+            continue
+        if wid == root_id:
+            continue
+        parent = widget.get("parent")
+        parent_id = parent if isinstance(parent, str) else ""
+        if not parent_id or parent_id not in widgets:
+            parent_id = root_id
+        children_by_parent.setdefault(parent_id, []).append(wid)
+
     def dfs(widget_id: str, parent_id: str) -> None:
         if widget_id in stack:
             return
@@ -131,11 +157,9 @@ def walk_widgets(root_id: str, widgets: Dict[str, Dict]) -> List[Tuple[str, str,
             return
         stack.add(widget_id)
         ordered.append((widget_id, parent_id, widget))
-        children = widget.get("children", [])
-        if isinstance(children, list):
-            for child_id in children:
-                if isinstance(child_id, str):
-                    dfs(child_id, widget_id)
+        for child_id in children_by_parent.get(widget_id, []):
+            if isinstance(child_id, str):
+                dfs(child_id, widget_id)
         stack.remove(widget_id)
 
     dfs(root_id, "")
@@ -211,6 +235,7 @@ def build_widget_desc(scene_id: str,
 
     parent_hash = fnv1a(parent_id) if parent_id else 0
     widget_hash = fnv1a(widget_id)
+    z_order = get_widget_z(widget)
 
     style_expr = f"0x{style_id:08X}u" if style_id is not None else "app_ui::kInvalidStyleId"
     desc_line = (
@@ -221,6 +246,7 @@ def build_widget_desc(scene_id: str,
         f"{{{x}, {y}, {w}, {h}}}, "
         f"{style_expr}, "
         f"{flags_expr}, "
+        f"{z_order}, "
         f"{specific_name} "
         "}"
     )

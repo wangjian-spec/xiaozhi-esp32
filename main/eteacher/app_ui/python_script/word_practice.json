@@ -1,0 +1,175 @@
+{
+  "meta": {
+    "project": "ui_word_practice",
+    "ui_version": "1.0",
+    "target": "esp32-s3",
+    "display": {
+      "type": "eink",
+      "width": 400,
+      "height": 300,
+      "color": "mono"
+    },
+    "generator": {
+      "tool": "ui_editor",
+      "version": "0.3.1"
+    }
+  },
+  "resources": {
+    "texts": {
+      "TEXT_LABEL_DE5914": "Label",
+      "TEXT_PROGRESS_82AB52": "Progress",
+      "TEXT_TEXTAREA_326055": "TextArea",
+      "TEXT_DIALOG_E8CA72": "Dialog",
+      "TEXT_BUTTON_041006": "Button",
+      "TEXT_IMAGE_21643F": "Image"
+    },
+    "images": {},
+    "fonts": {}
+  },
+  "styles": {},
+  "themes": {},
+  "data": {},
+  "pages": {
+    "page_main": {
+      "name": "单词练习",
+      "root": "root_page_main"
+    },
+    "page_dc46": {
+      "name": "生词本",
+      "root": "root_page_dc46"
+    }
+  },
+  "widgets": {
+    "root_page_main": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "label_de5914": {
+      "type": "Label",
+      "rect": {
+        "x": 249,
+        "y": 124,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_main",
+      "properties": {
+        "textId": "TEXT_LABEL_DE5914"
+      }
+    },
+    "progress_82ab52": {
+      "type": "Progress",
+      "rect": {
+        "x": 97,
+        "y": 147,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_main",
+      "properties": {
+        "textId": "TEXT_PROGRESS_82AB52"
+      }
+    },
+    "textarea_326055": {
+      "type": "TextArea",
+      "rect": {
+        "x": 135,
+        "y": 52,
+        "w": 80,
+        "h": 40
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_main",
+      "properties": {
+        "textId": "TEXT_TEXTAREA_326055"
+      }
+    },
+    "root_page_dc46": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    }
+  },
+  "public": {
+    "page": {
+      "name": "PublicPage",
+      "root": "root_public"
+    },
+    "widgets": {
+      "root_public": {
+        "type": "Container",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 300
+        }
+      },
+      "dialog_e8ca72": {
+        "type": "Dialog",
+        "rect": {
+          "x": 135,
+          "y": 62,
+          "w": 200,
+          "h": 200
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {
+          "textId": "TEXT_DIALOG_E8CA72"
+        }
+      },
+      "button_041006": {
+        "type": "Button",
+        "rect": {
+          "x": 185,
+          "y": 113,
+          "w": 80,
+          "h": 40
+        },
+        "style": null,
+        "z": 0,
+        "parent": "dialog_e8ca72",
+        "properties": {
+          "textId": "TEXT_BUTTON_041006"
+        }
+      },
+      "image_21643f": {
+        "type": "Image",
+        "rect": {
+          "x": 48,
+          "y": 160,
+          "w": 80,
+          "h": 40
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {
+          "textId": "TEXT_IMAGE_21643F"
+        }
+      }
+    }
+  },
+  "events": [],
+  "navigation": {
+    "focus": {},
+    "scene_flow": {}
+  },
+  "states": {}
+}

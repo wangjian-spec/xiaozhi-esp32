@@ -35,6 +35,7 @@ struct WidgetDesc {
     Rect rect;
     uint32_t style_id;
     uint16_t flags;
+    int16_t z_order;
     const void* specific;
 };
 

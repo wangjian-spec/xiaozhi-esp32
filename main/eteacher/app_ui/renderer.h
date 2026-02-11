@@ -130,7 +130,7 @@ struct RenderCapabilities {
 struct RenderObject {
     Rect rect;
     Widget* widget = nullptr;
-    uint8_t z = 0;
+    int16_t z = 0;
     uint32_t depth = 0;
     float alpha = 1.0f;
     uint32_t order = 0;

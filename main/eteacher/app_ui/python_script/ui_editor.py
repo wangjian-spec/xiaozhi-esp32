@@ -21,6 +21,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDockWidget,
     QFileDialog,
     QFormLayout,
@@ -103,6 +104,7 @@ class WidgetData:
     text: str = ""
     style: str = ""
     z_order: int = 0
+    parent: str = ""
     events: Dict[str, str] = field(default_factory=dict)
 
 
@@ -745,6 +747,7 @@ class EditorWindow(QMainWindow):
         self.prop_text = QLineEdit()
         self.prop_style = QLineEdit()
         self.prop_z = QSpinBox()
+        self.prop_parent = QComboBox()
         self.prop_onclick = QLineEdit()
 
         # Allow arbitrary positive integers for coords and sizes
@@ -766,12 +769,14 @@ class EditorWindow(QMainWindow):
         layout.addRow("Text", self.prop_text)
         layout.addRow("Style", self.prop_style)
         layout.addRow("Z", self.prop_z)
+        layout.addRow("Parent", self.prop_parent)
         layout.addRow("onClick", self.prop_onclick)
 
         self.prop_id.editingFinished.connect(self.apply_properties)
         self.prop_type.editingFinished.connect(self.apply_properties)
         self.prop_text.editingFinished.connect(self.apply_properties)
         self.prop_style.editingFinished.connect(self.apply_properties)
+        self.prop_parent.currentIndexChanged.connect(self.apply_properties)
         self.prop_onclick.editingFinished.connect(self.apply_properties)
         for spin in [self.prop_x, self.prop_y, self.prop_w, self.prop_h, self.prop_z]:
             spin.valueChanged.connect(self.apply_properties)
@@ -959,6 +964,7 @@ class EditorWindow(QMainWindow):
             h=h,
             text=text,
             z_order=z,
+            parent=self.get_scene_root_id(self.current_scene),
             events=events,
         )
         self.current_scene.widgets.append(widget)
@@ -999,6 +1005,7 @@ class EditorWindow(QMainWindow):
         self.prop_text.setText(item.data.text)
         self.prop_style.setText(item.data.style)
         self.prop_z.setValue(item.data.z_order)
+        self.refresh_parent_options(selected_id=item.data.id, selected_parent=item.data.parent)
         self.prop_onclick.setText(item.data.events.get("onClick", ""))
         self._updating_properties = False
 
@@ -1048,6 +1055,14 @@ class EditorWindow(QMainWindow):
         item.data.text = self.prop_text.text()
         item.data.style = self.prop_style.text()
         item.data.z_order = self.prop_z.value()
+        parent_id = ""
+        if self.prop_parent.currentIndex() >= 0:
+            parent_id = str(self.prop_parent.currentData() or "")
+        if not parent_id:
+            parent_id = self.get_scene_root_id(self.current_scene)
+        if parent_id == item.data.id:
+            parent_id = self.get_scene_root_id(self.current_scene)
+        item.data.parent = parent_id
         onclick = self.prop_onclick.text().strip()
         if onclick:
             item.data.events["onClick"] = onclick
@@ -1142,6 +1157,7 @@ class EditorWindow(QMainWindow):
             d_copy['id'] = f"{d_copy.get('type','widget').lower()}_{uuid.uuid4().hex[:6]}"
             d_copy['x'] = int(d_copy.get('x', 0)) + 10
             d_copy['y'] = int(d_copy.get('y', 0)) + 10
+            d_copy['parent'] = self.get_scene_root_id(self.current_scene)
             widget = WidgetData(**d_copy)
             self.current_scene.widgets.append(widget)
             self.undo_stack.push(AddWidgetCommand(self, widget))
@@ -1166,9 +1182,13 @@ class EditorWindow(QMainWindow):
             target_widgets[root_id] = {
                 "type": "Container",
                 "rect": {"x": 0, "y": 0, "w": CANVAS_WIDTH, "h": CANVAS_HEIGHT},
-                "children": [],
             }
+            widget_ids = {w.id for w in scene.widgets}
             for w in scene.widgets:
+                if w.parent in widget_ids and w.parent != w.id:
+                    parent_id = w.parent
+                else:
+                    parent_id = root_id
                 props: Dict[str, object] = {}
                 if w.text:
                     existing = text_id_by_value.get(w.text)
@@ -1184,9 +1204,10 @@ class EditorWindow(QMainWindow):
                     "type": w.type,
                     "rect": {"x": w.x, "y": w.y, "w": w.w, "h": w.h},
                     "style": w.style or None,
+                    "z": int(w.z_order),
+                    "parent": parent_id,
                     "properties": props,
                 }
-                target_widgets[root_id]["children"].append(w.id)
 
         for scene in self.project.scenes:
             root_id = f"root_{scene.id}"
@@ -1305,6 +1326,15 @@ class EditorWindow(QMainWindow):
                 result: List[WidgetData] = []
                 visited: set[str] = set()
 
+                children_by_parent: Dict[str, List[str]] = {}
+                for wid, widget in widget_map.items():
+                    if wid == scene_root:
+                        continue
+                    parent_id = widget.parent
+                    if not parent_id or parent_id not in widget_map:
+                        continue
+                    children_by_parent.setdefault(parent_id, []).append(wid)
+
                 def dfs(wid: str):
                     if wid in visited:
                         return
@@ -1312,22 +1342,43 @@ class EditorWindow(QMainWindow):
                     widget = widget_map.get(wid)
                     if not widget:
                         return
-                    if not wid.startswith("root_"):
+                    if wid != scene_root and not wid.startswith("root_"):
                         result.append(WidgetData(**asdict(widget)))
-                    raw = widgets_source.get(wid, {}) if isinstance(widgets_source, dict) else {}
-                    children = raw.get("children", []) if isinstance(raw, dict) else []
-                    if isinstance(children, list):
-                        for child in children:
-                            dfs(str(child))
+                    for child in children_by_parent.get(wid, []):
+                        dfs(str(child))
 
                 dfs(scene_root)
                 return result
 
-            def build_widget_map(source: Dict[str, Dict[str, object]]) -> Dict[str, WidgetData]:
+            def build_widget_map(source: Dict[str, Dict[str, object]], root_ids: List[str]) -> Dict[str, WidgetData]:
                 widget_map: Dict[str, WidgetData] = {}
+                parent_by_child: Dict[str, str] = {}
+                for wid, w in source.items():
+                    if not isinstance(w, dict):
+                        continue
+                    children = w.get("children", [])
+                    if isinstance(children, list):
+                        for child in children:
+                            if isinstance(child, str):
+                                parent_by_child[child] = wid
+
+                root_set = set(root_ids)
+                current_root = ""
                 for wid, w in source.items():
                     rect = w.get("rect", {}) if isinstance(w, dict) else {}
                     props = w.get("properties", {}) if isinstance(w, dict) else {}
+                    z_val = 0
+                    if isinstance(w, dict):
+                        z_val = int(w.get("z", w.get("z_order", 0)))
+                    parent_val = ""
+                    if isinstance(w, dict):
+                        parent_val = str(w.get("parent", ""))
+                    if not parent_val:
+                        parent_val = parent_by_child.get(wid, "")
+                    if wid in root_set:
+                        current_root = wid
+                    if not parent_val and current_root and wid != current_root:
+                        parent_val = current_root
                     widget_map[wid] = WidgetData(
                         id=str(wid),
                         type=str(w.get("type", "")) if isinstance(w, dict) else "",
@@ -1337,17 +1388,22 @@ class EditorWindow(QMainWindow):
                         h=int(rect.get("h", 0)),
                         text=resolve_text_from_props(props if isinstance(props, dict) else {}),
                         style=str(w.get("style", "")) if isinstance(w, dict) and w.get("style") else "",
-                        z_order=0,
+                        z_order=z_val,
+                        parent=parent_val,
                         events={},
                     )
                 return widget_map
 
             if isinstance(widgets_raw, dict):
-                widget_map = build_widget_map(widgets_raw)
-
                 page_map = raw.get("pages", {})
                 if not page_map:
                     page_map = raw.get("scenes", {})
+                root_ids = []
+                for _, page in page_map.items():
+                    if isinstance(page, dict) and isinstance(page.get("root"), str):
+                        root_ids.append(page.get("root"))
+                widget_map = build_widget_map(widgets_raw, root_ids)
+
                 for page_id, page in page_map.items():
                     page_root = page.get("root", "") if isinstance(page, dict) else ""
                     page_widgets = build_scene_widgets(str(page_root), widget_map, widgets_raw) if page_root else []
@@ -1360,7 +1416,8 @@ class EditorWindow(QMainWindow):
                     public_page_raw = public_section.get("page")
                     public_widgets_raw = public_section.get("widgets")
                     if isinstance(public_page_raw, dict) and isinstance(public_widgets_raw, dict):
-                        public_widget_map = build_widget_map(public_widgets_raw)
+                        public_root = public_page_raw.get("root", "")
+                        public_widget_map = build_widget_map(public_widgets_raw, [str(public_root)] if public_root else [])
                         public_root = public_page_raw.get("root", "")
                         public_widgets = (
                             build_scene_widgets(str(public_root), public_widget_map, public_widgets_raw)
@@ -1405,6 +1462,7 @@ class EditorWindow(QMainWindow):
                         if w.get("scene") != scene_id:
                             continue
                         rect = w.get("rect", {})
+                        parent_val = str(w.get("parent", ""))
                         scene_widgets.append(
                             WidgetData(
                                 id=w.get("id", ""),
@@ -1416,6 +1474,7 @@ class EditorWindow(QMainWindow):
                                 text=resolve_text(w),
                                 style=w.get("style", "") or "",
                                 z_order=0,
+                                parent=parent_val,
                                 events={},
                             )
                         )
@@ -1480,6 +1539,7 @@ class EditorWindow(QMainWindow):
                             text=w.get("text", ""),
                             style=w.get("style", ""),
                             z_order=int(w.get("z_order", 0)),
+                            parent=str(w.get("parent", "")),
                             events=dict(w.get("events", {})),
                         )
                     else:
@@ -1699,6 +1759,35 @@ class EditorWindow(QMainWindow):
         for widget in self.current_scene.widgets:
             self.widget_list.addItem(widget.id)
         self.widget_list.blockSignals(False)
+        selected = self.selected_items()
+        selected_id = selected[0].data.id if selected else None
+        selected_parent = selected[0].data.parent if selected else ""
+        self.refresh_parent_options(selected_id=selected_id, selected_parent=selected_parent)
+
+    def get_scene_root_id(self, scene: Optional[SceneData]) -> str:
+        if scene is self.project.public_page:
+            return "root_public"
+        if scene is None:
+            return ""
+        return f"root_{scene.id}"
+
+    def refresh_parent_options(self, selected_id: Optional[str], selected_parent: str) -> None:
+        if not hasattr(self, "prop_parent"):
+            return
+        self.prop_parent.blockSignals(True)
+        self.prop_parent.clear()
+        root_id = self.get_scene_root_id(self.current_scene)
+        self.prop_parent.addItem("(root)", "")
+        for widget in self.current_scene.widgets:
+            if selected_id and widget.id == selected_id:
+                continue
+            self.prop_parent.addItem(widget.id, widget.id)
+        target = selected_parent or ""
+        if root_id and selected_parent == root_id:
+            target = ""
+        index = self.prop_parent.findData(target)
+        self.prop_parent.setCurrentIndex(index if index >= 0 else 0)
+        self.prop_parent.blockSignals(False)
 
     def select_widget_from_list(self, row: int):
         if self._updating_properties:

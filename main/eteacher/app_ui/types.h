@@ -251,6 +251,7 @@ struct WidgetInit {
     WidgetType type;
     Rect rect;
     uint32_t style_id;
+    int16_t z_order;
     uint32_t data_id;
 };
 

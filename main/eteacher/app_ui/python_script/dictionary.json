@@ -43,12 +43,7 @@
         "y": 0,
         "w": 400,
         "h": 300
-      },
-      "children": [
-        "textarea_dd2b8b",
-        "label_8ba487",
-        "frame_e86a40"
-      ]
+      }
     },
     "textarea_dd2b8b": {
       "type": "TextArea",
@@ -59,6 +54,8 @@
         "h": 40
       },
       "style": null,
+      "z": 3,
+      "parent": "root_page_f3a5",
       "properties": {
         "textId": "TEXT_TEXTAREA_DD2B8B"
       }
@@ -72,6 +69,8 @@
         "h": 40
       },
       "style": null,
+      "z": 1,
+      "parent": "root_page_f3a5",
       "properties": {
         "textId": "TEXT_LABEL_8BA487"
       }
@@ -85,6 +84,8 @@
         "h": 200
       },
       "style": null,
+      "z": 1,
+      "parent": "root_page_f3a5",
       "properties": {
         "textId": "TEXT_FRAME_E86A40"
       }
@@ -103,12 +104,7 @@
           "y": 0,
           "w": 400,
           "h": 300
-        },
-        "children": [
-          "bottombar_c9bb2e",
-          "topbar_f8a80a",
-          "softkeyboard_9365dd"
-        ]
+        }
       },
       "bottombar_c9bb2e": {
         "type": "BottomBar",
@@ -119,6 +115,8 @@
           "h": 16
         },
         "style": null,
+        "z": 0,
+        "parent": "root_public",
         "properties": {
           "textId": "TEXT_BOTTOMBAR_C9BB2E"
         }
@@ -132,6 +130,8 @@
           "h": 20
         },
         "style": null,
+        "z": 0,
+        "parent": "root_public",
         "properties": {
           "textId": "TEXT_TOPBAR_F8A80A"
         }
@@ -145,6 +145,8 @@
           "h": 100
         },
         "style": null,
+        "z": 0,
+        "parent": "root_public",
         "properties": {
           "textId": "TEXT_SOFTKEYBOARD_9365DD"
         }

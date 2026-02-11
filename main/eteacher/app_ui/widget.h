@@ -124,7 +124,8 @@ public:
     virtual bool HitTest(Point global) const;
 
     virtual bool Focusable() const { return flags_.focusable; }
-    virtual uint8_t ZOrder() const { return z_order_; }
+    virtual int16_t ZOrder() const { return z_order_; }
+    void SetZOrder(int16_t z) { z_order_ = z; }
 
     void SetFocused(bool v);
     bool Focused() const;
@@ -153,7 +154,7 @@ protected:
     Rect design_rect_{};
     WidgetFlags flags_;
     uint16_t dirty_bits_ = static_cast<uint16_t>(DirtyLayout | DirtyMeasure | DirtyVisual);
-    uint8_t z_order_ = 0;
+    int16_t z_order_ = 0;
     UIEngine* engine_ = nullptr;
     uint32_t id_ = 0;
     LayoutMode layout_mode_ = LayoutMode::MatchParent;
