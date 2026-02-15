@@ -49,10 +49,6 @@ inline eteacher::app_menu::MenuStatus BuildMenuStatus(Board &board) {
     return status;
 }
 
-// Check current board status and update `last_status` if something changed.
-// Returns true when at least one of (time, wifi connection, battery level)
-// has changed and `last_status` was updated to the new values.
-bool CheckAndUpdateMenuStatus(Board &board, eteacher::app_menu::MenuStatus &last_status);
 
 // Shared helpers used by status bar and menu rendering
 struct BinImage {

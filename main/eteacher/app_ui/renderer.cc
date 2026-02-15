@@ -17,7 +17,6 @@ namespace app_ui {
 namespace {
 constexpr size_t kFullRefreshThreshold = 32;
 constexpr size_t kMaxDirtyItems = 64;
-constexpr const char* kStatusFont = "wenquanyi_9pt";
 
 bool RectEquals(const Rect& a, const Rect& b) {
     return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
@@ -67,6 +66,7 @@ EpdPainter::EpdPainter(::CustomEpdDisplay* epd, ::Adafruit_GFX& gfx)
     : epd_(epd), gfx_(gfx) {
     draw_color_ = GxEPD_BLACK;
     text_color_ = GxEPD_BLACK;
+    font_name_ = kDefaultFontName;
 }
 
 void EpdPainter::SetClip(const Rect&) {}
@@ -81,15 +81,17 @@ void EpdPainter::DrawText(Point p, const char* text) {
     }
     const int16_t x = static_cast<int16_t>(p.x + offset_.x);
     const int16_t y = static_cast<int16_t>(p.y + offset_.y);
-    epd_->DrawUtf8(x, y + GetFontAscent(kStatusFont), text, kStatusFont, text_color_);
+    const char* font_name = font_name_ ? font_name_ : kDefaultFontName;
+    epd_->DrawUtf8(x, y + GetFontAscent(font_name), text, font_name, text_color_);
 }
 
 Size EpdPainter::MeasureText(const char* text, Font*) {
     if (!epd_ || !text) {
         return {0, 0};
     }
-    const int16_t w = epd_->MeasureUtf8Width(text, kStatusFont);
-    return {w, static_cast<int16_t>(GetFontHeight(kStatusFont))};
+    const char* font_name = font_name_ ? font_name_ : kDefaultFontName;
+    const int16_t w = epd_->MeasureUtf8Width(text, font_name);
+    return {w, static_cast<int16_t>(GetFontHeight(font_name))};
 }
 
 void EpdPainter::DrawRect(const Rect& rect) {
@@ -102,7 +104,9 @@ void EpdPainter::FillRect(const Rect& rect) {
 
 void EpdPainter::DrawImage(Point, const Image*) {}
 
-void EpdPainter::SetFont(Font*) {}
+void EpdPainter::SetFont(Font* font) {
+    font_name_ = (font && font->name && font->name[0]) ? font->name : kDefaultFontName;
+}
 
 void EpdPainter::SetDrawColor(Color color) {
     draw_color_ = (color == Color::Black) ? GxEPD_BLACK : GxEPD_WHITE;

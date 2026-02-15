@@ -12,7 +12,11 @@ class Adafruit_GFX;
 
 namespace app_ui {
 
-struct Font {};
+constexpr const char* kDefaultFontName = "wenquanyi_9pt";
+
+struct Font {
+    const char* name = kDefaultFontName;
+};
 struct Image {};
 
 enum class Color : uint8_t {
@@ -59,6 +63,7 @@ public:
     ::CustomEpdDisplay* Epd() { return epd_; }
     ::Adafruit_GFX& Gfx() { return gfx_; }
     Point Offset() const { return offset_; }
+    const char* FontName() const { return font_name_; }
 
     void SetClip(const Rect&) override;
     void PushClip(const Rect&) override;
@@ -81,6 +86,7 @@ private:
     Point offset_{};
     uint16_t draw_color_ = 0;
     uint16_t text_color_ = 0;
+    const char* font_name_ = kDefaultFontName;
 };
 
 enum class DirtyReason : uint8_t {

@@ -71,7 +71,7 @@ private:
 	QueueHandle_t queue_ = nullptr;
 	TaskHandle_t task_ = nullptr;
 
-	uint32_t partial_force_fast_every_n_ = 10;
+	uint32_t partial_force_fast_every_n_ = 30;
 	uint32_t partial_count_since_fast_ = 0;
 
 	int64_t last_partial_us_ = 0;

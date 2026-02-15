@@ -219,20 +219,7 @@ std::string FormatVolumeText(Board &board) {
     return std::to_string(codec->output_volume()) + "%";
 }
 
-bool CheckAndUpdateMenuStatus(Board &board, eteacher::app_menu::MenuStatus &last_status) {
-    const auto new_status = BuildMenuStatus(board);
-    // Compare the fields we care about for driving menu refreshes.
-    const bool time_changed = (new_status.time_text != last_status.time_text);
-    const bool wifi_changed = (new_status.wifi_connected != last_status.wifi_connected);
-    const bool battery_changed = (new_status.battery_level != last_status.battery_level);
-    const bool volume_changed = (new_status.volume_text != last_status.volume_text);
 
-    if (time_changed || wifi_changed || battery_changed || volume_changed) {
-        last_status = new_status;
-        return true;
-    }
-    return false;
-}
 
 void DrawTopBar(Adafruit_GFX& gfx,
                 CustomEpdDisplay* epd,

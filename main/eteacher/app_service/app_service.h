@@ -10,6 +10,9 @@
 #include <mutex>
 #include <deque>
 #include <memory>
+#include <vector>
+#include <utility>
+#include <esp_event.h>
 
 #include "protocol.h"
 #include "ota.h"
@@ -31,6 +34,7 @@
 #define MAIN_EVENT_START_LISTENING      (1 << 10)
 #define MAIN_EVENT_STOP_LISTENING       (1 << 11)
 #define MAIN_EVENT_STATE_CHANGED        (1 << 12)
+#define MAIN_EVENT_VOLUME_CHANGED       (1 << 13)
 
 
 enum EteacherAecMode {
@@ -111,6 +115,7 @@ public:
     void SetAecMode(EteacherAecMode mode);
     EteacherAecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
+    void NotifyVolumeChanged();
     AudioService& GetAudioService() { return audio_service_; }
     
     /**
@@ -119,6 +124,13 @@ public:
      * This includes closing audio channel, resetting protocol and ota objects
      */
     void ResetProtocol();
+
+    // Temporarily disable WiFi auto-connect while keeping station running.
+    // Must call EndWifiScanNoAutoConnect() after scanning.
+    void BeginWifiScanNoAutoConnect();
+    void EndWifiScanNoAutoConnect();
+    std::vector<std::string> ConsumeWifiScanSsids();
+    std::vector<std::pair<std::string, int>> ConsumeWifiScanResults();
 
 private:
     AppService();
@@ -142,6 +154,13 @@ private:
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
+    bool wifi_scan_guard_active_ = false;
+    std::vector<std::pair<std::string, std::string>> wifi_scan_guard_backup_;
+    std::vector<std::string> wifi_scan_ssids_cache_;
+    std::vector<std::pair<std::string, int>> wifi_scan_results_cache_;
+    esp_event_handler_instance_t wifi_scan_done_handler_ = nullptr;
+
+    static void WifiScanEventHandler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 
     // Event handlers

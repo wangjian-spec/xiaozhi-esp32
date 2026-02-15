@@ -16,12 +16,13 @@
   },
   "resources": {
     "texts": {
-      "TEXT_BUTTON_1DDB53": "扫描WIFI",
-      "TEXT_BUTTON_E1D4BE": "添加新网络",
-      "TEXT_LISTVIEW_CE6360": "扫描网络列表",
-      "TEXT_LISTVIEW_92CCF1": "已保存网络列表",
-      "TEXT_LABEL_C2A90A": "语言选择",
-      "TEXT_LABEL_596C5F": "语速设置",
+      "TEXT_BUTTON_SCAN": "扫描WIFI",
+      "TEXT_LISTVIEW_SCAN": "扫描网络列表",
+      "TEXT_LISTVIEW_SAVED": "已保存网络列表",
+      "TEXT_LABEL_ALERT": "确认操作提示文字",
+      "TEXT_LABEL_TITLE": "已保存网络列表 - 连接(C)/删除(D)网络",
+      "TEXT_LABEL_LANGUAGE": "语言选择",
+      "TEXT_LABEL_SPEED": "语速设置",
       "TEXT_RADIO_65B136": "中文",
       "TEXT_RADIO_00BB98": "英文",
       "TEXT_RADIO_0689D6": "中速",
@@ -50,10 +51,11 @@
       "TEXT_BOTTOMBAR_AABB85": "BottomBar",
       "TEXT_TABVIEW_439E98": "\"WIFI设置\"\"语言设置\"\"用户设置\"\"学习偏好\"\"设备信息\"",
       "TEXT_SOFTKEYBOARD_F652D3": "SoftKeyboard",
-      "TEXT_DIALOG_368924": "用户名密码输入",
-      "TEXT_LABEL_4E4CE9": "SSI名称",
-      "TEXT_LABEL_04D7F6": "输入密码",
-      "TEXT_TEXTAREA_ECC8AF": "TextArea"
+      "TEXT_LABEL_SSID": "SSID名称：",
+      "TEXT_LABEL_INPUTPASSWORD": "输入密码：",
+      "TEXT_LABEL_STATUSINFORMATION": "状态信息",
+      "TEXT_BUTTON_SUBMIT": "确定",
+      "TEXT_BUTTON_CANCLE": "取消"
     },
     "images": {},
     "fonts": {}
@@ -93,7 +95,7 @@
         "h": 300
       }
     },
-    "button_1ddb53": {
+    "button_scan": {
       "type": "Button",
       "rect": {
         "x": 20,
@@ -102,28 +104,13 @@
         "h": 20
       },
       "style": null,
-      "z": 0,
+      "z": 2,
       "parent": "root_page_main",
       "properties": {
-        "textId": "TEXT_BUTTON_1DDB53"
+        "textId": "TEXT_BUTTON_SCAN"
       }
     },
-    "button_e1d4be": {
-      "type": "Button",
-      "rect": {
-        "x": 105,
-        "y": 45,
-        "w": 60,
-        "h": 20
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_main",
-      "properties": {
-        "textId": "TEXT_BUTTON_E1D4BE"
-      }
-    },
-    "frame_1f9aac": {
+    "frame_right": {
       "type": "Frame",
       "rect": {
         "x": 200,
@@ -136,7 +123,7 @@
       "parent": "root_page_main",
       "properties": {}
     },
-    "frame_b83959": {
+    "frame_left": {
       "type": "Frame",
       "rect": {
         "x": 0,
@@ -149,34 +136,64 @@
       "parent": "root_page_main",
       "properties": {}
     },
-    "listview_ce6360": {
+    "listview_scan": {
       "type": "ListView",
       "rect": {
-        "x": 11,
-        "y": 73,
-        "w": 180,
-        "h": 200
+        "x": 5,
+        "y": 70,
+        "w": 190,
+        "h": 210
       },
       "style": null,
       "z": 0,
       "parent": "root_page_main",
       "properties": {
-        "textId": "TEXT_LISTVIEW_CE6360"
+        "textId": "TEXT_LISTVIEW_SCAN"
       }
     },
-    "listview_92ccf1": {
+    "listview_saved": {
       "type": "ListView",
       "rect": {
-        "x": 209,
-        "y": 73,
-        "w": 180,
-        "h": 200
+        "x": 205,
+        "y": 70,
+        "w": 190,
+        "h": 210
       },
       "style": null,
       "z": 0,
       "parent": "root_page_main",
       "properties": {
-        "textId": "TEXT_LISTVIEW_92CCF1"
+        "textId": "TEXT_LISTVIEW_SAVED"
+      }
+    },
+    "label_alert": {
+      "type": "Label",
+      "rect": {
+        "x": 93,
+        "y": 45,
+        "w": 90,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_main",
+      "properties": {
+        "textId": "TEXT_LABEL_ALERT"
+      }
+    },
+    "label_title": {
+      "type": "Label",
+      "rect": {
+        "x": 205,
+        "y": 45,
+        "w": 180,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_main",
+      "properties": {
+        "textId": "TEXT_LABEL_TITLE"
       }
     },
     "root_page_d3f0": {
@@ -188,7 +205,7 @@
         "h": 300
       }
     },
-    "label_c2a90a": {
+    "label_language": {
       "type": "Label",
       "rect": {
         "x": 7,
@@ -200,10 +217,10 @@
       "z": 0,
       "parent": "root_page_d3f0",
       "properties": {
-        "textId": "TEXT_LABEL_C2A90A"
+        "textId": "TEXT_LABEL_LANGUAGE"
       }
     },
-    "label_596c5f": {
+    "label_speed": {
       "type": "Label",
       "rect": {
         "x": 7,
@@ -215,7 +232,7 @@
       "z": 0,
       "parent": "root_page_d3f0",
       "properties": {
-        "textId": "TEXT_LABEL_596C5F"
+        "textId": "TEXT_LABEL_SPEED"
       }
     },
     "radio_65b136": {
@@ -750,70 +767,139 @@
           "h": 100
         },
         "style": null,
-        "z": 10,
+        "z": 5,
         "parent": "root_public",
         "properties": {
           "textId": "TEXT_SOFTKEYBOARD_F652D3"
         }
       },
-      "dialog_368924": {
+      "dialog_inputpassword": {
         "type": "Dialog",
         "rect": {
-          "x": 100,
-          "y": 70,
-          "w": 200,
-          "h": 100
+          "x": 90,
+          "y": 55,
+          "w": 220,
+          "h": 120
         },
         "style": null,
-        "z": 9,
+        "z": 20,
         "parent": "root_public",
-        "properties": {
-          "textId": "TEXT_DIALOG_368924"
-        }
+        "properties": {}
       },
-      "label_4e4ce9": {
+      "label_ssid": {
         "type": "Label",
         "rect": {
-          "x": 115,
-          "y": 75,
-          "w": 160,
-          "h": 40
+          "x": 100,
+          "y": 107,
+          "w": 200,
+          "h": 20
         },
         "style": null,
-        "z": 10,
-        "parent": "dialog_368924",
+        "z": 20,
+        "parent": "dialog_inputpassword",
         "properties": {
-          "textId": "TEXT_LABEL_4E4CE9"
+          "textId": "TEXT_LABEL_SSID"
         }
       },
-      "label_04d7f6": {
+      "label_inputpassword": {
         "type": "Label",
         "rect": {
-          "x": 115,
-          "y": 125,
+          "x": 100,
+          "y": 144,
           "w": 50,
-          "h": 40
+          "h": 20
         },
         "style": null,
-        "z": 10,
-        "parent": "dialog_368924",
+        "z": 20,
+        "parent": "dialog_inputpassword",
         "properties": {
-          "textId": "TEXT_LABEL_04D7F6"
+          "textId": "TEXT_LABEL_INPUTPASSWORD"
         }
       },
-      "textarea_ecc8af": {
+      "textarea_password": {
         "type": "TextArea",
         "rect": {
-          "x": 180,
-          "y": 125,
-          "w": 100,
-          "h": 40
+          "x": 160,
+          "y": 144,
+          "w": 140,
+          "h": 20
+        },
+        "style": null,
+        "z": 20,
+        "parent": "dialog_inputpassword",
+        "properties": {}
+      },
+      "label_statusinformation": {
+        "type": "Label",
+        "rect": {
+          "x": 99,
+          "y": 71,
+          "w": 200,
+          "h": 20
+        },
+        "style": null,
+        "z": 20,
+        "parent": "dialog_inputpassword",
+        "properties": {
+          "textId": "TEXT_LABEL_STATUSINFORMATION"
+        }
+      },
+      "dialog_hint": {
+        "type": "Dialog",
+        "rect": {
+          "x": 90,
+          "y": 55,
+          "w": 220,
+          "h": 120
         },
         "style": null,
         "z": 10,
-        "parent": "dialog_368924",
+        "parent": "root_public",
+        "properties": {}
+      },
+      "label_alert": {
+        "type": "Label",
+        "rect": {
+          "x": 147,
+          "y": 86,
+          "w": 80,
+          "h": 20
+        },
+        "style": null,
+        "z": 15,
+        "parent": "dialog_hint",
         "properties": {
-          "textId": "TEXT_TEXTAREA_ECC8AF"
+          "textId": "TEXT_LABEL_ALERT"
+        }
+      },
+      "button_submit": {
+        "type": "Button",
+        "rect": {
+          "x": 120,
+          "y": 131,
+          "w": 60,
+          "h": 20
+        },
+        "style": null,
+        "z": 10,
+        "parent": "dialog_hint",
+        "properties": {
+          "textId": "TEXT_BUTTON_SUBMIT"
+        }
+      },
+      "button_cancle": {
+        "type": "Button",
+        "rect": {
+          "x": 220,
+          "y": 131,
+          "w": 60,
+          "h": 20
+        },
+        "style": null,
+        "z": 10,
+        "parent": "dialog_hint",
+        "properties": {
+          "textId": "TEXT_BUTTON_CANCLE"
         }
       }
     }

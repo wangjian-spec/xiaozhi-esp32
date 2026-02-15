@@ -21,6 +21,7 @@ void ApplyWidgetSpecific(Widget* widget, const desc::WidgetDesc& desc);
 struct Node {
     uint32_t id = 0;
     uint32_t parent = 0;
+    Rect abs_rect{};
     std::unique_ptr<Widget> widget;
     std::vector<size_t> children;
 };
@@ -229,7 +230,7 @@ std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
         widget->SetId(init.id);
         widget->SetRectInParent(init.rect);
         widget->SetZOrder(init.z_order);
-        nodes.push_back({init.id, init.parent_id, std::move(widget), {}});
+        nodes.push_back({init.id, init.parent_id, init.rect, std::move(widget), {}});
     }
     if (nodes.empty()) {
         return nullptr;
@@ -245,6 +246,11 @@ std::unique_ptr<Widget> BuildWidgetTree(const resource::WidgetInit* inits,
         if (parent_index == nodes.size()) {
             continue;
         }
+        const Rect& parent_rect = nodes[parent_index].abs_rect;
+        Rect rel_rect = nodes[i].abs_rect;
+        rel_rect.x = static_cast<int16_t>(rel_rect.x - parent_rect.x);
+        rel_rect.y = static_cast<int16_t>(rel_rect.y - parent_rect.y);
+        nodes[i].widget->SetRectInParent(rel_rect);
         nodes[parent_index].children.push_back(i);
     }
     const size_t root_index = FindNodeIndex(nodes, root_id);
@@ -279,7 +285,7 @@ std::unique_ptr<Widget> BuildWidgetTree(const desc::WidgetDesc* widgets,
         }
         ApplyWidgetCommon(widget.get(), desc);
         ApplyWidgetSpecific(widget.get(), desc);
-        nodes.push_back({desc.id, desc.parent_id, std::move(widget), {}});
+        nodes.push_back({desc.id, desc.parent_id, desc.rect, std::move(widget), {}});
     }
     if (nodes.empty()) {
         return nullptr;
@@ -295,6 +301,11 @@ std::unique_ptr<Widget> BuildWidgetTree(const desc::WidgetDesc* widgets,
         if (parent_index == nodes.size()) {
             continue;
         }
+        const Rect& parent_rect = nodes[parent_index].abs_rect;
+        Rect rel_rect = nodes[i].abs_rect;
+        rel_rect.x = static_cast<int16_t>(rel_rect.x - parent_rect.x);
+        rel_rect.y = static_cast<int16_t>(rel_rect.y - parent_rect.y);
+        nodes[i].widget->SetRectInParent(rel_rect);
         nodes[parent_index].children.push_back(i);
     }
     const size_t root_index = FindNodeIndex(nodes, root_id);

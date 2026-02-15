@@ -65,6 +65,7 @@ public:
     virtual void OnExit(AppContext &ctx) = 0;
     virtual void OnButton(AppContext &ctx, const ButtonEvent &event) = 0;
     virtual void OnTick(AppContext &ctx) { (void)ctx; }
+    virtual bool ShouldInterceptSelectExit() const { return false; }
 
     bool show_in_menu() const { return show_in_menu_; }
 

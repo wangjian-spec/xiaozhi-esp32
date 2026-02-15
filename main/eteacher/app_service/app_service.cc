@@ -10,6 +10,7 @@
 #include "eteacher_mcp_server.h"
 #include "eteacher_assets.h"
 #include "settings.h"
+#include <ssid_manager.h>
 
 #include <cstring>
 #include <esp_log.h>
@@ -17,6 +18,9 @@
 #include <driver/gpio.h>
 #include <arpa/inet.h>
 #include <font_awesome.h>
+#include <esp_wifi.h>
+#include <esp_netif.h>
+#include <esp_event.h>
 #include <unordered_map>
 #include <type_traits>
 #include <utility>
@@ -148,6 +152,10 @@ AppService::AppService() {
 }
 
 AppService::~AppService() {
+    if (wifi_scan_done_handler_ != nullptr) {
+        esp_event_handler_instance_unregister(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_scan_done_handler_);
+        wifi_scan_done_handler_ = nullptr;
+    }
     if (clock_timer_handle_ != nullptr) {
         esp_timer_stop(clock_timer_handle_);
         esp_timer_delete(clock_timer_handle_);
@@ -257,6 +265,27 @@ void AppService::Initialize() {
         }
     });
 
+    esp_err_t netif_err = esp_netif_init();
+    if (netif_err != ESP_OK && netif_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "esp_netif_init failed before scan handler register: %s", esp_err_to_name(netif_err));
+    }
+    esp_err_t loop_err = esp_event_loop_create_default();
+    if (loop_err != ESP_OK && loop_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "esp_event_loop_create_default failed before scan handler register: %s", esp_err_to_name(loop_err));
+    }
+
+    esp_err_t reg_err = esp_event_handler_instance_register(
+        WIFI_EVENT,
+        WIFI_EVENT_SCAN_DONE,
+        &AppService::WifiScanEventHandler,
+        this,
+        &wifi_scan_done_handler_);
+    if (reg_err != ESP_OK) {
+        ESP_LOGW(TAG, "Register WIFI_EVENT_SCAN_DONE handler failed: %s", esp_err_to_name(reg_err));
+    } else {
+        ESP_LOGI(TAG, "Registered WIFI_EVENT_SCAN_DONE handler for scan guard");
+    }
+
     // Start network asynchronously
     board.StartNetwork();
 
@@ -278,7 +307,8 @@ void AppService::Run() {
         MAIN_EVENT_START_LISTENING |
         MAIN_EVENT_STOP_LISTENING |
         MAIN_EVENT_ACTIVATION_DONE |
-        MAIN_EVENT_STATE_CHANGED;
+        MAIN_EVENT_STATE_CHANGED |
+        MAIN_EVENT_VOLUME_CHANGED;
 
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, ALL_EVENTS, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -348,19 +378,21 @@ void AppService::Run() {
             clock_ticks_++;
             auto display = Board::GetInstance().GetDisplay();
             display->UpdateStatusBar();
+            AppManager::GetInstance().TickAppRunning();
 
 
         
             // Print debug info every 10 seconds
             if (clock_ticks_ % 10 == 0) {
             SystemInfo::PrintHeapStats();
-           // PrintTaskStackWatermarks();
-            //Tick和TickAppRunning函数周期检查上栏状态变化并刷新菜单，将来改成事件驱动更合适
-            // Drive AppManager periodic tick (fixed 1s)
-            AppManager::GetInstance().Tick();
-            // Also drive the currently running app's per-second tick (if any).
-            AppManager::GetInstance().TickAppRunning();
+
             }
+        }
+
+        if (bits & MAIN_EVENT_VOLUME_CHANGED) {
+            auto display = Board::GetInstance().GetDisplay();
+            display->UpdateStatusBar(true);
+            AppManager::GetInstance().TickAppRunning();
         }
     }
 }
@@ -388,6 +420,7 @@ void AppService::HandleNetworkConnectedEvent() {
     // Update the status bar immediately to show the network state
     auto display = Board::GetInstance().GetDisplay();
     display->UpdateStatusBar(true);
+    AppManager::GetInstance().TickAppRunning();
 }
 
 void AppService::HandleNetworkDisconnectedEvent() {
@@ -401,6 +434,11 @@ void AppService::HandleNetworkDisconnectedEvent() {
     // Update the status bar immediately to show the network state
     auto display = Board::GetInstance().GetDisplay();
     display->UpdateStatusBar(true);
+    AppManager::GetInstance().TickAppRunning();
+}
+
+void AppService::NotifyVolumeChanged() {
+    xEventGroupSetBits(event_group_, MAIN_EVENT_VOLUME_CHANGED);
 }
 
 void AppService::HandleActivationDoneEvent() {
@@ -1160,5 +1198,135 @@ void AppService::ResetProtocol() {
         // Reset protocol
         protocol_.reset();
     });
+}
+
+void AppService::BeginWifiScanNoAutoConnect() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (wifi_scan_guard_active_) {
+        return;
+    }
+
+    auto& ssid_manager = SsidManager::GetInstance();
+    wifi_scan_guard_backup_.clear();
+    const auto& ssid_list = ssid_manager.GetSsidList();
+    wifi_scan_guard_backup_.reserve(ssid_list.size());
+    for (const auto& item : ssid_list) {
+        wifi_scan_guard_backup_.emplace_back(item.ssid, item.password);
+    }
+
+    if (!ssid_list.empty()) {
+        ESP_LOGI(TAG, "WiFi scan guard enabled, temporarily hiding %u saved SSIDs",
+                 static_cast<unsigned>(ssid_list.size()));
+    }
+    wifi_scan_ssids_cache_.clear();
+    wifi_scan_results_cache_.clear();
+    ssid_manager.Clear();
+    wifi_scan_guard_active_ = true;
+}
+
+void AppService::EndWifiScanNoAutoConnect() {
+    std::vector<std::pair<std::string, std::string>> backup;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!wifi_scan_guard_active_) {
+            return;
+        }
+        backup = std::move(wifi_scan_guard_backup_);
+        wifi_scan_guard_active_ = false;
+    }
+
+    auto& ssid_manager = SsidManager::GetInstance();
+    ssid_manager.Clear();
+    for (auto it = backup.rbegin(); it != backup.rend(); ++it) {
+        ssid_manager.AddSsid(it->first, it->second);
+    }
+
+    ESP_LOGI(TAG, "WiFi scan guard disabled, restored %u saved SSIDs",
+             static_cast<unsigned>(backup.size()));
+}
+
+std::vector<std::string> AppService::ConsumeWifiScanSsids() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return std::move(wifi_scan_ssids_cache_);
+}
+
+std::vector<std::pair<std::string, int>> AppService::ConsumeWifiScanResults() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return std::move(wifi_scan_results_cache_);
+}
+
+void AppService::WifiScanEventHandler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+    (void)event_base;
+    if (event_id != WIFI_EVENT_SCAN_DONE) {
+        return;
+    }
+
+    auto* app = static_cast<AppService*>(arg);
+    if (!app) {
+        return;
+    }
+
+    uint16_t event_ap_num = 0;
+    if (event_data != nullptr) {
+        auto* scan_done = static_cast<wifi_event_sta_scan_done_t*>(event_data);
+        event_ap_num = scan_done->number;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(app->mutex_);
+        if (!app->wifi_scan_guard_active_) {
+            return;
+        }
+    }
+
+    ESP_LOGI(TAG, "Scan guard callback fired, event AP count=%u", static_cast<unsigned>(event_ap_num));
+
+    uint16_t ap_num = 0;
+    if (esp_wifi_scan_get_ap_num(&ap_num) != ESP_OK || ap_num == 0) {
+        if (event_ap_num > 0) {
+            ESP_LOGW(TAG, "Scan guard saw event AP count=%u but get_ap_num=0, likely consumed by another handler first",
+                     static_cast<unsigned>(event_ap_num));
+        }
+        std::lock_guard<std::mutex> lock(app->mutex_);
+        app->wifi_scan_ssids_cache_.clear();
+        app->wifi_scan_results_cache_.clear();
+        return;
+    }
+
+    std::vector<wifi_ap_record_t> records(ap_num);
+    uint16_t record_count = ap_num;
+    if (esp_wifi_scan_get_ap_records(&record_count, records.data()) != ESP_OK || record_count == 0) {
+        std::lock_guard<std::mutex> lock(app->mutex_);
+        app->wifi_scan_ssids_cache_.clear();
+        app->wifi_scan_results_cache_.clear();
+        return;
+    }
+
+    std::sort(records.begin(), records.end(), [](const wifi_ap_record_t& a, const wifi_ap_record_t& b) {
+        return a.rssi > b.rssi;
+    });
+
+    std::vector<std::string> ssids;
+    std::vector<std::pair<std::string, int>> scan_results;
+    ssids.reserve(record_count);
+    scan_results.reserve(record_count);
+    for (uint16_t i = 0; i < record_count; ++i) {
+        const char* ssid = reinterpret_cast<const char*>(records[i].ssid);
+        if (!ssid || ssid[0] == '\0') {
+            continue;
+        }
+        if (std::find(ssids.begin(), ssids.end(), ssid) != ssids.end()) {
+            continue;
+        }
+        ssids.emplace_back(ssid);
+        scan_results.emplace_back(std::string(ssid), static_cast<int>(records[i].rssi));
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(app->mutex_);
+        app->wifi_scan_ssids_cache_ = std::move(ssids);
+        app->wifi_scan_results_cache_ = std::move(scan_results);
+        ESP_LOGI(TAG, "WiFi scan guard captured %u APs", static_cast<unsigned>(app->wifi_scan_ssids_cache_.size()));
+    }
 }
 

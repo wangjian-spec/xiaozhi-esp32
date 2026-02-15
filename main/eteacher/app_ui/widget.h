@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "types.h"
+#include "renderer.h"
 
 // Widget 核心类型与接口
 // 本头文件定义了 UI 框架中 Widget 层次结构的基类和各种具体 widget 的接口。
@@ -137,6 +138,9 @@ public:
 
     void SetRectInParent(const Rect& rect);
 
+    void SetFontName(const char* name);
+    const char* FontName() const;
+
 protected:
     Rect LocalRect() const;
 
@@ -158,6 +162,7 @@ protected:
     UIEngine* engine_ = nullptr;
     uint32_t id_ = 0;
     LayoutMode layout_mode_ = LayoutMode::MatchParent;
+    Font font_{};
 };
 
 class BasicWidget : public Widget {
@@ -217,6 +222,9 @@ protected:
 };
 
 class TextAreaWidget : public TextWidget {
+public:
+    TextAreaWidget();
+
 protected:
     void OnDraw(Painter& p) override;
 };
@@ -258,6 +266,8 @@ private:
 
 class TabViewWidget : public TextWidget {
 public:
+    TabViewWidget();
+
     InputResult OnInput(const InputEvent& e, InputPhase phase) override;
     FocusIntent OnFocusKey(KeyCode key) override;
 
@@ -330,6 +340,8 @@ private:
 
     int page_ = 0;
     int selected_index_ = 0;
+    int last_nav_key_ = -1;
+    uint32_t last_nav_repeat_ms_ = 0;
     std::string last_output_{};
     KeyCallback on_key_ = nullptr;
     void* on_key_ctx_ = nullptr;

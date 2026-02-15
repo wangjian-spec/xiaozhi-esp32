@@ -111,6 +111,11 @@ void AppManager::HandleButton(const ButtonEvent &event)
     {
         if (event.id == AppButton::Select)
         {
+            if (running_->ShouldInterceptSelectExit())
+            {
+                running_->OnButton(*ctx_, event);
+                return;
+            }
             ExitCurrent();
             return;
         }
@@ -159,14 +164,6 @@ void AppManager::Tick()
     if (!ctx_ || !menu_ready_)
     {
         return;
-    }
-
-    // Fixed 1s tick — check menu status every call.
-    bool status_changed = eteacher::app_ui::CheckAndUpdateMenuStatus(ctx_->board, last_status_);
-    ESP_LOGI(TAG, "CheckAndUpdateMenuStatus -> %s", status_changed ? "true" : "false");
-    // 如果状态有变化且没有正在运行的 App，则重新渲染菜单
-    if (status_changed && !running_) {
-        RenderMenu();
     }
 }
 

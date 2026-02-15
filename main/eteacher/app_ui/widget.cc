@@ -109,6 +109,21 @@ std::vector<std::string> ParseItemsFromText(const std::string& text) {
     return items;
 }
 
+void SplitListItemText(const char* text, std::string& left, std::string& right) {
+    left.clear();
+    right.clear();
+    if (!text) {
+        return;
+    }
+    const char* delimiter = std::strchr(text, '\t');
+    if (!delimiter) {
+        left = text;
+        return;
+    }
+    left.assign(text, static_cast<size_t>(delimiter - text));
+    right.assign(delimiter + 1);
+}
+
 class StaticVectorModel : public ItemModel {
 public:
     explicit StaticVectorModel(std::vector<std::string> items)
@@ -214,6 +229,7 @@ void Widget::Draw(Painter& p) {
     if (!Visible()) {
         return;
     }
+    p.SetFont(&font_);
     OnDraw(p);
     dirty_bits_ &= static_cast<uint16_t>(~DirtyVisual);
 }
@@ -222,6 +238,7 @@ void Widget::Draw(Painter& p, const Rect& dirty) {
     if (!Visible()) {
         return;
     }
+    p.SetFont(&font_);
     OnDraw(p, dirty);
     dirty_bits_ &= static_cast<uint16_t>(~DirtyVisual);
 }
@@ -418,6 +435,20 @@ void Widget::SetRectInParent(const Rect& rect) {
     }
 }
 
+void Widget::SetFontName(const char* name) {
+    const char* next = (name && name[0]) ? name : kDefaultFontName;
+    if (font_.name == next) {
+        return;
+    }
+    font_.name = next;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const char* Widget::FontName() const {
+    return (font_.name && font_.name[0]) ? font_.name : kDefaultFontName;
+}
+
 Rect Widget::LocalRect() const {
     return {0, 0, cache_.layout.w, cache_.layout.h};
 }
@@ -500,6 +531,7 @@ Size LabelWidget::OnMeasure(const Size& constraint) {
 }
 
 void LabelWidget::OnDraw(Painter& p) {
+    p.SetTextColor(Color::Black);
     p.DrawText({0, 0}, text_.c_str());
 }
 
@@ -511,7 +543,16 @@ void ButtonWidget::OnDraw(Painter& p) {
     p.SetDrawColor(Color::Black);
     p.DrawRect(rect);
     p.SetTextColor(focused ? Color::White : Color::Black);
-    p.DrawText({2, 2}, text_.c_str());
+    const Size text_size = p.MeasureText(text_.c_str(), nullptr);
+    int16_t x = static_cast<int16_t>((rect.w - text_size.w) / 2);
+    int16_t y = static_cast<int16_t>((rect.h - text_size.h) / 2);
+    if (x < 2) {
+        x = 2;
+    }
+    if (y < 1) {
+        y = 1;
+    }
+    p.DrawText({x, y}, text_.c_str());
 }
 
 void ImageWidget::OnDraw(Painter& p) {
@@ -523,19 +564,22 @@ void ImageWidget::OnDraw(Painter& p) {
     }
 }
 
+TextAreaWidget::TextAreaWidget() {
+    SetFontName("wenquanyi_11pt");
+}
+
 void TextAreaWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
     p.DrawRect(rect);
-    const int line_h = 10;
-    const int max_lines = rect.h > 0 ? rect.h / line_h : 0;
-    for (int i = 1; i < max_lines; ++i) {
-        p.DrawHLine({2, static_cast<int16_t>(i * line_h)}, rect.w - 4);
-    }
     if (!text_.empty()) {
         p.DrawText({2, 2}, text_.c_str());
     }
+}
+
+TabViewWidget::TabViewWidget() {
+    SetFontName("wenquanyi_11pt");
 }
 
 InputResult ListViewWidget::OnInput(const InputEvent& e, InputPhase phase) {
@@ -690,6 +734,17 @@ void ListViewWidget::OnDraw(Painter& p) {
     const int item_count = ItemCount();
     const int item_h = 25;
     const int rows = std::max<int>(1, rect.h / item_h);
+    int start_index = 0;
+    if (item_count > rows) {
+        start_index = selected_index_ - rows / 2;
+        if (start_index < 0) {
+            start_index = 0;
+        }
+        const int max_start = item_count - rows;
+        if (start_index > max_start) {
+            start_index = max_start;
+        }
+    }
     const bool focused = Focused();
 
     for (int row = 0; row < rows; ++row) {
@@ -698,15 +753,30 @@ void ListViewWidget::OnDraw(Painter& p) {
             break;
         }
         const int h = (row == rows - 1) ? std::min(item_h, rect.h - y) : item_h;
-        const bool selected = focused && (row == selected_index_);
+        const int item_index = start_index + row;
+        const bool selected = focused && (item_index == selected_index_);
         p.SetDrawColor(selected ? Color::Black : Color::White);
         p.FillRect({0, static_cast<int16_t>(y), rect.w, static_cast<int16_t>(h)});
         p.SetTextColor(selected ? Color::White : Color::Black);
 
-        if (row < item_count) {
-            const char* label = ItemLabel(row);
+        if (item_index < item_count) {
+            const char* label = ItemLabel(item_index);
             if (label && label[0]) {
-                p.DrawText({2, static_cast<int16_t>(y + 2)}, label);
+                std::string left_text;
+                std::string right_text;
+                SplitListItemText(label, left_text, right_text);
+
+                if (!left_text.empty()) {
+                    p.DrawText({2, static_cast<int16_t>(y + 2)}, left_text.c_str());
+                }
+                if (!right_text.empty()) {
+                    const Size right_size = p.MeasureText(right_text.c_str(), nullptr);
+                    int16_t right_x = static_cast<int16_t>(rect.w - right_size.w - 2);
+                    if (right_x < 2) {
+                        right_x = 2;
+                    }
+                    p.DrawText({right_x, static_cast<int16_t>(y + 2)}, right_text.c_str());
+                }
             }
         }
     }
@@ -748,7 +818,10 @@ void TabViewWidget::OnDraw(Painter& p) {
             if (index < ItemCount()) {
                 const char* label = ItemLabel(index);
                 if (epd_painter && epd_painter->Epd()) {
-                    const char* font_name = "wenquanyi_11pt";
+                    const char* font_name = epd_painter->FontName();
+                    if (!font_name || !font_name[0]) {
+                        font_name = kDefaultFontName;
+                    }
                     const int16_t text_w = static_cast<int16_t>(epd_painter->Epd()->MeasureUtf8Width(label, font_name));
                     const int16_t font_h = eteacher::app_ui::GetFontHeight(font_name);
                     const int16_t font_ascent = eteacher::app_ui::GetFontAscent(font_name);
@@ -992,11 +1065,11 @@ void MenuWidget::OnDraw(Painter& p) {
 
 void DialogWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
+    p.SetDrawColor(Color::White);
+    p.FillRect(rect);
     p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
     p.DrawRect(rect);
-    const int title_h = 12;
-    p.DrawHLine({0, static_cast<int16_t>(title_h)}, rect.w);
     if (!text_.empty()) {
         p.DrawText({2, 2}, text_.c_str());
     }
@@ -1004,6 +1077,7 @@ void DialogWidget::OnDraw(Painter& p) {
 
 SoftKeyboardWidget::SoftKeyboardWidget() {
     SetFocusable(true);
+    SetFontName("wenquanyi_11pt");
 }
 
 InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
@@ -1019,6 +1093,24 @@ InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
 
     const KeyCode key = static_cast<KeyCode>(e.key);
     if (key == KeyCode::Up || key == KeyCode::Down || key == KeyCode::Left || key == KeyCode::Right) {
+        const bool is_repeat = (e.type == InputType::KeyRepeat);
+        const int key_value = static_cast<int>(key);
+        uint32_t now_ms = e.timestamp;
+        if (is_repeat) {
+            constexpr uint32_t kRepeatStepMs = 60;
+            if (now_ms == 0) {
+                now_ms = last_nav_repeat_ms_ + kRepeatStepMs;
+            }
+            if (last_nav_key_ == key_value && last_nav_repeat_ms_ != 0 && now_ms > last_nav_repeat_ms_ &&
+                (now_ms - last_nav_repeat_ms_) < kRepeatStepMs) {
+                return InputResult::Consume;
+            }
+            last_nav_repeat_ms_ = now_ms;
+        } else {
+            last_nav_repeat_ms_ = now_ms;
+        }
+        last_nav_key_ = key_value;
+
         int row = selected_index_ / kKeyboardCols;
         int col = selected_index_ % kKeyboardCols;
         if (key == KeyCode::Up) {
@@ -1039,6 +1131,7 @@ InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
     }
 
     if (key == KeyCode::C) {
+        last_nav_key_ = -1;
         const char* label = KeyLabel(page_, selected_index_);
         if (label && label[0]) {
             if (std::strcmp(label, "空格") == 0) {
@@ -1054,6 +1147,7 @@ InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
     }
 
     if (key == KeyCode::D) {
+        last_nav_key_ = -1;
         page_ = (page_ + 1) % kKeyboardPages;
         MarkDirty();
         return InputResult::Consume;
@@ -1124,6 +1218,9 @@ void SoftKeyboardWidget::OnDraw(Painter& p) {
     if (rect.w <= 0 || rect.h <= 0) {
         return;
     }
+
+    p.SetDrawColor(Color::White);
+    p.FillRect(rect);
 
     const int cell_w = rect.w / kKeyboardCols;
     const int cell_h = rect.h / kKeyboardRows;

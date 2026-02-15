@@ -20,7 +20,7 @@ static constexpr const char* kTag = "EnglishTeacherBoard";
 
 // iot_button 建议配置短按/长按阈值，0 可能导致部分事件不触发或表现不稳定。
 static constexpr uint16_t kBtnLongPressMs = 2000;
-static constexpr uint16_t kBtnShortPressMs = 100;
+static constexpr uint16_t kBtnShortPressMs = 40;
 
 static constexpr uint32_t kSharedSpiHz = 20 * 1000 * 1000;
 
@@ -226,6 +226,7 @@ void EnglishTeacherBoard::InitializeButtons() {
 			volume = 100;
 		}
 		codec->SetOutputVolume(volume);
+		AppService::GetInstance().NotifyVolumeChanged();
 	});
 	volume_up_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_UP: LongPress");
@@ -234,6 +235,7 @@ void EnglishTeacherBoard::InitializeButtons() {
 			return;
 		}
 		codec->SetOutputVolume(100);
+		AppService::GetInstance().NotifyVolumeChanged();
 	});
 
 	volume_down_button_.OnClick([&]() {
@@ -247,6 +249,7 @@ void EnglishTeacherBoard::InitializeButtons() {
 			volume = 0;
 		}
 		codec->SetOutputVolume(volume);
+		AppService::GetInstance().NotifyVolumeChanged();
 	});
 	volume_down_button_.OnLongPress([&]() {
 		ESP_LOGW(kTag, "VOLUME_DOWN: LongPress");
@@ -255,6 +258,7 @@ void EnglishTeacherBoard::InitializeButtons() {
 			return;
 		}
 		codec->SetOutputVolume(0);
+		AppService::GetInstance().NotifyVolumeChanged();
 	});
 }
 

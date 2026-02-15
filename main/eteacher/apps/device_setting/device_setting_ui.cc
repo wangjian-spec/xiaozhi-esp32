@@ -5,44 +5,50 @@ namespace app_ui::generated::device_setting {
 
 // Scene page_main
 
-static const app_ui::desc::TextDesc kText_page_main_button_1ddb53 = {
+static const app_ui::desc::TextDesc kText_page_main_button_scan = {
     "\u626B\u63CFWIFI",
-    0xA7C5D077u
+    0x3A0565ADu
 };
 
-static const app_ui::desc::TextDesc kText_page_main_button_e1d4be = {
-    "\u6DFB\u52A0\u65B0\u7F51\u7EDC",
-    0x7DAEA5E3u
-};
-
-static const app_ui::desc::TextDesc kText_page_main_frame_1f9aac = {
+static const app_ui::desc::TextDesc kText_page_main_frame_right = {
     "",
     0x00000000u
 };
 
-static const app_ui::desc::TextDesc kText_page_main_frame_b83959 = {
+static const app_ui::desc::TextDesc kText_page_main_frame_left = {
     "",
     0x00000000u
 };
 
-static const app_ui::desc::TextDesc kText_page_main_listview_ce6360 = {
+static const app_ui::desc::TextDesc kText_page_main_listview_scan = {
     "\u626B\u63CF\u7F51\u7EDC\u5217\u8868",
-    0x19445EBEu
+    0x2CA2B5A2u
 };
 
-static const app_ui::desc::TextDesc kText_page_main_listview_92ccf1 = {
+static const app_ui::desc::TextDesc kText_page_main_listview_saved = {
     "\u5DF2\u4FDD\u5B58\u7F51\u7EDC\u5217\u8868",
-    0x1774F3A7u
+    0x478A082Eu
+};
+
+static const app_ui::desc::TextDesc kText_page_main_label_alert = {
+    "\u786E\u8BA4\u64CD\u4F5C\u63D0\u793A\u6587\u5B57",
+    0xBEFC2D8Au
+};
+
+static const app_ui::desc::TextDesc kText_page_main_label_title = {
+    "\u5DF2\u4FDD\u5B58\u7F51\u7EDC\u5217\u8868 - \u8FDE\u63A5(C)/\u5220\u9664(D)\u7F51\u7EDC",
+    0x93BBAC2Au
 };
 
 static const app_ui::desc::WidgetDesc kScene_page_main_widgets[] = {
     { 0x81EE7077u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
-    { 0x54A65955u, 0x81EE7077u, app_ui::WidgetType::Button, {20, 45, 60, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_main_button_1ddb53 },
-    { 0x5686ECCDu, 0x81EE7077u, app_ui::WidgetType::Button, {105, 45, 60, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_main_button_e1d4be },
-    { 0x72C2EDD2u, 0x81EE7077u, app_ui::WidgetType::Frame, {200, 40, 200, 244}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_main_frame_1f9aac },
-    { 0xFD09C1ABu, 0x81EE7077u, app_ui::WidgetType::Frame, {0, 40, 200, 244}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_main_frame_b83959 },
-    { 0xA7DCD964u, 0x81EE7077u, app_ui::WidgetType::ListView, {11, 73, 180, 200}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_main_listview_ce6360 },
-    { 0x0DB3CD15u, 0x81EE7077u, app_ui::WidgetType::ListView, {209, 73, 180, 200}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_main_listview_92ccf1 },
+    { 0xF5EFF05Fu, 0x81EE7077u, app_ui::WidgetType::Button, {20, 45, 60, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 2, &kText_page_main_button_scan },
+    { 0xE5461FCFu, 0x81EE7077u, app_ui::WidgetType::Frame, {200, 40, 200, 244}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_main_frame_right },
+    { 0x7B2D6EE2u, 0x81EE7077u, app_ui::WidgetType::Frame, {0, 40, 200, 244}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_main_frame_left },
+    { 0x3EE34E54u, 0x81EE7077u, app_ui::WidgetType::ListView, {5, 70, 190, 210}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_main_listview_scan },
+    { 0xBAB5B4F8u, 0x81EE7077u, app_ui::WidgetType::ListView, {205, 70, 190, 210}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_main_listview_saved },
+    { 0x2C695914u, 0x81EE7077u, app_ui::WidgetType::Label, {93, 45, 90, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_main_label_alert },
+    { 0x5A54E4B0u, 0x81EE7077u, app_ui::WidgetType::Label, {205, 45, 180, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_main_label_title },
 };
 
 static const app_ui::desc::SceneDesc kScene_page_main = {
@@ -54,14 +60,14 @@ static const app_ui::desc::SceneDesc kScene_page_main = {
 
 // Scene page_d3f0
 
-static const app_ui::desc::TextDesc kText_page_d3f0_label_c2a90a = {
+static const app_ui::desc::TextDesc kText_page_d3f0_label_language = {
     "\u8BED\u8A00\u9009\u62E9",
-    0x1C29898Cu
+    0x81B55C96u
 };
 
-static const app_ui::desc::TextDesc kText_page_d3f0_label_596c5f = {
+static const app_ui::desc::TextDesc kText_page_d3f0_label_speed = {
     "\u8BED\u901F\u8BBE\u7F6E",
-    0xA650B4F6u
+    0x6585DCC7u
 };
 
 static const app_ui::desc::CheckableDesc kCheckable_page_d3f0_radio_65b136 = {
@@ -96,8 +102,8 @@ static const app_ui::desc::CheckableDesc kCheckable_page_d3f0_radio_b5ed3e = {
 
 static const app_ui::desc::WidgetDesc kScene_page_d3f0_widgets[] = {
     { 0x65637D99u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
-    { 0x672A7C26u, 0x65637D99u, app_ui::WidgetType::Label, {7, 59, 100, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_d3f0_label_c2a90a },
-    { 0xE14E124Cu, 0x65637D99u, app_ui::WidgetType::Label, {7, 115, 100, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_d3f0_label_596c5f },
+    { 0x5447BDE4u, 0x65637D99u, app_ui::WidgetType::Label, {7, 59, 100, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_d3f0_label_language },
+    { 0x12BE0AB9u, 0x65637D99u, app_ui::WidgetType::Label, {7, 115, 100, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_d3f0_label_speed },
     { 0xE2EF915Cu, 0x65637D99u, app_ui::WidgetType::Radio, {134, 59, 50, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kCheckable_page_d3f0_radio_65b136 },
     { 0x41E59F28u, 0x65637D99u, app_ui::WidgetType::Radio, {225, 59, 50, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kCheckable_page_d3f0_radio_00bb98 },
     { 0x83CE2C32u, 0x65637D99u, app_ui::WidgetType::Radio, {225, 115, 50, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kCheckable_page_d3f0_radio_0689d6 },
@@ -320,24 +326,49 @@ static const app_ui::desc::TextDesc kText_public_tabview_439e98 = {
     0xC1E6DB0Eu
 };
 
-static const app_ui::desc::TextDesc kText_public_dialog_368924 = {
-    "\u7528\u6237\u540D\u5BC6\u7801\u8F93\u5165",
-    0x1F8EBAACu
+static const app_ui::desc::TextDesc kText_public_dialog_inputpassword = {
+    "",
+    0x00000000u
 };
 
-static const app_ui::desc::TextDesc kText_public_label_4e4ce9 = {
-    "SSI\u540D\u79F0",
-    0x589A1898u
+static const app_ui::desc::TextDesc kText_public_label_ssid = {
+    "SSID\u540D\u79F0\uFF1A",
+    0x3CD81B37u
 };
 
-static const app_ui::desc::TextDesc kText_public_label_04d7f6 = {
-    "\u8F93\u5165\u5BC6\u7801",
-    0x366A36A9u
+static const app_ui::desc::TextDesc kText_public_label_inputpassword = {
+    "\u8F93\u5165\u5BC6\u7801\uFF1A",
+    0x60B0E0C9u
 };
 
-static const app_ui::desc::TextDesc kText_public_textarea_ecc8af = {
-    "TextArea",
-    0xC8F2D7CEu
+static const app_ui::desc::TextDesc kText_public_textarea_password = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_label_statusinformation = {
+    "\u72B6\u6001\u4FE1\u606F",
+    0xCEE93EB8u
+};
+
+static const app_ui::desc::TextDesc kText_public_dialog_hint = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_label_alert = {
+    "\u786E\u8BA4\u64CD\u4F5C\u63D0\u793A\u6587\u5B57",
+    0xBEFC2D8Au
+};
+
+static const app_ui::desc::TextDesc kText_public_button_submit = {
+    "\u786E\u5B9A",
+    0xA1F59E1Cu
+};
+
+static const app_ui::desc::TextDesc kText_public_button_cancle = {
+    "\u53D6\u6D88",
+    0xD757562Cu
 };
 
 static const app_ui::desc::WidgetDesc kScene_public_widgets[] = {
@@ -345,11 +376,16 @@ static const app_ui::desc::WidgetDesc kScene_public_widgets[] = {
     { 0xCCF6B1E4u, 0xDE440657u, app_ui::WidgetType::TopBar, {0, 0, 400, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_topbar_408adc },
     { 0x80DAA8ADu, 0xDE440657u, app_ui::WidgetType::BottomBar, {0, 284, 400, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_bottombar_aabb85 },
     { 0xA8EC2EDCu, 0xDE440657u, app_ui::WidgetType::TabView, {0, 20, 400, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 10, &kText_public_tabview_439e98 },
-    { 0xF2B83403u, 0xDE440657u, app_ui::WidgetType::SoftKeyboard, {50, 184, 300, 100}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 10, nullptr },
-    { 0xA406E1D2u, 0xDE440657u, app_ui::WidgetType::Dialog, {100, 70, 200, 100}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 9, &kText_public_dialog_368924 },
-    { 0x871C33F6u, 0xA406E1D2u, app_ui::WidgetType::Label, {115, 75, 160, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 10, &kText_public_label_4e4ce9 },
-    { 0x682DF257u, 0xA406E1D2u, app_ui::WidgetType::Label, {115, 125, 50, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 10, &kText_public_label_04d7f6 },
-    { 0x08301078u, 0xA406E1D2u, app_ui::WidgetType::TextArea, {180, 125, 100, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 10, &kText_public_textarea_ecc8af },
+    { 0xF2B83403u, 0xDE440657u, app_ui::WidgetType::SoftKeyboard, {50, 184, 300, 100}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 5, nullptr },
+    { 0x847FB9EBu, 0xDE440657u, app_ui::WidgetType::Dialog, {90, 55, 220, 120}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 20, &kText_public_dialog_inputpassword },
+    { 0x36D75C59u, 0x847FB9EBu, app_ui::WidgetType::Label, {100, 107, 200, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 20, &kText_public_label_ssid },
+    { 0xE39189D7u, 0x847FB9EBu, app_ui::WidgetType::Label, {100, 144, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 20, &kText_public_label_inputpassword },
+    { 0x0F95CADDu, 0x847FB9EBu, app_ui::WidgetType::TextArea, {160, 144, 140, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 20, &kText_public_textarea_password },
+    { 0xB55C8996u, 0x847FB9EBu, app_ui::WidgetType::Label, {99, 71, 200, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 20, &kText_public_label_statusinformation },
+    { 0x2452ECFFu, 0xDE440657u, app_ui::WidgetType::Dialog, {90, 55, 220, 120}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 10, &kText_public_dialog_hint },
+    { 0x2C695914u, 0x2452ECFFu, app_ui::WidgetType::Label, {147, 86, 80, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 15, &kText_public_label_alert },
+    { 0xD17B7AB2u, 0x2452ECFFu, app_ui::WidgetType::Button, {120, 131, 60, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 10, &kText_public_button_submit },
+    { 0x087A890Eu, 0x2452ECFFu, app_ui::WidgetType::Button, {220, 131, 60, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 10, &kText_public_button_cancle },
 };
 
 static const app_ui::desc::SceneDesc kScene_public = {
