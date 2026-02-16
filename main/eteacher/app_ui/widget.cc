@@ -1045,7 +1045,35 @@ void FrameWidget::OnDraw(Painter& p) {
     p.SetTextColor(Color::Black);
     p.DrawRect(rect);
     if (!text_.empty()) {
-        p.DrawText({4, 0}, text_.c_str());
+        const int16_t x = 4;
+        const int16_t top = 2;
+        const Size line_size = p.MeasureText("A", nullptr);
+        int16_t line_h = line_size.h > 0 ? line_size.h : 14;
+        if (line_h < 10) {
+            line_h = 10;
+        }
+
+        size_t start = 0;
+        int line_index = 0;
+        while (start <= text_.size()) {
+            const size_t pos = text_.find('\n', start);
+            const size_t end = (pos == std::string::npos) ? text_.size() : pos;
+            const int16_t y = static_cast<int16_t>(top + line_index * line_h);
+            if (y + line_h > rect.h - 1) {
+                break;
+            }
+
+            const std::string line = text_.substr(start, end - start);
+            if (!line.empty()) {
+                p.DrawText({x, y}, line.c_str());
+            }
+
+            if (pos == std::string::npos) {
+                break;
+            }
+            start = pos + 1;
+            ++line_index;
+        }
     }
 }
 

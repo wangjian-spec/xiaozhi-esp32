@@ -2666,6 +2666,10 @@ CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # end of Wi-Fi Provisioning Manager
 
 #
+# Sqlite3
+#
+
+#
 # ESP Emote Graphics Framework
 #
 # CONFIG_GFX_FONT_FREETYPE_SUPPORT is not set

@@ -16,12 +16,12 @@
   },
   "resources": {
     "texts": {
-      "TEXT_TEXTAREA_DD2B8B": "TextArea",
-      "TEXT_LABEL_8BA487": "输入英文单词",
-      "TEXT_FRAME_E86A40": "查询结果显示区",
+      "TEXT_LABEL_1": "输入单词：",
+      "TEXT_LABEL_STATUS": "提示：",
+      "TEXT_FRAME_D3F67D": "Frame",
       "TEXT_BOTTOMBAR_C9BB2E": "BottomBar",
       "TEXT_TOPBAR_F8A80A": "TopBar",
-      "TEXT_SOFTKEYBOARD_9365DD": "SoftKeyboard"
+      "TEXT_SOFTKEYBOARD_1": "SoftKeyboard"
     },
     "images": {},
     "fonts": {}
@@ -45,49 +45,62 @@
         "h": 300
       }
     },
-    "textarea_dd2b8b": {
+    "textarea_word": {
       "type": "TextArea",
       "rect": {
-        "x": 146,
-        "y": 30,
-        "w": 120,
-        "h": 40
+        "x": 75,
+        "y": 33,
+        "w": 140,
+        "h": 20
       },
       "style": null,
       "z": 3,
       "parent": "root_page_f3a5",
-      "properties": {
-        "textId": "TEXT_TEXTAREA_DD2B8B"
-      }
+      "properties": {}
     },
-    "label_8ba487": {
+    "label_1": {
       "type": "Label",
       "rect": {
-        "x": 44,
-        "y": 29,
-        "w": 80,
-        "h": 40
+        "x": 9,
+        "y": 33,
+        "w": 60,
+        "h": 20
       },
       "style": null,
       "z": 1,
       "parent": "root_page_f3a5",
       "properties": {
-        "textId": "TEXT_LABEL_8BA487"
+        "textId": "TEXT_LABEL_1"
       }
     },
-    "frame_e86a40": {
+    "label_status": {
+      "type": "Label",
+      "rect": {
+        "x": 223,
+        "y": 33,
+        "w": 160,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_f3a5",
+      "properties": {
+        "textId": "TEXT_LABEL_STATUS"
+      }
+    },
+    "frame_d3f67d": {
       "type": "Frame",
       "rect": {
         "x": 10,
-        "y": 78,
+        "y": 64,
         "w": 380,
-        "h": 200
+        "h": 220
       },
       "style": null,
-      "z": 1,
+      "z": 0,
       "parent": "root_page_f3a5",
       "properties": {
-        "textId": "TEXT_FRAME_E86A40"
+        "textId": "TEXT_FRAME_D3F67D"
       }
     }
   },
@@ -136,7 +149,7 @@
           "textId": "TEXT_TOPBAR_F8A80A"
         }
       },
-      "softkeyboard_9365dd": {
+      "softkeyboard_1": {
         "type": "SoftKeyboard",
         "rect": {
           "x": 50,
@@ -148,7 +161,7 @@
         "z": 0,
         "parent": "root_public",
         "properties": {
-          "textId": "TEXT_SOFTKEYBOARD_9365DD"
+          "textId": "TEXT_SOFTKEYBOARD_1"
         }
       }
     }
