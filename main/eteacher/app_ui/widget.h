@@ -217,8 +217,17 @@ protected:
 };
 
 class ImageWidget : public TextWidget {
+public:
+    void SetQrCode(int size, const std::vector<uint8_t>& modules);
+    void ClearQrCode();
+    bool HasQrCode() const;
+
 protected:
     void OnDraw(Painter& p) override;
+
+private:
+    int qr_size_ = 0;
+    std::vector<uint8_t> qr_modules_{};
 };
 
 class TextAreaWidget : public TextWidget {

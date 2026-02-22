@@ -1,0 +1,543 @@
+{
+  "meta": {
+    "project": "ui_calendar_schedule",
+    "ui_version": "1.0",
+    "target": "esp32-s3",
+    "display": {
+      "type": "eink",
+      "width": 400,
+      "height": 300,
+      "color": "mono"
+    },
+    "generator": {
+      "tool": "ui_editor",
+      "version": "0.3.1"
+    }
+  },
+  "resources": {
+    "texts": {
+      "TEXT_RADIO_TODAY": "当日",
+      "TEXT_RADIO_THISWEEK": "本周",
+      "TEXT_RADIO_ALL": "全部",
+      "TEXT_CHECKBOX_TODO": "未完成",
+      "TEXT_CHECKBOX_DONE": "已完成",
+      "TEXT_CHECKBOX_DELETE": "已删除",
+      "TEXT_BUTTON_PHONECONNECT": "手机连接设置",
+      "TEXT_IMAGE_894102": "Image",
+      "TEXT_LABEL_E0038A": "网址",
+      "TEXT_TEXTAREA_572403": "ASR",
+      "TEXT_TOPBAR_408ADC": "TopBar",
+      "TEXT_BOTTOMBAR_AABB85": "BottomBar",
+      "TEXT_TABVIEW_439E98": "\"日历\"\"待办事项\"\"闹钟计时\"\"日程表\"\"日程设置\"",
+      "TEXT_LABEL_ALERT": "确认操作提示文字",
+      "TEXT_BUTTON_SUBMIT": "确定",
+      "TEXT_BUTTON_CANCLE": "取消"
+    },
+    "images": {},
+    "fonts": {}
+  },
+  "styles": {},
+  "themes": {},
+  "data": {},
+  "pages": {
+    "page_main": {
+      "name": "日历",
+      "root": "root_page_main"
+    },
+    "page_d3f0": {
+      "name": "待办事项",
+      "root": "root_page_d3f0"
+    },
+    "page_1e8a": {
+      "name": "闹钟计时",
+      "root": "root_page_1e8a"
+    },
+    "page_89db": {
+      "name": "日程表",
+      "root": "root_page_89db"
+    },
+    "page_9b37": {
+      "name": "日程设置",
+      "root": "root_page_9b37"
+    }
+  },
+  "widgets": {
+    "root_page_main": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "frame": {
+      "type": "Frame",
+      "rect": {
+        "x": 0,
+        "y": 44,
+        "w": 400,
+        "h": 240
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_main",
+      "properties": {}
+    },
+    "root_page_d3f0": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "listview_task": {
+      "type": "ListView",
+      "rect": {
+        "x": 0,
+        "y": 60,
+        "w": 400,
+        "h": 224
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d3f0",
+      "properties": {}
+    },
+    "radio_today": {
+      "type": "Radio",
+      "rect": {
+        "x": 280,
+        "y": 42,
+        "w": 40,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d3f0",
+      "properties": {
+        "textId": "TEXT_RADIO_TODAY"
+      }
+    },
+    "radio_ThisWeek": {
+      "type": "Radio",
+      "rect": {
+        "x": 340,
+        "y": 42,
+        "w": 40,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d3f0",
+      "properties": {
+        "textId": "TEXT_RADIO_THISWEEK"
+      }
+    },
+    "radio_all": {
+      "type": "Radio",
+      "rect": {
+        "x": 220,
+        "y": 42,
+        "w": 40,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d3f0",
+      "properties": {
+        "textId": "TEXT_RADIO_ALL"
+      }
+    },
+    "checkbox_todo": {
+      "type": "Checkbox",
+      "rect": {
+        "x": 10,
+        "y": 42,
+        "w": 40,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d3f0",
+      "properties": {
+        "textId": "TEXT_CHECKBOX_TODO"
+      }
+    },
+    "checkbox_done": {
+      "type": "Checkbox",
+      "rect": {
+        "x": 70,
+        "y": 42,
+        "w": 40,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d3f0",
+      "properties": {
+        "textId": "TEXT_CHECKBOX_DONE"
+      }
+    },
+    "checkbox_delete": {
+      "type": "Checkbox",
+      "rect": {
+        "x": 130,
+        "y": 42,
+        "w": 40,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d3f0",
+      "properties": {
+        "textId": "TEXT_CHECKBOX_DELETE"
+      }
+    },
+    "root_page_1e8a": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "frame_alarmclock": {
+      "type": "Frame",
+      "rect": {
+        "x": 0,
+        "y": 60,
+        "w": 200,
+        "h": 224
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1e8a",
+      "properties": {}
+    },
+    "frame_clock": {
+      "type": "Frame",
+      "rect": {
+        "x": 200,
+        "y": 60,
+        "w": 200,
+        "h": 112
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1e8a",
+      "properties": {}
+    },
+    "frame_timer": {
+      "type": "Frame",
+      "rect": {
+        "x": 200,
+        "y": 172,
+        "w": 200,
+        "h": 112
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1e8a",
+      "properties": {}
+    },
+    "root_page_89db": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "frame_1": {
+      "type": "Frame",
+      "rect": {
+        "x": 4,
+        "y": 40,
+        "w": 56,
+        "h": 244
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "frame_2": {
+      "type": "Frame",
+      "rect": {
+        "x": 60,
+        "y": 40,
+        "w": 56,
+        "h": 244
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "frame_3": {
+      "type": "Frame",
+      "rect": {
+        "x": 116,
+        "y": 40,
+        "w": 56,
+        "h": 244
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "frame_4": {
+      "type": "Frame",
+      "rect": {
+        "x": 172,
+        "y": 40,
+        "w": 56,
+        "h": 244
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "frame_5": {
+      "type": "Frame",
+      "rect": {
+        "x": 228,
+        "y": 40,
+        "w": 56,
+        "h": 244
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "frame_6": {
+      "type": "Frame",
+      "rect": {
+        "x": 284,
+        "y": 40,
+        "w": 56,
+        "h": 244
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "frame_7": {
+      "type": "Frame",
+      "rect": {
+        "x": 340,
+        "y": 40,
+        "w": 56,
+        "h": 244
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "root_page_9b37": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "button_PhoneConnect": {
+      "type": "Button",
+      "rect": {
+        "x": 41,
+        "y": 63,
+        "w": 80,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9b37",
+      "properties": {
+        "textId": "TEXT_BUTTON_PHONECONNECT"
+      }
+    },
+    "image_894102": {
+      "type": "Image",
+      "rect": {
+        "x": 5,
+        "y": 87,
+        "w": 150,
+        "h": 150
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9b37",
+      "properties": {
+        "textId": "TEXT_IMAGE_894102"
+      }
+    },
+    "label_e0038a": {
+      "type": "Label",
+      "rect": {
+        "x": 35,
+        "y": 246,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9b37",
+      "properties": {
+        "textId": "TEXT_LABEL_E0038A"
+      }
+    },
+    "textarea_572403": {
+      "type": "TextArea",
+      "rect": {
+        "x": 179,
+        "y": 90,
+        "w": 200,
+        "h": 100
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9b37",
+      "properties": {
+        "textId": "TEXT_TEXTAREA_572403"
+      }
+    }
+  },
+  "public": {
+    "page": {
+      "name": "PublicPage",
+      "root": "root_public"
+    },
+    "widgets": {
+      "root_public": {
+        "type": "Container",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 300
+        }
+      },
+      "topbar_408adc": {
+        "type": "TopBar",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {
+          "textId": "TEXT_TOPBAR_408ADC"
+        }
+      },
+      "bottombar_aabb85": {
+        "type": "BottomBar",
+        "rect": {
+          "x": 0,
+          "y": 284,
+          "w": 400,
+          "h": 16
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {
+          "textId": "TEXT_BOTTOMBAR_AABB85"
+        }
+      },
+      "tabview_439e98": {
+        "type": "TabView",
+        "rect": {
+          "x": 0,
+          "y": 20,
+          "w": 400,
+          "h": 20
+        },
+        "style": null,
+        "z": 10,
+        "parent": "root_public",
+        "properties": {
+          "textId": "TEXT_TABVIEW_439E98"
+        }
+      },
+      "dialog_alert": {
+        "type": "Dialog",
+        "rect": {
+          "x": 90,
+          "y": 108,
+          "w": 220,
+          "h": 120
+        },
+        "style": null,
+        "z": 20,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "label_alert": {
+        "type": "Label",
+        "rect": {
+          "x": 136,
+          "y": 143,
+          "w": 80,
+          "h": 20
+        },
+        "style": null,
+        "z": 20,
+        "parent": "dialog_alert",
+        "properties": {
+          "textId": "TEXT_LABEL_ALERT"
+        }
+      },
+      "button_submit": {
+        "type": "Button",
+        "rect": {
+          "x": 123,
+          "y": 191,
+          "w": 60,
+          "h": 20
+        },
+        "style": null,
+        "z": 20,
+        "parent": "dialog_alert",
+        "properties": {
+          "textId": "TEXT_BUTTON_SUBMIT"
+        }
+      },
+      "button_cancle": {
+        "type": "Button",
+        "rect": {
+          "x": 221,
+          "y": 187,
+          "w": 60,
+          "h": 20
+        },
+        "style": null,
+        "z": 20,
+        "parent": "dialog_alert",
+        "properties": {
+          "textId": "TEXT_BUTTON_CANCLE"
+        }
+      }
+    }
+  },
+  "events": [],
+  "navigation": {
+    "focus": {},
+    "scene_flow": {}
+  },
+  "states": {}
+}

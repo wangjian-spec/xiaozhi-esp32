@@ -124,6 +124,136 @@ void SplitListItemText(const char* text, std::string& left, std::string& right) 
     right.assign(delimiter + 1);
 }
 
+enum class ListMarkerStyle : uint8_t {
+    None,
+    Todo,
+    Done,
+    Deleted,
+};
+
+bool ConsumeListMarkerPrefix(std::string& text, ListMarkerStyle& style) {
+    struct PrefixMap {
+        const char* prefix;
+        ListMarkerStyle style;
+    };
+    static constexpr PrefixMap kPrefixMap[] = {
+        {"[[TODO]]", ListMarkerStyle::Todo},
+        {"[[DONE]]", ListMarkerStyle::Done},
+        {"[[DELETED]]", ListMarkerStyle::Deleted},
+    };
+
+    for (const auto& item : kPrefixMap) {
+        const size_t len = std::strlen(item.prefix);
+        if (text.size() < len) {
+            continue;
+        }
+        if (text.compare(0, len, item.prefix) == 0) {
+            style = item.style;
+            text.erase(0, len);
+            while (!text.empty() && text.front() == ' ') {
+                text.erase(0, 1);
+            }
+            return true;
+        }
+    }
+    style = ListMarkerStyle::None;
+    return false;
+}
+
+void DrawListMarker(Painter& p, int y, int h, ListMarkerStyle style, bool selected) {
+    if (style == ListMarkerStyle::None) {
+        return;
+    }
+
+    p.SetDrawColor(selected ? Color::White : Color::Black);
+    constexpr int kMarkerDiameter = 16;
+    const int radius = kMarkerDiameter / 2;
+    const int cx = 2 + radius;
+    const int cy = y + h / 2;
+    p.DrawCircle({static_cast<int16_t>(cx), static_cast<int16_t>(cy)}, static_cast<int16_t>(radius));
+
+    if (style == ListMarkerStyle::Deleted) {
+        const int x1 = cx - radius + 2;
+        const int y1 = cy - radius + 2;
+        const int x2 = cx + radius - 2;
+        const int y2 = cy + radius - 2;
+        const int len = std::max(0, x2 - x1);
+        for (int i = 0; i <= len; ++i) {
+            p.FillRect({static_cast<int16_t>(x1 + i), static_cast<int16_t>(y1 + i), 1, 1});
+            p.FillRect({static_cast<int16_t>(x1 + i), static_cast<int16_t>(y2 - i), 1, 1});
+        }
+    } else if (style == ListMarkerStyle::Done) {
+        const int x1 = cx - radius + 2;
+        const int y1 = cy;
+        const int x2 = cx - 1;
+        const int y2 = cy + radius - 2;
+        const int x3 = cx + radius - 2;
+        for (int i = 0; i <= std::max(0, x2 - x1); ++i) {
+            p.FillRect({static_cast<int16_t>(x1 + i), static_cast<int16_t>(y1 + i), 1, 1});
+        }
+        for (int i = 0; i <= std::max(0, x3 - x2); ++i) {
+            p.FillRect({static_cast<int16_t>(x2 + i), static_cast<int16_t>(y2 - i), 1, 1});
+        }
+    }
+}
+
+int Utf8CharLen(unsigned char c) {
+    if ((c & 0x80u) == 0) {
+        return 1;
+    }
+    if ((c & 0xE0u) == 0xC0u) {
+        return 2;
+    }
+    if ((c & 0xF0u) == 0xE0u) {
+        return 3;
+    }
+    if ((c & 0xF8u) == 0xF0u) {
+        return 4;
+    }
+    return 1;
+}
+
+std::vector<std::string> WrapTextByWidth(Painter& p, const std::string& text, int max_width, int max_lines) {
+    std::vector<std::string> lines;
+    if (text.empty() || max_width <= 0 || max_lines <= 0) {
+        return lines;
+    }
+
+    const Size full_size = p.MeasureText(text.c_str(), nullptr);
+    if (full_size.w <= max_width) {
+        lines.push_back(text);
+        return lines;
+    }
+
+    size_t pos = 0;
+    while (pos < text.size() && static_cast<int>(lines.size()) < max_lines) {
+        std::string line;
+        size_t last = pos;
+        while (last < text.size()) {
+            const int ch_len = Utf8CharLen(static_cast<unsigned char>(text[last]));
+            const size_t next = std::min(text.size(), last + static_cast<size_t>(ch_len));
+            std::string trial = line + text.substr(last, next - last);
+            const Size s = p.MeasureText(trial.c_str(), nullptr);
+            if (s.w > max_width && !line.empty()) {
+                break;
+            }
+            line.swap(trial);
+            last = next;
+            if (s.w > max_width) {
+                break;
+            }
+        }
+
+        if (line.empty()) {
+            break;
+        }
+        lines.push_back(std::move(line));
+        pos = last;
+    }
+
+    return lines;
+}
+
 class StaticVectorModel : public ItemModel {
 public:
     explicit StaticVectorModel(std::vector<std::string> items)
@@ -555,11 +685,67 @@ void ButtonWidget::OnDraw(Painter& p) {
     p.DrawText({x, y}, text_.c_str());
 }
 
+void ImageWidget::SetQrCode(int size, const std::vector<uint8_t>& modules) {
+    if (size <= 0 || static_cast<size_t>(size * size) != modules.size()) {
+        ClearQrCode();
+        return;
+    }
+    qr_size_ = size;
+    qr_modules_ = modules;
+    MarkDirty();
+}
+
+void ImageWidget::ClearQrCode() {
+    qr_size_ = 0;
+    qr_modules_.clear();
+    MarkDirty();
+}
+
+bool ImageWidget::HasQrCode() const {
+    return qr_size_ > 0 && static_cast<size_t>(qr_size_ * qr_size_) == qr_modules_.size();
+}
+
 void ImageWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
     p.SetDrawColor(Color::Black);
     p.DrawRect(rect);
+    Rect inner = {1, 1, static_cast<int16_t>(rect.w - 2), static_cast<int16_t>(rect.h - 2)};
+    if (inner.w > 0 && inner.h > 0) {
+        p.SetDrawColor(Color::White);
+        p.FillRect(inner);
+    }
+
+    if (HasQrCode() && inner.w > 0 && inner.h > 0) {
+        constexpr int kQuietZoneModules = 2;
+        const int total_modules = qr_size_ + kQuietZoneModules * 2;
+        if (total_modules > 0) {
+            const int scale_x = inner.w / total_modules;
+            const int scale_y = inner.h / total_modules;
+            const int module_px = std::min(scale_x, scale_y);
+            if (module_px >= 1) {
+                const int qr_px = total_modules * module_px;
+                const int offset_x = inner.x + (inner.w - qr_px) / 2;
+                const int offset_y = inner.y + (inner.h - qr_px) / 2;
+                p.SetDrawColor(Color::Black);
+                for (int y = 0; y < qr_size_; ++y) {
+                    for (int x = 0; x < qr_size_; ++x) {
+                        const size_t idx = static_cast<size_t>(y * qr_size_ + x);
+                        if (idx >= qr_modules_.size() || qr_modules_[idx] == 0) {
+                            continue;
+                        }
+                        const int px = offset_x + (x + kQuietZoneModules) * module_px;
+                        const int py = offset_y + (y + kQuietZoneModules) * module_px;
+                        p.FillRect({static_cast<int16_t>(px), static_cast<int16_t>(py),
+                                    static_cast<int16_t>(module_px), static_cast<int16_t>(module_px)});
+                    }
+                }
+                return;
+            }
+        }
+    }
+
     if (!text_.empty()) {
+        p.SetTextColor(Color::Black);
         p.DrawText({2, 2}, text_.c_str());
     }
 }
@@ -615,6 +801,8 @@ FocusIntent ListViewWidget::OnFocusKey(KeyCode key) {
         return FocusIntent::Bubble;
     }
 
+    const int page_rows = std::max(1, EffectiveRowCount());
+
     if (key == KeyCode::Up) {
         if (selected_index_ > 0) {
             selected_index_--;
@@ -632,9 +820,27 @@ FocusIntent ListViewWidget::OnFocusKey(KeyCode key) {
         return FocusIntent::EscapeDown;
     }
     if (key == KeyCode::Left) {
+        if (count > page_rows) {
+            const int old = selected_index_;
+            selected_index_ = std::max(0, selected_index_ - page_rows);
+            if (selected_index_ != old) {
+                MarkDirty();
+                return FocusIntent::Consume;
+            }
+            return FocusIntent::EscapeLeft;
+        }
         return FocusIntent::EscapeLeft;
     }
     if (key == KeyCode::Right) {
+        if (count > page_rows) {
+            const int old = selected_index_;
+            selected_index_ = std::min(count - 1, selected_index_ + page_rows);
+            if (selected_index_ != old) {
+                MarkDirty();
+                return FocusIntent::Consume;
+            }
+            return FocusIntent::EscapeRight;
+        }
         return FocusIntent::EscapeRight;
     }
     return FocusIntent::None;
@@ -732,8 +938,8 @@ void ListViewWidget::OnDraw(Painter& p) {
     }
 
     const int item_count = ItemCount();
-    const int item_h = 25;
-    const int rows = std::max<int>(1, rect.h / item_h);
+    const int target_rows = std::max<int>(1, EffectiveRowCount());
+    const int rows = target_rows;
     int start_index = 0;
     if (item_count > rows) {
         start_index = selected_index_ - rows / 2;
@@ -747,38 +953,65 @@ void ListViewWidget::OnDraw(Painter& p) {
     }
     const bool focused = Focused();
 
-    for (int row = 0; row < rows; ++row) {
-        const int y = row * item_h;
-        if (y >= rect.h) {
+    const int line_h = std::max<int>(1, p.MeasureText("A", nullptr).h);
+    int y = 0;
+    int item_index = start_index;
+    while (item_index < item_count && y < rect.h) {
+        const bool selected = focused && (item_index == selected_index_);
+
+        const char* label = ItemLabel(item_index);
+        std::string left_text;
+        std::string right_text;
+        if (label && label[0]) {
+            SplitListItemText(label, left_text, right_text);
+        }
+
+        ListMarkerStyle marker_style = ListMarkerStyle::None;
+        ConsumeListMarkerPrefix(left_text, marker_style);
+        const int marker_w = (marker_style == ListMarkerStyle::None) ? 0 : 31;
+        const int text_x = 2 + marker_w;
+        const int text_w = std::max(1, rect.w - text_x - 2);
+
+        const auto lines = left_text.empty()
+                               ? std::vector<std::string>{}
+                               : WrapTextByWidth(p, left_text, text_w, std::max(1, item_count));
+        const int text_lines = std::max<int>(1, static_cast<int>(lines.size()));
+        int h = 4 + text_lines * line_h;
+        if (h < 20) {
+            h = 20;
+        }
+        if (y + h > rect.h) {
             break;
         }
-        const int h = (row == rows - 1) ? std::min(item_h, rect.h - y) : item_h;
-        const int item_index = start_index + row;
-        const bool selected = focused && (item_index == selected_index_);
+
         p.SetDrawColor(selected ? Color::Black : Color::White);
         p.FillRect({0, static_cast<int16_t>(y), rect.w, static_cast<int16_t>(h)});
         p.SetTextColor(selected ? Color::White : Color::Black);
 
-        if (item_index < item_count) {
-            const char* label = ItemLabel(item_index);
-            if (label && label[0]) {
-                std::string left_text;
-                std::string right_text;
-                SplitListItemText(label, left_text, right_text);
+        if (marker_style != ListMarkerStyle::None) {
+            DrawListMarker(p, y, h, marker_style, selected);
+        }
 
-                if (!left_text.empty()) {
-                    p.DrawText({2, static_cast<int16_t>(y + 2)}, left_text.c_str());
+        if (!left_text.empty()) {
+            for (size_t li = 0; li < lines.size(); ++li) {
+                const int line_y = y + 2 + static_cast<int>(li) * line_h;
+                if (line_y + line_h > y + h) {
+                    break;
                 }
-                if (!right_text.empty()) {
-                    const Size right_size = p.MeasureText(right_text.c_str(), nullptr);
-                    int16_t right_x = static_cast<int16_t>(rect.w - right_size.w - 2);
-                    if (right_x < 2) {
-                        right_x = 2;
-                    }
-                    p.DrawText({right_x, static_cast<int16_t>(y + 2)}, right_text.c_str());
-                }
+                p.DrawText({static_cast<int16_t>(text_x), static_cast<int16_t>(line_y)}, lines[li].c_str());
             }
         }
+        if (!right_text.empty()) {
+            const Size right_size = p.MeasureText(right_text.c_str(), nullptr);
+            int16_t right_x = static_cast<int16_t>(rect.w - right_size.w - 2);
+            if (right_x < 2) {
+                right_x = 2;
+            }
+            p.DrawText({right_x, static_cast<int16_t>(y + 2)}, right_text.c_str());
+        }
+
+        y += h;
+        ++item_index;
     }
 
     p.SetDrawColor(Color::Black);
@@ -1348,12 +1581,27 @@ bool CheckboxWidget::Checked() const {
 
 void CheckboxWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
-    p.SetDrawColor(Color::Black);
-    p.SetTextColor(Color::Black);
-    const int box = std::min(12, rect.h > 0 ? rect.h : 12);
-    p.DrawRect({0, 0, static_cast<int16_t>(box), static_cast<int16_t>(box)});
+    const bool focused = Focused();
+    p.SetDrawColor(focused ? Color::Black : Color::White);
+    p.FillRect(rect);
+    p.SetDrawColor(focused ? Color::White : Color::Black);
+    p.SetTextColor(focused ? Color::White : Color::Black);
+    const int box = std::min(10, rect.h > 0 ? rect.h : 10);
+    const int text_h = std::max<int>(1, p.MeasureText("A", nullptr).h);
+    const int box_y = std::max(0, (text_h - box) / 2);
+    p.DrawRect({0, static_cast<int16_t>(box_y), static_cast<int16_t>(box), static_cast<int16_t>(box)});
     if (checked_) {
-        p.DrawText({2, static_cast<int16_t>(box - 2)}, "✓");
+        const int x1 = std::max(1, box / 4);
+        const int y1 = box_y + std::max(1, box / 2);
+        const int x2 = std::max(x1 + 1, box / 2 - 1);
+        const int y2 = box_y + std::max(3, box - 3);
+        const int x3 = std::max(x2 + 1, box - 3);
+        for (int i = 0; i <= (x2 - x1); ++i) {
+            p.FillRect({static_cast<int16_t>(x1 + i), static_cast<int16_t>(y1 + i), 1, 1});
+        }
+        for (int i = 0; i <= (x3 - x2); ++i) {
+            p.FillRect({static_cast<int16_t>(x2 + i), static_cast<int16_t>(y2 - i), 1, 1});
+        }
     }
     p.DrawText({static_cast<int16_t>(box + 4), 0}, text_.c_str());
 }
@@ -1373,11 +1621,25 @@ bool RadioWidget::Checked() const {
 void RadioWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
     const int radius = std::min(5, rect.h / 2);
-    p.SetDrawColor(Color::Black);
-    p.SetTextColor(Color::Black);
-    p.DrawCircle({static_cast<int16_t>(radius + 1), static_cast<int16_t>(radius + 1)}, radius);
+    const bool focused = Focused();
+    p.SetDrawColor(focused ? Color::Black : Color::White);
+    p.FillRect(rect);
+    p.SetDrawColor(focused ? Color::White : Color::Black);
+    p.SetTextColor(focused ? Color::White : Color::Black);
+    const int cx = radius + 1;
+    const int cy = radius + 2;
+    p.DrawCircle({static_cast<int16_t>(cx), static_cast<int16_t>(cy)}, radius);
     if (checked_) {
-        p.FillRect({static_cast<int16_t>(radius - 1), static_cast<int16_t>(radius - 1), 4, 4});
+        const int outer_diameter = radius * 2;
+        const int dot_diameter = std::max(1, outer_diameter / 2);
+        const int dot_radius = std::max(1, dot_diameter / 2);
+        for (int dy = -dot_radius; dy <= dot_radius; ++dy) {
+            for (int dx = -dot_radius; dx <= dot_radius; ++dx) {
+                if (dx * dx + dy * dy <= dot_radius * dot_radius) {
+                    p.FillRect({static_cast<int16_t>(cx + dx), static_cast<int16_t>(cy + dy), 1, 1});
+                }
+            }
+        }
     }
     p.DrawText({static_cast<int16_t>(radius * 2 + 4), 0}, text_.c_str());
 }

@@ -24,9 +24,33 @@ namespace eteacher::app_ui {
 namespace {
 
 static constexpr char kTag[] = "StatusBar";
+static constexpr char kTopDateTimeFont[] = "wenquanyi_11pt";
 
 static inline uint16_t ReadLE16(const uint8_t* p) {
     return static_cast<uint16_t>(static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8));
+}
+
+void SplitDateWeekAndClock(std::string_view full, std::string& out_date_week, std::string& out_clock) {
+    out_date_week.clear();
+    out_clock.clear();
+    if (full.empty()) {
+        return;
+    }
+
+    const size_t sep = full.find("  ");
+    if (sep == std::string_view::npos) {
+        out_date_week.assign(full.begin(), full.end());
+        return;
+    }
+
+    out_date_week.assign(full.substr(0, sep));
+    size_t time_begin = sep;
+    while (time_begin < full.size() && full[time_begin] == ' ') {
+        ++time_begin;
+    }
+    if (time_begin < full.size()) {
+        out_clock.assign(full.substr(time_begin));
+    }
 }
 } // anonymous
 
@@ -235,7 +259,10 @@ void DrawTopBar(Adafruit_GFX& gfx,
 
     const int16_t status_font_ascent = GetFontAscent(style.status_font);
     const int16_t status_font_height = GetFontHeight(style.status_font);
-    const int16_t status_baseline = static_cast<int16_t>((style.top_height - status_font_height) / 2 + status_font_ascent);
+    const int16_t status_baseline = static_cast<int16_t>((style.top_height - status_font_height) / 2 + status_font_ascent + 1);
+    const int16_t top_font_ascent = GetFontAscent(kTopDateTimeFont);
+    const int16_t top_font_height = GetFontHeight(kTopDateTimeFont);
+    const int16_t top_baseline = static_cast<int16_t>((style.top_height - top_font_height) / 2 + top_font_ascent + 1);
 
     const int16_t vol_batt_gap = 50;
     const int16_t batt_wifi_gap = 35;
@@ -254,7 +281,7 @@ void DrawTopBar(Adafruit_GFX& gfx,
         const int16_t text_w = status.volume_text.empty() ? 0 : fixed_text_w;
         const int16_t total_w = icon_w + (text_w > 0 ? (icon_text_gap + text_w) : 0);
         const int16_t icon_x = static_cast<int16_t>(volume_group_right - total_w);
-        const int16_t icon_y = static_cast<int16_t>((style.top_height - icon_h) / 2);
+        const int16_t icon_y = static_cast<int16_t>((style.top_height - icon_h) / 2 + 1);
         gfx.drawBitmap(icon_x, icon_y, volume_icon.data, icon_w, icon_h, GxEPD_BLACK);
         if (!status.volume_text.empty()) {
             const int16_t area_x = static_cast<int16_t>(icon_x + icon_w + icon_text_gap);
@@ -275,11 +302,22 @@ void DrawTopBar(Adafruit_GFX& gfx,
         }
     }
 
-    DrawBatteryIcon(gfx, battery_right, 0, style.top_height, status.battery_level);
-    DrawIconWithText(gfx, epd, status.wifi_connected ? std::string("wifi_on.bin") : std::string("wifi_off.bin"), "", wifi_right, 0, style.top_height, status_baseline, style.status_font, 4);
+    DrawBatteryIcon(gfx, battery_right, 1, style.top_height, status.battery_level);
+    DrawIconWithText(gfx, epd, status.wifi_connected ? std::string("wifi_on.bin") : std::string("wifi_off.bin"), "", wifi_right, 1, style.top_height, status_baseline, style.status_font, 4);
 
     if (!status.time_text.empty()) {
-        epd->DrawUtf8(style.padding, status_baseline, status.time_text, style.status_font, GxEPD_BLACK);
+        std::string date_week;
+        std::string clock_text;
+        SplitDateWeekAndClock(status.time_text, date_week, clock_text);
+
+        if (!date_week.empty()) {
+            epd->DrawUtf8(style.padding, top_baseline, date_week, kTopDateTimeFont, GxEPD_BLACK);
+        }
+        if (!clock_text.empty()) {
+            const int16_t clock_w = epd->MeasureUtf8Width(clock_text, kTopDateTimeFont);
+            const int16_t clock_x = static_cast<int16_t>((static_cast<int>(screen_w) - clock_w) / 2);
+            epd->DrawUtf8(clock_x, top_baseline, clock_text, kTopDateTimeFont, GxEPD_BLACK);
+        }
     }
 }
 

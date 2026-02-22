@@ -732,7 +732,7 @@ endif()
 set(MAIN_REQUIRES "")
 if(CONFIG_BOARD_TYPE_English_Teacher)
     # SdFat / GxEPD2 are Arduino libraries vendored as IDF components.
-    list(APPEND MAIN_REQUIRES arduino-esp32 SdFat GxEPD2 esp32-idf-sqlite3)
+    list(APPEND MAIN_REQUIRES arduino-esp32 SdFat GxEPD2 esp32-idf-sqlite3 qrcode)
 endif()
 
 if(CONFIG_BOARD_TYPE_English_Teacher)
