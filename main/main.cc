@@ -18,7 +18,7 @@
 #include "eteacher/apps/free_conversation/free_conversation.h"
 #include "eteacher/apps/device_setting/device_setting.h"
 #include "eteacher/apps/scene_conversation/scene_conversation.h"
-#include "eteacher/apps/word_practice/word_practice.h"
+//#include "eteacher/apps/word_practice/word_practice.h"
 #include "eteacher/apps/calendar_schedule/calendar_schedule.h"
 #include "eteacher/apps/sd_file_mgr/sd_file_mgr.h"
 #include "eteacher/apps/dictionary/dictionary.h"
@@ -49,7 +49,7 @@ extern "C" void app_main(void)
     auto& app_mgr = AppManager::GetInstance();
     app_mgr.Init(board);
     
-    app_mgr.Register(MakeWordPracticeApp());
+    // app_mgr.Register(MakeWordPracticeApp());
     app_mgr.Register(MakeSceneConversationApp());
     app_mgr.Register(MakeFreeConversationApp());
 

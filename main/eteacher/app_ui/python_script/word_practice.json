@@ -16,12 +16,9 @@
   },
   "resources": {
     "texts": {
-      "TEXT_LABEL_DE5914": "Label",
-      "TEXT_PROGRESS_82AB52": "Progress",
-      "TEXT_TEXTAREA_326055": "TextArea",
-      "TEXT_DIALOG_E8CA72": "Dialog",
-      "TEXT_BUTTON_041006": "Button",
-      "TEXT_IMAGE_21643F": "Image"
+      "TEXT_LABEL_PRESSAREAD": "Label",
+      "TEXT_TOPBAR_408ADC": "TopBar",
+      "TEXT_BOTTOMBAR_AABB85": "BottomBar"
     },
     "images": {},
     "fonts": {}
@@ -30,17 +27,29 @@
   "themes": {},
   "data": {},
   "pages": {
-    "page_main": {
-      "name": "单词练习",
-      "root": "root_page_main"
+    "page_3b66": {
+      "name": "题型_图片选择",
+      "root": "root_page_3b66"
     },
-    "page_dc46": {
-      "name": "生词本",
-      "root": "root_page_dc46"
+    "page_0b9a": {
+      "name": "题型_单词翻译",
+      "root": "root_page_0b9a"
+    },
+    "page_1faf": {
+      "name": "题型_单词配对",
+      "root": "root_page_1faf"
+    },
+    "page_d55e": {
+      "name": "题型_句子翻译",
+      "root": "root_page_d55e"
+    },
+    "page_5d74": {
+      "name": "题型_口语词句",
+      "root": "root_page_5d74"
     }
   },
   "widgets": {
-    "root_page_main": {
+    "root_page_3b66": {
       "type": "Container",
       "rect": {
         "x": 0,
@@ -49,52 +58,163 @@
         "h": 300
       }
     },
-    "label_de5914": {
-      "type": "Label",
+    "image_A": {
+      "type": "Image",
       "rect": {
-        "x": 249,
+        "x": 20,
+        "y": 125,
+        "w": 80,
+        "h": 80
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_3b66",
+      "properties": {}
+    },
+    "image_B": {
+      "type": "Image",
+      "rect": {
+        "x": 113,
+        "y": 125,
+        "w": 80,
+        "h": 80
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_3b66",
+      "properties": {}
+    },
+    "image_C": {
+      "type": "Image",
+      "rect": {
+        "x": 206,
         "y": 124,
         "w": 80,
-        "h": 40
+        "h": 80
       },
       "style": null,
       "z": 0,
-      "parent": "root_page_main",
-      "properties": {
-        "textId": "TEXT_LABEL_DE5914"
-      }
+      "parent": "root_page_3b66",
+      "properties": {}
     },
-    "progress_82ab52": {
-      "type": "Progress",
+    "image_D": {
+      "type": "Image",
       "rect": {
-        "x": 97,
-        "y": 147,
+        "x": 300,
+        "y": 125,
         "w": 80,
-        "h": 40
+        "h": 80
       },
       "style": null,
       "z": 0,
-      "parent": "root_page_main",
-      "properties": {
-        "textId": "TEXT_PROGRESS_82AB52"
-      }
+      "parent": "root_page_3b66",
+      "properties": {}
     },
-    "textarea_326055": {
-      "type": "TextArea",
+    "word_practice_A": {
+      "type": "Image",
       "rect": {
-        "x": 135,
-        "y": 52,
-        "w": 80,
-        "h": 40
+        "x": 223,
+        "y": 101,
+        "w": 16,
+        "h": 16
       },
       "style": null,
       "z": 0,
-      "parent": "root_page_main",
-      "properties": {
-        "textId": "TEXT_TEXTAREA_326055"
-      }
+      "parent": "root_page_1faf",
+      "properties": {}
     },
-    "root_page_dc46": {
+    "label_A": {
+      "type": "Label",
+      "rect": {
+        "x": 284,
+        "y": 101,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_B": {
+      "type": "Image",
+      "rect": {
+        "x": 223,
+        "y": 133,
+        "w": 16,
+        "h": 16
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "label_B": {
+      "type": "Label",
+      "rect": {
+        "x": 284,
+        "y": 135,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "label_C": {
+      "type": "Label",
+      "rect": {
+        "x": 284,
+        "y": 170,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_C": {
+      "type": "Image",
+      "rect": {
+        "x": 223,
+        "y": 171,
+        "w": 16,
+        "h": 16
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "label_D": {
+      "type": "Label",
+      "rect": {
+        "x": 284,
+        "y": 203,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_D": {
+      "type": "Image",
+      "rect": {
+        "x": 223,
+        "y": 201,
+        "w": 16,
+        "h": 16
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "root_page_0b9a": {
       "type": "Container",
       "rect": {
         "x": 0,
@@ -102,6 +222,245 @@
         "w": 400,
         "h": 300
       }
+    },
+    "root_page_1faf": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "word_practice_down": {
+      "type": "Image",
+      "rect": {
+        "x": 48,
+        "y": 170,
+        "w": 16,
+        "h": 16
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_up": {
+      "type": "Image",
+      "rect": {
+        "x": 48,
+        "y": 102,
+        "w": 16,
+        "h": 16
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_left": {
+      "type": "Image",
+      "rect": {
+        "x": 48,
+        "y": 134,
+        "w": 16,
+        "h": 16
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "label_right": {
+      "type": "Label",
+      "rect": {
+        "x": 116,
+        "y": 202,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "label_up": {
+      "type": "Label",
+      "rect": {
+        "x": 116,
+        "y": 100,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_right": {
+      "type": "Image",
+      "rect": {
+        "x": 48,
+        "y": 206,
+        "w": 16,
+        "h": 16
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "label_down": {
+      "type": "Label",
+      "rect": {
+        "x": 116,
+        "y": 168,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "label_left": {
+      "type": "Label",
+      "rect": {
+        "x": 116,
+        "y": 134,
+        "w": 50,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_speaker_1": {
+      "type": "Image",
+      "rect": {
+        "x": 84,
+        "y": 101,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "image_29a0b0": {
+      "type": "Image",
+      "rect": {
+        "x": 84,
+        "y": 133,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_speaker_3": {
+      "type": "Image",
+      "rect": {
+        "x": 84,
+        "y": 169,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "word_practice_speaker_4": {
+      "type": "Image",
+      "rect": {
+        "x": 84,
+        "y": 203,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_1faf",
+      "properties": {}
+    },
+    "root_page_d55e": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "root_page_5d74": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "word_practice_mick": {
+      "type": "Image",
+      "rect": {
+        "x": 18,
+        "y": 175,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_5d74",
+      "properties": {}
+    },
+    "label_pressAread": {
+      "type": "Label",
+      "rect": {
+        "x": 60,
+        "y": 175,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_5d74",
+      "properties": {
+        "textId": "TEXT_LABEL_PRESSAREAD"
+      }
+    },
+    "label_PressDSkip": {
+      "type": "Label",
+      "rect": {
+        "x": 250,
+        "y": 175,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_5d74",
+      "properties": {
+        "textId": "TEXT_LABEL_PRESSAREAD"
+      }
+    },
+    "label_ASRresult": {
+      "type": "Label",
+      "rect": {
+        "x": 19,
+        "y": 218,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_5d74",
+      "properties": {}
     }
   },
   "public": {
@@ -119,50 +478,204 @@
           "h": 300
         }
       },
-      "dialog_e8ca72": {
+      "topbar_408adc": {
+        "type": "TopBar",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {
+          "textId": "TEXT_TOPBAR_408ADC"
+        }
+      },
+      "bottombar_aabb85": {
+        "type": "BottomBar",
+        "rect": {
+          "x": 0,
+          "y": 284,
+          "w": 400,
+          "h": 16
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {
+          "textId": "TEXT_BOTTOMBAR_AABB85"
+        }
+      },
+      "dialog_SelectBoard": {
         "type": "Dialog",
         "rect": {
-          "x": 135,
-          "y": 62,
-          "w": 200,
-          "h": 200
+          "x": 1,
+          "y": 198,
+          "w": 400,
+          "h": 60
         },
         "style": null,
         "z": 0,
         "parent": "root_public",
-        "properties": {
-          "textId": "TEXT_DIALOG_E8CA72"
-        }
+        "properties": {}
       },
-      "button_041006": {
-        "type": "Button",
-        "rect": {
-          "x": 185,
-          "y": 113,
-          "w": 80,
-          "h": 40
-        },
-        "style": null,
-        "z": 0,
-        "parent": "dialog_e8ca72",
-        "properties": {
-          "textId": "TEXT_BUTTON_041006"
-        }
-      },
-      "image_21643f": {
+      "word_practice_teacher": {
         "type": "Image",
         "rect": {
-          "x": 48,
-          "y": 160,
-          "w": 80,
-          "h": 40
+          "x": 10,
+          "y": 30,
+          "w": 32,
+          "h": 32
         },
         "style": null,
         "z": 0,
         "parent": "root_public",
-        "properties": {
-          "textId": "TEXT_IMAGE_21643F"
-        }
+        "properties": {}
+      },
+      "label_question_type": {
+        "type": "Label",
+        "rect": {
+          "x": 48,
+          "y": 38,
+          "w": 50,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "word_practice_cup": {
+        "type": "Image",
+        "rect": {
+          "x": 196,
+          "y": 30,
+          "w": 32,
+          "h": 32
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "label_CorrectCount": {
+        "type": "Label",
+        "rect": {
+          "x": 261,
+          "y": 38,
+          "w": 50,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "label_WrongCount": {
+        "type": "Label",
+        "rect": {
+          "x": 338,
+          "y": 38,
+          "w": 50,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "word_prictice_correct": {
+        "type": "Image",
+        "rect": {
+          "x": 242,
+          "y": 41,
+          "w": 16,
+          "h": 16
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "word_practice_wrong": {
+        "type": "Image",
+        "rect": {
+          "x": 318,
+          "y": 41,
+          "w": 16,
+          "h": 16
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "word_practice_good": {
+        "type": "Image",
+        "rect": {
+          "x": 15,
+          "y": 261,
+          "w": 20,
+          "h": 20
+        },
+        "style": null,
+        "z": 5,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "word_prictice_bad": {
+        "type": "Image",
+        "rect": {
+          "x": 15,
+          "y": 261,
+          "w": 20,
+          "h": 20
+        },
+        "style": null,
+        "z": 5,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "label_alert": {
+        "type": "Label",
+        "rect": {
+          "x": 45,
+          "y": 261,
+          "w": 350,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "word_practice_speaker": {
+        "type": "Image",
+        "rect": {
+          "x": 20,
+          "y": 82,
+          "w": 20,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "label_question": {
+        "type": "Label",
+        "rect": {
+          "x": 55,
+          "y": 82,
+          "w": 50,
+          "h": 20
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
       }
     }
   },

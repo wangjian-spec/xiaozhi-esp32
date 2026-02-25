@@ -1,4 +1,5 @@
 #include "epd_manager/epd_manager.h"
+#include "eteacher/app_ui/debug.h"
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -178,7 +179,9 @@ void EpdManager::Run() {
 				// Requirement: use input x/y/w/h directly; no clamp/align logic here.
 				const Rect rect = item.rect;
 				if (rect.w > 0 && rect.h > 0) {
+					#if APP_UI_DEBUG
 					ESP_LOGW(TAG, "EPD partial refresh: x=%d y=%d w=%d h=%d", (int)rect.x, (int)rect.y, (int)rect.w, (int)rect.h);
+					#endif
 					gfx.epd2.selectFastFullUpdate(false);
 					gfx.setPartialWindow(rect.x, rect.y, rect.w, rect.h);
 					gfx.firstPage();
@@ -192,7 +195,9 @@ void EpdManager::Run() {
 			}
 				break;
 			case TaskType::kFast:
+				#if APP_UI_DEBUG
 				ESP_LOGW(TAG, "EPD fast refresh (full screen, partial-update mode)");
+				#endif
 				// Fast refresh: full-screen refresh using a "faster" waveform policy.
 				// Implemented via GxEPD2 paged drawing (firstPage/nextPage).
 				gfx.epd2.selectFastFullUpdate(true);
@@ -206,7 +211,9 @@ void EpdManager::Run() {
 				partial_count_since_fast_ = 0;
 				break;
 			case TaskType::kFull:
+				#if APP_UI_DEBUG
 				ESP_LOGW(TAG, "EPD full refresh (full update waveform)");
+				#endif
 				// Full refresh: whole screen, full update waveform.
 				// Implemented via GxEPD2 paged drawing (firstPage/nextPage).
 				gfx.epd2.selectFastFullUpdate(false);
@@ -236,7 +243,9 @@ void EpdManager::Run() {
 		}
 
 		if (!ok) {
+			#if APP_UI_DEBUG
 			ESP_LOGW(TAG, "Refresh failed (type=%u)", (unsigned)effective);
+			#endif
 		}
 
 		if (item.ctx_deleter && item.ctx) {

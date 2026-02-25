@@ -3,73 +3,333 @@
 
 namespace app_ui::generated::word_practice {
 
-// Scene page_main
+// Scene page_3b66
 
-static const app_ui::desc::TextDesc kText_page_main_label_de5914 = {
+static const app_ui::desc::TextDesc kText_page_3b66_image_A = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_3b66_image_B = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_3b66_image_C = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_3b66_image_D = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::WidgetDesc kScene_page_3b66_widgets[] = {
+    { 0x0DF37237u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
+    { 0x682A05DAu, 0x0DF37237u, app_ui::WidgetType::Image, {20, 125, 80, 80}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_3b66_image_A },
+    { 0x672A0447u, 0x0DF37237u, app_ui::WidgetType::Image, {113, 125, 80, 80}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_3b66_image_B },
+    { 0x662A02B4u, 0x0DF37237u, app_ui::WidgetType::Image, {206, 124, 80, 80}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_3b66_image_C },
+    { 0x652A0121u, 0x0DF37237u, app_ui::WidgetType::Image, {300, 125, 80, 80}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_3b66_image_D },
+};
+
+static const app_ui::desc::SceneDesc kScene_page_3b66 = {
+    "page_3b66",
+    0x0DF37237u,
+    kScene_page_3b66_widgets,
+    sizeof(kScene_page_3b66_widgets) / sizeof(kScene_page_3b66_widgets[0])
+};
+
+// Scene page_0b9a
+
+static const app_ui::desc::WidgetDesc kScene_page_0b9a_widgets[] = {
+    { 0x4A829136u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
+};
+
+static const app_ui::desc::SceneDesc kScene_page_0b9a = {
+    "page_0b9a",
+    0x4A829136u,
+    kScene_page_0b9a_widgets,
+    sizeof(kScene_page_0b9a_widgets) / sizeof(kScene_page_0b9a_widgets[0])
+};
+
+// Scene page_1faf
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_A = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_A = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_B = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_B = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_C = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_C = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_D = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_D = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_down = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_up = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_left = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_right = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_up = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_right = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_down = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_label_left = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_speaker_1 = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_image_29a0b0 = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_speaker_3 = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_speaker_4 = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::WidgetDesc kScene_page_1faf_widgets[] = {
+    { 0xE5478F92u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
+    { 0x2F2EE03Fu, 0xE5478F92u, app_ui::WidgetType::Image, {223, 101, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_A },
+    { 0xA1804BC5u, 0xE5478F92u, app_ui::WidgetType::Label, {284, 101, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_A },
+    { 0x302EE1D2u, 0xE5478F92u, app_ui::WidgetType::Image, {223, 133, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_B },
+    { 0x9E80470Cu, 0xE5478F92u, app_ui::WidgetType::Label, {284, 135, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_B },
+    { 0x9F80489Fu, 0xE5478F92u, app_ui::WidgetType::Label, {284, 170, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_C },
+    { 0x312EE365u, 0xE5478F92u, app_ui::WidgetType::Image, {223, 171, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_C },
+    { 0x9C8043E6u, 0xE5478F92u, app_ui::WidgetType::Label, {284, 203, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_D },
+    { 0x2A2ED860u, 0xE5478F92u, app_ui::WidgetType::Image, {223, 201, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_D },
+    { 0x83E3E9B0u, 0xE5478F92u, app_ui::WidgetType::Image, {48, 170, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_down },
+    { 0x7D9959C9u, 0xE5478F92u, app_ui::WidgetType::Image, {48, 102, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_up },
+    { 0xFFC48185u, 0xE5478F92u, app_ui::WidgetType::Image, {48, 134, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_left },
+    { 0xB4F4F36Cu, 0xE5478F92u, app_ui::WidgetType::Label, {116, 202, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_right },
+    { 0xFA65017Bu, 0xE5478F92u, app_ui::WidgetType::Label, {116, 100, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_up },
+    { 0x263304DEu, 0xE5478F92u, app_ui::WidgetType::Image, {48, 206, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_right },
+    { 0x102F8D2Eu, 0xE5478F92u, app_ui::WidgetType::Label, {116, 168, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_down },
+    { 0x3A32AEE3u, 0xE5478F92u, app_ui::WidgetType::Label, {116, 134, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_left },
+    { 0xA7C4F81Du, 0xE5478F92u, app_ui::WidgetType::Image, {84, 101, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_speaker_1 },
+    { 0x1E669029u, 0xE5478F92u, app_ui::WidgetType::Image, {84, 133, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_image_29a0b0 },
+    { 0xA5C4F4F7u, 0xE5478F92u, app_ui::WidgetType::Image, {84, 169, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_speaker_3 },
+    { 0xA2C4F03Eu, 0xE5478F92u, app_ui::WidgetType::Image, {84, 203, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_speaker_4 },
+};
+
+static const app_ui::desc::SceneDesc kScene_page_1faf = {
+    "page_1faf",
+    0xE5478F92u,
+    kScene_page_1faf_widgets,
+    sizeof(kScene_page_1faf_widgets) / sizeof(kScene_page_1faf_widgets[0])
+};
+
+// Scene page_d55e
+
+static const app_ui::desc::WidgetDesc kScene_page_d55e_widgets[] = {
+    { 0xEC11B8FBu, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
+};
+
+static const app_ui::desc::SceneDesc kScene_page_d55e = {
+    "page_d55e",
+    0xEC11B8FBu,
+    kScene_page_d55e_widgets,
+    sizeof(kScene_page_d55e_widgets) / sizeof(kScene_page_d55e_widgets[0])
+};
+
+// Scene page_5d74
+
+static const app_ui::desc::TextDesc kText_page_5d74_word_practice_mick = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_5d74_label_pressAread = {
     "Label",
-    0x5167BA30u
+    0x04BEEA4Eu
 };
 
-static const app_ui::desc::ProgressDesc kProgress_page_main_progress_82ab52 = {
-    "Progress",
-    0xE389052Bu,
-    0
+static const app_ui::desc::TextDesc kText_page_5d74_label_PressDSkip = {
+    "Label",
+    0x04BEEA4Eu
 };
 
-static const app_ui::desc::TextDesc kText_page_main_textarea_326055 = {
-    "TextArea",
-    0xA0B573FBu
+static const app_ui::desc::TextDesc kText_page_5d74_label_ASRresult = {
+    "",
+    0x00000000u
 };
 
-static const app_ui::desc::WidgetDesc kScene_page_main_widgets[] = {
-    { 0x81EE7077u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
-    { 0xFC8E16C2u, 0x81EE7077u, app_ui::WidgetType::Label, {249, 124, 80, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_main_label_de5914 },
-    { 0xE3F59831u, 0x81EE7077u, app_ui::WidgetType::Progress, {97, 147, 80, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kProgress_page_main_progress_82ab52 },
-    { 0xF2E24675u, 0x81EE7077u, app_ui::WidgetType::TextArea, {135, 52, 80, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_main_textarea_326055 },
+static const app_ui::desc::WidgetDesc kScene_page_5d74_widgets[] = {
+    { 0x5C0F8034u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
+    { 0xA4144FDCu, 0x5C0F8034u, app_ui::WidgetType::Image, {18, 175, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_word_practice_mick },
+    { 0x24F8BC60u, 0x5C0F8034u, app_ui::WidgetType::Label, {60, 175, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_label_pressAread },
+    { 0x8138F428u, 0x5C0F8034u, app_ui::WidgetType::Label, {250, 175, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_label_PressDSkip },
+    { 0xBB35B429u, 0x5C0F8034u, app_ui::WidgetType::Label, {19, 218, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_label_ASRresult },
 };
 
-static const app_ui::desc::SceneDesc kScene_page_main = {
-    "page_main",
-    0x81EE7077u,
-    kScene_page_main_widgets,
-    sizeof(kScene_page_main_widgets) / sizeof(kScene_page_main_widgets[0])
-};
-
-// Scene page_dc46
-
-static const app_ui::desc::WidgetDesc kScene_page_dc46_widgets[] = {
-    { 0xEFC7035Du, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
-};
-
-static const app_ui::desc::SceneDesc kScene_page_dc46 = {
-    "page_dc46",
-    0xEFC7035Du,
-    kScene_page_dc46_widgets,
-    sizeof(kScene_page_dc46_widgets) / sizeof(kScene_page_dc46_widgets[0])
+static const app_ui::desc::SceneDesc kScene_page_5d74 = {
+    "page_5d74",
+    0x5C0F8034u,
+    kScene_page_5d74_widgets,
+    sizeof(kScene_page_5d74_widgets) / sizeof(kScene_page_5d74_widgets[0])
 };
 
 // Scene public
 
-static const app_ui::desc::TextDesc kText_public_dialog_e8ca72 = {
-    "Dialog",
-    0x86D1BB98u
+static const app_ui::desc::TextDesc kText_public_topbar_408adc = {
+    "TopBar",
+    0xCA2049E2u
 };
 
-static const app_ui::desc::TextDesc kText_public_button_041006 = {
-    "Button",
-    0xC613FA77u
+static const app_ui::desc::TextDesc kText_public_bottombar_aabb85 = {
+    "BottomBar",
+    0x00AF9363u
 };
 
-static const app_ui::desc::TextDesc kText_public_image_21643f = {
-    "Image",
-    0x66179CE3u
+static const app_ui::desc::TextDesc kText_public_dialog_SelectBoard = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_word_practice_teacher = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_label_question_type = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_word_practice_cup = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_label_CorrectCount = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_label_WrongCount = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_word_prictice_correct = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_word_practice_wrong = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_word_practice_good = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_word_prictice_bad = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_label_alert = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_word_practice_speaker = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_public_label_question = {
+    "",
+    0x00000000u
 };
 
 static const app_ui::desc::WidgetDesc kScene_public_widgets[] = {
     { 0xDE440657u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
-    { 0xCD15F8C6u, 0xDE440657u, app_ui::WidgetType::Dialog, {135, 62, 200, 200}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_dialog_e8ca72 },
-    { 0x69AE4C19u, 0xCD15F8C6u, app_ui::WidgetType::Button, {185, 113, 80, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_public_button_041006 },
-    { 0xE473D565u, 0xDE440657u, app_ui::WidgetType::Image, {48, 160, 80, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_image_21643f },
+    { 0xCCF6B1E4u, 0xDE440657u, app_ui::WidgetType::TopBar, {0, 0, 400, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_topbar_408adc },
+    { 0x80DAA8ADu, 0xDE440657u, app_ui::WidgetType::BottomBar, {0, 284, 400, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_bottombar_aabb85 },
+    { 0x3175DFAAu, 0xDE440657u, app_ui::WidgetType::Dialog, {1, 198, 400, 60}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_dialog_SelectBoard },
+    { 0xB1B2CF12u, 0xDE440657u, app_ui::WidgetType::Image, {10, 30, 32, 32}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_teacher },
+    { 0x7BDF1BB3u, 0xDE440657u, app_ui::WidgetType::Label, {48, 38, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_question_type },
+    { 0x1F95DB60u, 0xDE440657u, app_ui::WidgetType::Image, {196, 30, 32, 32}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_cup },
+    { 0x88D31A8Bu, 0xDE440657u, app_ui::WidgetType::Label, {261, 38, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_CorrectCount },
+    { 0x85C7B0CAu, 0xDE440657u, app_ui::WidgetType::Label, {338, 38, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_WrongCount },
+    { 0x7A89E02Au, 0xDE440657u, app_ui::WidgetType::Image, {242, 41, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_prictice_correct },
+    { 0x845D7D71u, 0xDE440657u, app_ui::WidgetType::Image, {318, 41, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_wrong },
+    { 0xCB906C69u, 0xDE440657u, app_ui::WidgetType::Image, {15, 261, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 5, &kText_public_word_practice_good },
+    { 0xBD6C3E3Fu, 0xDE440657u, app_ui::WidgetType::Image, {15, 261, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 5, &kText_public_word_prictice_bad },
+    { 0x2C695914u, 0xDE440657u, app_ui::WidgetType::Label, {45, 261, 350, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_alert },
+    { 0x12756A55u, 0xDE440657u, app_ui::WidgetType::Image, {20, 82, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_speaker },
+    { 0x5B4BF056u, 0xDE440657u, app_ui::WidgetType::Label, {55, 82, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_question },
 };
 
 static const app_ui::desc::SceneDesc kScene_public = {
@@ -80,8 +340,11 @@ static const app_ui::desc::SceneDesc kScene_public = {
 };
 
 static const app_ui::desc::SceneDesc kScenes[] = {
-    kScene_page_main,
-    kScene_page_dc46,
+    kScene_page_3b66,
+    kScene_page_0b9a,
+    kScene_page_1faf,
+    kScene_page_d55e,
+    kScene_page_5d74,
 };
 
 const app_ui::desc::UiDesc kUi = {

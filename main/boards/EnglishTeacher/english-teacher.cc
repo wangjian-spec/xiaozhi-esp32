@@ -8,6 +8,7 @@
 #include "config.h"
 #include "eteacher/app_service/app_service.h"
 #include "eteacher/app_manager/app_manager.h"
+#include "eteacher/app_ui/debug.h"
 #include "eteacher/epd_manager/epd_manager.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
@@ -143,80 +144,114 @@ void EnglishTeacherBoard::InitializeButtons() {
 	};
 
 	up_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "UP: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::Up});
 	});
 	left_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "LEFT: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::Left});
 	});
 	down_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "DOWN: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::Down});
 	});
 	right_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "RIGHT: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::Right});
 	});
 
 
 	a_button_.OnPressDown([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "BOOT(A): PressDown");
+		#endif
 		post_button(ButtonEvent{AppButton::A, ButtonAction::PressDown});
 	});
 	a_button_.OnPressUp([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "BOOT(A): PressUp");
+		#endif
 		post_button(ButtonEvent{AppButton::A, ButtonAction::PressUp});
 	});
 	a_button_.OnLongPress([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "BOOT(A): LongPress");
+		#endif
 		post_button(ButtonEvent{AppButton::A, ButtonAction::LongPress});
 	});
 	a_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "BOOT(A): Click");
+		#endif
 		post_button(ButtonEvent{AppButton::A, ButtonAction::Click});
 	});
 	a_button_.OnDoubleClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "BOOT(A): DoubleClick");
+		#endif
 		post_button(ButtonEvent{AppButton::A, ButtonAction::DoubleClick, 2});
 	});
 	a_button_.OnMultipleClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "BOOT(A): MultipleClick");
+		#endif
 		post_button(ButtonEvent{AppButton::A, ButtonAction::MultipleClick, 3});
 	}, 3);
 
 	// B: Click -> AppButton::B
 	b_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "TOUCH(B): Click");
+		#endif
 		post_button(ButtonEvent{AppButton::B});
 	});
 
 	// C/D
 	c_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "C: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::C});
 	});
 	d_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "D: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::D});
 	});
 
 	select_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "SELECT: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::Select});
 	});
 	start_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "START: Click");
+		#endif
 		post_button(ButtonEvent{AppButton::Start});
 	});
 	start_button_.OnLongPress([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "START: LongPress");
+		#endif
 		post_button(ButtonEvent{AppButton::Start, ButtonAction::LongPress});
 	});
 
 	
 	volume_up_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "VOLUME_UP: Click");
+		#endif
 		auto *codec = GetAudioCodec();
 		if (!codec) {
 			return;
@@ -229,7 +264,9 @@ void EnglishTeacherBoard::InitializeButtons() {
 		AppService::GetInstance().NotifyVolumeChanged();
 	});
 	volume_up_button_.OnLongPress([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "VOLUME_UP: LongPress");
+		#endif
 		auto *codec = GetAudioCodec();
 		if (!codec) {
 			return;
@@ -239,7 +276,9 @@ void EnglishTeacherBoard::InitializeButtons() {
 	});
 
 	volume_down_button_.OnClick([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "VOLUME_DOWN: Click");
+		#endif
 		auto *codec = GetAudioCodec();
 		if (!codec) {
 			return;
@@ -252,7 +291,9 @@ void EnglishTeacherBoard::InitializeButtons() {
 		AppService::GetInstance().NotifyVolumeChanged();
 	});
 	volume_down_button_.OnLongPress([&]() {
+		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "VOLUME_DOWN: LongPress");
+		#endif
 		auto *codec = GetAudioCodec();
 		if (!codec) {
 			return;

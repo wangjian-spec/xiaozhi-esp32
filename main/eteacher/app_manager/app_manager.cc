@@ -3,6 +3,7 @@
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/epd_manager/epd_manager.h"
 #include "eteacher/app_ui/status_bar.h"
+#include "eteacher/app_service/app_service.h"
 #include "audio/audio_codec.h"
 #include <esp_log.h>
 #include <wifi_manager.h>
@@ -16,6 +17,7 @@ namespace {
 struct MenuDrawCtx {
     CustomEpdDisplay *epd;
     const eteacher::app_menu::Menu *menu;
+    AppManager *app_manager;
     int selected_index;
     std::vector<eteacher::app_menu::MenuItem> items;
     eteacher::app_menu::MenuStatus status;
@@ -36,7 +38,14 @@ void DrawMenuCb(Adafruit_GFX &gfx, void *ctx)
 // Menu drawing context cleanup function.
 void DeleteMenuCtx(void *ctx)
 {
-    delete static_cast<MenuDrawCtx *>(ctx);
+    auto *m = static_cast<MenuDrawCtx *>(ctx);
+    AppManager *mgr = m ? m->app_manager : nullptr;
+    delete m;
+    if (mgr) {
+        AppService::GetInstance().Schedule([mgr]() {
+            mgr->OnMenuRenderTaskDone();
+        });
+    }
 }
 
 } // namespace
@@ -55,6 +64,9 @@ void AppManager::Init(Board &board)
     ctx_ = &ctx;
     running_ = nullptr;
     menu_ready_ = false;
+    menu_render_in_flight_ = false;
+    menu_render_pending_ = false;
+    menu_render_pending_selected_index_ = -1;
 
     menu_.SetStyle(eteacher::app_menu::MenuStyle{});
 }
@@ -134,7 +146,12 @@ void AppManager::HandleButton(const ButtonEvent &event)
         {
             selected_index_ = menu_controller_.selected();
             ESP_LOGI(TAG, "Menu select %d/%d", selected_index_, static_cast<int>(apps_.size()));
-            RenderMenu();
+            if (menu_render_in_flight_) {
+                menu_render_pending_ = true;
+                menu_render_pending_selected_index_ = selected_index_;
+            } else {
+                RenderMenu();
+            }
         }
         break;
     case AppButton::Start:
@@ -211,6 +228,13 @@ void AppManager::RenderMenu()
     {
         return;
     }
+
+    if (!running_ && menu_render_in_flight_) {
+        menu_render_pending_ = true;
+        menu_render_pending_selected_index_ = selected_index_;
+        return;
+    }
+
     // Build menu items once and reuse for both EPD and fallback paths.
     std::vector<eteacher::app_menu::MenuItem> items;
     items.reserve(apps_.size());
@@ -238,17 +262,24 @@ void AppManager::RenderMenu()
         auto *m = new MenuDrawCtx();
         m->epd = epd;
         m->menu = &menu_;
+        m->app_manager = this;
         m->selected_index = selected_index_;
         m->items = std::move(items);
         m->status = std::move(status);
         m->footer_text = menu_footer_text_;
 
-        EpdManager::GetInstance().Schedule(
+        menu_render_in_flight_ = true;
+        const bool scheduled = EpdManager::GetInstance().Schedule(
             EpdManager::TaskType::kPartial,
             &DrawMenuCb,
             m,
             &DeleteMenuCtx,
             EpdManager::Rect(0, 0, epd->width(), epd->height()));
+        if (!scheduled) {
+            menu_render_in_flight_ = false;
+            menu_render_pending_ = true;
+            menu_render_pending_selected_index_ = selected_index_;
+        }
         return;
     }
 
@@ -267,6 +298,21 @@ void AppManager::RenderMenu()
             buf += "\n";
     }
     display->SetChatMessage("system", buf.c_str());
+}
+
+void AppManager::OnMenuRenderTaskDone()
+{
+    menu_render_in_flight_ = false;
+    if (!menu_ready_ || running_ || !menu_render_pending_) {
+        return;
+    }
+    if (menu_render_pending_selected_index_ >= 0) {
+        selected_index_ = menu_render_pending_selected_index_;
+        menu_controller_.SetSelected(selected_index_);
+    }
+    menu_render_pending_ = false;
+    menu_render_pending_selected_index_ = -1;
+    RenderMenu();
 }
 
 void AppManager::TickAppRunning()

@@ -566,8 +566,13 @@ void SdFileMgrApp::OnTick(AppContext &ctx) {
 	tick_accum_ms_ = 0;
 
 	if (view_ == View::kConnecting) {
+		const std::string old_ssid = ssid_;
+		const std::string old_url = url_;
+		const std::string old_status = status_line_;
 		UpdateConnectionInfo();
-		RenderConnecting(ctx);
+		if (ssid_ != old_ssid || url_ != old_url || status_line_ != old_status) {
+			RenderConnecting(ctx);
+		}
 	}
 }
 

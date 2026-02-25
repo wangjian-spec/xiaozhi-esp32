@@ -37,6 +37,8 @@ public:
     void Tick();
     // Called by the main clock handler to drive the currently running app's per-second tick.
     void TickAppRunning();
+    // Called on main task after an async EPD menu render task completes.
+    void OnMenuRenderTaskDone();
 
 private:
     AppManager() = default;
@@ -59,4 +61,7 @@ private:
     // Cached status used to detect changes that require menu refresh.
     eteacher::app_menu::MenuStatus last_status_;
     uint32_t menu_tick_accum_ = 0;
+    bool menu_render_in_flight_ = false;
+    bool menu_render_pending_ = false;
+    int menu_render_pending_selected_index_ = -1;
 };

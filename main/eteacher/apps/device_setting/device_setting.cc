@@ -898,7 +898,7 @@ void DeviceSettingApp::ConfirmPendingDialogAction() {
         return;
     }
 
-    SetHintAlertLabel("网络连接中 20秒");
+    SetHintAlertLabel("网络连接中 60秒");
     confirm_connect_in_progress_ = true;
     confirm_cooldown_until_us_ = static_cast<uint64_t>(esp_timer_get_time()) + 1200ULL * 1000ULL;
 
@@ -911,7 +911,7 @@ void DeviceSettingApp::ConfirmPendingDialogAction() {
     }
 
     std::string error;
-    if (!ConnectToSsidWithPassword(pending_confirm_ssid_, password, false, error, 20000, true, true)) {
+    if (!ConnectToSsidWithPassword(pending_confirm_ssid_, password, false, error, 60000, true, true)) {
         confirm_connect_in_progress_ = false;
         confirm_cooldown_until_us_ = static_cast<uint64_t>(esp_timer_get_time()) + 1500ULL * 1000ULL;
         SetHintAlertLabel(std::string("连接失败: ") + error);
@@ -992,9 +992,9 @@ void DeviceSettingApp::ConfirmPassword() {
 
     submit_connect_in_progress_ = true;
     submit_cooldown_until_us_ = now_us + 1200ULL * 1000ULL;
-    SetInputStatus("网络正在连接中 20秒");
+    SetInputStatus("网络正在连接中 60秒");
     std::string error;
-    if (!ConnectToSsidWithPassword(active_ssid_, password_input_, true, error, 20000, true)) {
+    if (!ConnectToSsidWithPassword(active_ssid_, password_input_, true, error, 60000, true)) {
         submit_connect_in_progress_ = false;
         submit_cooldown_until_us_ = static_cast<uint64_t>(esp_timer_get_time()) + 1500ULL * 1000ULL;
         SetInputStatus(error);

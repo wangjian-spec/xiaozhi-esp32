@@ -5,8 +5,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <dirent.h>
-#include <sys/stat.h>
+#include <vector>
 
 #include <SD.h>
 #include <SPI.h>
@@ -18,6 +17,17 @@
 #include "eteacher/app_ui/input.h"
 #include "eteacher/app_ui/scene.h"
 #include "eteacher/apps/dictionary/dictionary_ui.h"
+#include "eteacher/database_manager/database_debug.h"
+#include "eteacher/database_manager/sqlite_db_api.h"
+
+#undef ESP_LOGE
+#undef ESP_LOGW
+#undef ESP_LOGI
+#undef ESP_LOGD
+#define ESP_LOGE DB_LOGE
+#define ESP_LOGW DB_LOGW
+#define ESP_LOGI DB_LOGI
+#define ESP_LOGD DB_LOGD
 
 namespace {
 constexpr const char *kTag = "DictionaryApp";
@@ -29,16 +39,7 @@ constexpr uint32_t kWidgetLabelStatus = 0x79252C88u;
 constexpr uint32_t kWidgetFrameResult = 0x8B8E0425u;
 constexpr uint32_t kWidgetBottomBar = 0x3D8F28B1u;
 constexpr uint32_t kWidgetSoftKeyboard = 0xD7467530u;
-
-constexpr const char *kDbPathPrimary = "/sdcard/resource/database/frq_bnc_tag.db";
-constexpr const char *kDbPathSecondary = "/sd/resource/database/frq_bnc_tag.db";
-constexpr const char *kDbPathFallback = "resource/database/frq_bnc_tag.db";
-constexpr const char *kDbPathRoot = "/sdcard/frq_bnc_tag.db";
-constexpr const char *kDbPathDatabase = "/sdcard/database/frq_bnc_tag.db";
-constexpr const char *kDbPathWinStyle = "/sdcard/resource\\database\\frq_bnc_tag.db";
-constexpr const char *kDbFileName = "frq_bnc_tag.db";
-constexpr const char *kWordBookDbPathPrimary = "/sdcard/Data.db";
-constexpr const char *kWordBookDbPathSecondary = "/sd/Data.db";
+constexpr int kDefaultUserId = 0;
 
 constexpr const char *kStatusNotFound = "查询不到该单词";
 constexpr const char *kStatusInBook = "单词在生词表中，B删除";
@@ -115,212 +116,30 @@ std::string ToLowerAscii(std::string text) {
 	return text;
 }
 
-std::string SanitizeFieldValue(const char *value) {
-	if (!value) {
-		return "";
-	}
-	std::string out(value);
-	std::replace(out.begin(), out.end(), '\n', ' ');
-	std::replace(out.begin(), out.end(), '\r', ' ');
-	std::replace(out.begin(), out.end(), '\t', ' ');
-	return out;
-}
-
-bool FileExists(const char *path) {
-	if (!path || !path[0]) {
-		return false;
-	}
-	struct stat st {};
-	return ::stat(path, &st) == 0;
-}
-
-bool IsDirectory(const char *path) {
-	if (!path || !path[0]) {
-		return false;
-	}
-	struct stat st {};
-	if (::stat(path, &st) != 0) {
-		return false;
-	}
-	return S_ISDIR(st.st_mode);
-}
-
-void LogDirSnapshot(const char *dir_path, int max_items = 16) {
-	if (!dir_path || !dir_path[0]) {
-		return;
-	}
-	if (!IsDirectory(dir_path)) {
-		ESP_LOGW(kTag, "dir not exists: %s", dir_path);
-		return;
-	}
-	DIR *dir = ::opendir(dir_path);
-	if (!dir) {
-		ESP_LOGW(kTag, "opendir failed: %s", dir_path);
-		return;
-	}
-	ESP_LOGI(kTag, "dir snapshot: %s", dir_path);
-	int count = 0;
-	while (count < max_items) {
-		dirent *entry = ::readdir(dir);
-		if (!entry) {
-			break;
-		}
-		const char *name = entry->d_name;
-		if (!name || name[0] == '\0' || (name[0] == '.' && name[1] == '\0') ||
-			(name[0] == '.' && name[1] == '.' && name[2] == '\0')) {
-			continue;
-		}
-		ESP_LOGI(kTag, "  - %s", name);
-		++count;
-	}
-	::closedir(dir);
-}
-
-bool FindDbRecursive(const std::string &dir_path, int depth, std::string *out_path) {
-	if (!out_path || depth < 0 || dir_path.empty()) {
-		return false;
-	}
-
-	DIR *dir = ::opendir(dir_path.c_str());
-	if (!dir) {
-		return false;
-	}
-
-	bool found = false;
-	std::string best_fallback;
-	while (!found) {
-		dirent *entry = ::readdir(dir);
-		if (!entry) {
-			break;
-		}
-		const char *name = entry->d_name;
-		if (!name || name[0] == '\0' || (name[0] == '.' && name[1] == '\0') ||
-			(name[0] == '.' && name[1] == '.' && name[2] == '\0')) {
-			continue;
-		}
-
-		std::string full = dir_path;
-		if (full.back() != '/') {
-			full.push_back('/');
-		}
-		full += name;
-
-		struct stat st {};
-		if (::stat(full.c_str(), &st) != 0) {
-			continue;
-		}
-
-		if (S_ISREG(st.st_mode)) {
-			std::string file_name(name);
-			std::string lower_name = file_name;
-			std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), [](unsigned char c) {
-				return static_cast<char>(std::tolower(c));
-			});
-
-			const bool is_exact_name = (lower_name == "frq_bnc_tag.db");
-			const bool is_short_name_like =
-				(lower_name.find("frq_bn") != std::string::npos && lower_name.find(".db") != std::string::npos);
-			const bool is_db_file =
-				(lower_name.size() >= 3 && lower_name.compare(lower_name.size() - 3, 3, ".db") == 0);
-
-			if (is_exact_name || is_short_name_like) {
-				*out_path = full;
-				found = true;
-			} else if (is_db_file && best_fallback.empty()) {
-				best_fallback = full;
-			}
-			continue;
-		}
-
-		if (S_ISDIR(st.st_mode) && depth > 0) {
-			found = FindDbRecursive(full, depth - 1, out_path);
-		}
-	}
-
-	::closedir(dir);
-	if (!found && !best_fallback.empty()) {
-		*out_path = best_fallback;
-		ESP_LOGW(kTag, "db fallback selected by extension: %s", out_path->c_str());
-		return true;
-	}
-	return found;
-}
-
 std::string DiscoverDbPath() {
-	const char *candidates[] = {
-		kDbPathPrimary,
-		kDbPathSecondary,
-		kDbPathFallback,
-		kDbPathRoot,
-		kDbPathDatabase,
-		kDbPathWinStyle,
-	};
-	for (const char *path : candidates) {
-		if (FileExists(path)) {
-			ESP_LOGI(kTag, "db discovered by candidate: %s", path);
-			return std::string(path);
-		}
-	}
-
-	std::string discovered;
-	if (FindDbRecursive("/sdcard", 6, &discovered)) {
-		ESP_LOGI(kTag, "db discovered by recursive scan: %s", discovered.c_str());
-		return discovered;
-	}
-	return {};
+	return eteacher::database_manager::DiscoverDictionaryDbPath(kTag);
 }
 
 bool EnsureSqliteSdMounted() {
-	static bool mounted = false;
-	static bool attempted = false;
-	if (mounted) {
-		return true;
-	}
-	if (attempted) {
-		return false;
-	}
-	attempted = true;
-
-	if (SD.begin((int)SD_PIN_NUM_CS, SPI, 20000000, "/sdcard")) {
-		mounted = true;
-		ESP_LOGI(kTag, "sqlite sd vfs mount OK: /sdcard");
-		return true;
-	}
-	ESP_LOGW(kTag, "sqlite sd vfs mount failed: /sdcard");
-
-	if (SD.begin((int)SD_PIN_NUM_CS, SPI, 20000000, "/sd")) {
-		mounted = true;
-		ESP_LOGI(kTag, "sqlite sd vfs mount OK: /sd");
-		return true;
-	}
-	ESP_LOGW(kTag, "sqlite sd vfs mount failed: /sd");
-	return false;
+	return eteacher::database_manager::EnsureSqliteSdMounted(kTag);
 }
 
 bool EnsureSqliteRuntimeReady() {
-	static bool initialized = false;
-	if (initialized) {
-		return true;
-	}
-	const int rc = sqlite3_initialize();
-	if (rc != SQLITE_OK) {
-		ESP_LOGE(kTag, "sqlite3_initialize failed rc=%d", rc);
-		return false;
-	}
-	initialized = true;
-	ESP_LOGI(kTag, "sqlite runtime ready, version=%s", sqlite3_libversion());
-	return true;
+	return eteacher::database_manager::EnsureSqliteRuntimeReady(kTag);
 }
 
 std::string DiscoverWordBookDbPath() {
-	if (FileExists(kWordBookDbPathPrimary)) {
-		return std::string(kWordBookDbPathPrimary);
-	}
-	if (FileExists(kWordBookDbPathSecondary)) {
-		return std::string(kWordBookDbPathSecondary);
-	}
-	return {};
+	return eteacher::database_manager::DiscoverUserDataDbPath(kTag);
 }
+
+bool OpenValidatedWordDbReadonly(const std::string &discovered_path, sqlite3 **out_db, std::string *out_path) {
+	return eteacher::database_manager::OpenValidatedDictionaryDbReadonly(discovered_path, out_db, out_path, kTag);
+}
+
+bool AttachValidatedWordDb(sqlite3 *db, const std::string &discovered_path, std::string *attached_path) {
+	return eteacher::database_manager::AttachValidatedDictionaryDb(db, discovered_path, attached_path, "dictdb", kTag);
+}
+
 }
 
 MenuMeta DictionaryApp::GetMenuMeta() const {
@@ -381,7 +200,6 @@ void DictionaryApp::OnExit(AppContext &ctx) {
 
 	epd_ = nullptr;
 	router_.Reset();
-	ui_engine_.Reset();
 }
 
 void DictionaryApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
@@ -644,15 +462,6 @@ DictionaryApp::EntryData DictionaryApp::QueryByWord(const std::string &word) con
 		return out;
 	}
 	(void)EnsureSqliteSdMounted();
-	LogDirSnapshot("/sdcard", 20);
-	LogDirSnapshot("/sdcard/resource", 20);
-	LogDirSnapshot("/sdcard/resource/database", 20);
-	LogDirSnapshot("/sdcard/database", 20);
-	ESP_LOGI(kTag, "db path exists? %s => %s", kDbPathPrimary, FileExists(kDbPathPrimary) ? "yes" : "no");
-	ESP_LOGI(kTag, "db path exists? %s => %s", kDbPathSecondary, FileExists(kDbPathSecondary) ? "yes" : "no");
-	ESP_LOGI(kTag, "db path exists? %s => %s", kDbPathFallback, FileExists(kDbPathFallback) ? "yes" : "no");
-	ESP_LOGI(kTag, "db path exists? %s => %s", kDbPathRoot, FileExists(kDbPathRoot) ? "yes" : "no");
-	ESP_LOGI(kTag, "db path exists? %s => %s", kDbPathDatabase, FileExists(kDbPathDatabase) ? "yes" : "no");
 
 	const std::string discovered_path = DiscoverDbPath();
 	if (!discovered_path.empty()) {
@@ -660,63 +469,19 @@ DictionaryApp::EntryData DictionaryApp::QueryByWord(const std::string &word) con
 	}
 
 	sqlite3 *db = nullptr;
-	const char *opened_path = nullptr;
-	auto try_open_readonly = [&db](const char *path) -> int {
-		if (db) {
-			sqlite3_close(db);
-			db = nullptr;
-		}
-		return sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nullptr);
-	};
-
-	int rc = SQLITE_ERROR;
-	if (!discovered_path.empty()) {
-		rc = try_open_readonly(discovered_path.c_str());
-		if (rc == SQLITE_OK) {
-			opened_path = discovered_path.c_str();
-		}
-	}
-
-	if (rc != SQLITE_OK) {
-		rc = try_open_readonly(kDbPathPrimary);
-	}
-	if (rc == SQLITE_OK) {
-		if (!opened_path) {
-			opened_path = kDbPathPrimary;
-		}
-	} else {
-		ESP_LOGW(kTag, "open db failed path=%s rc=%d msg=%s", kDbPathPrimary, rc, db ? sqlite3_errmsg(db) : "null");
-		rc = try_open_readonly(kDbPathSecondary);
-		if (rc == SQLITE_OK) {
-			opened_path = kDbPathSecondary;
-		} else {
-			ESP_LOGW(kTag, "open db failed path=%s rc=%d msg=%s", kDbPathSecondary, rc,
-			         db ? sqlite3_errmsg(db) : "null");
-			rc = try_open_readonly(kDbPathFallback);
-			if (rc == SQLITE_OK) {
-				opened_path = kDbPathFallback;
-			} else {
-				ESP_LOGW(kTag, "open db failed path=%s rc=%d msg=%s", kDbPathFallback, rc,
-				         db ? sqlite3_errmsg(db) : "null");
-			}
-		}
-	}
-
-	if (rc != SQLITE_OK || !db) {
-		ESP_LOGE(kTag, "all db path open failed, abort query word='%s'", word.c_str());
-		if (db) {
-			sqlite3_close(db);
-		}
+	std::string opened_path;
+	if (!OpenValidatedWordDbReadonly(discovered_path, &db, &opened_path) || !db) {
+		ESP_LOGE(kTag, "all db path open/validate failed, abort query word='%s'", word.c_str());
 		return out;
 	}
-	ESP_LOGI(kTag, "db opened readonly path=%s", opened_path ? opened_path : "unknown");
+	ESP_LOGI(kTag, "db opened readonly path=%s", opened_path.c_str());
 
 	const char *sql =
-		"SELECT id, word, phonetic, definition, translation, pos, collins, oxford, tag, bnc, frq, exchange, detail, audio "
-		"FROM ecdict WHERE word = ? LIMIT 1;";
+		"SELECT id, word, phonetic, meaning_zh, meaning_en, tags, forms, example1, example2, example3 "
+		"FROM word_dictionary WHERE word = ? LIMIT 1;";
 
 	sqlite3_stmt *stmt = nullptr;
-	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+	int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
 	if (rc != SQLITE_OK || !stmt) {
 		ESP_LOGE(kTag, "prepare failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
 		if (stmt) {
@@ -731,23 +496,19 @@ DictionaryApp::EntryData DictionaryApp::QueryByWord(const std::string &word) con
 	ESP_LOGI(kTag, "step rc=%d word='%s'", rc, word.c_str());
 	if (rc == SQLITE_ROW) {
 		out.found = true;
-		out.fields.reserve(14);
+		out.fields.reserve(10);
 		out.fields.emplace_back("id", std::to_string(sqlite3_column_int(stmt, 0)));
-		out.fields.emplace_back("word", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1))));
-		out.fields.emplace_back("phonetic", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2))));
-		out.fields.emplace_back("definition", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))));
-		out.fields.emplace_back("translation", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))));
-		out.fields.emplace_back("pos", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5))));
-		out.fields.emplace_back("collins", std::to_string(sqlite3_column_int(stmt, 6)));
-		out.fields.emplace_back("oxford", std::to_string(sqlite3_column_int(stmt, 7)));
-		out.fields.emplace_back("tag", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 8))));
-		out.fields.emplace_back("bnc", std::to_string(sqlite3_column_int(stmt, 9)));
-		out.fields.emplace_back("frq", std::to_string(sqlite3_column_int(stmt, 10)));
-		out.fields.emplace_back("exchange", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 11))));
-		out.fields.emplace_back("detail", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 12))));
-		out.fields.emplace_back("audio", SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 13))));
+		out.fields.emplace_back("word", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1))));
+		out.fields.emplace_back("phonetic", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2))));
+		out.fields.emplace_back("meaning_zh", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))));
+		out.fields.emplace_back("meaning_en", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))));
+		out.fields.emplace_back("tags", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5))));
+		out.fields.emplace_back("forms", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6))));
+		out.fields.emplace_back("example1", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7))));
+		out.fields.emplace_back("example2", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 8))));
+		out.fields.emplace_back("example3", eteacher::database_manager::SanitizeFieldValue(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 9))));
 	} else if (rc == SQLITE_DONE) {
-		ESP_LOGW(kTag, "word not found in ecdict word='%s'", word.c_str());
+		ESP_LOGW(kTag, "word not found in word_dictionary word='%s'", word.c_str());
 	} else {
 		ESP_LOGE(kTag, "step failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
 	}
@@ -844,7 +605,23 @@ bool DictionaryApp::IsWordInBook(const std::string &word) const {
 		return false;
 	}
 
-	const char *sql = "SELECT 1 FROM words WHERE \"new\" = ? LIMIT 1;";
+	std::string attached_path;
+	if (!AttachValidatedWordDb(db, DiscoverDbPath(), &attached_path)) {
+		ESP_LOGE(kTag, "attach words db failed: no valid words.db");
+		sqlite3_close(db);
+		return false;
+	}
+	ESP_LOGI(kTag, "attach words db ok: %s", attached_path.c_str());
+
+	int entry_id = 0;
+	if (!eteacher::database_manager::QueryDictionaryEntryIdByWord(db, "dictdb", word, &entry_id, kTag)) {
+		sqlite3_close(db);
+		return false;
+	}
+
+	const char *sql =
+		"SELECT 1 FROM vocab_items WHERE user_id = ? AND entry_id = ? "
+		"AND (is_deleted = 0 OR is_deleted IS NULL) LIMIT 1;";
 	sqlite3_stmt *stmt = nullptr;
 	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
 	if (rc != SQLITE_OK || !stmt) {
@@ -856,7 +633,8 @@ bool DictionaryApp::IsWordInBook(const std::string &word) const {
 		return false;
 	}
 
-	sqlite3_bind_text(stmt, 1, word.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 1, kDefaultUserId);
+	sqlite3_bind_int(stmt, 2, entry_id);
 	rc = sqlite3_step(stmt);
 	const bool exists = (rc == SQLITE_ROW);
 
@@ -892,47 +670,162 @@ bool DictionaryApp::AddWordToBook(const std::string &word) const {
 		return false;
 	}
 
-	char *errmsg = nullptr;
-	(void)sqlite3_exec(db, "PRAGMA journal_mode=MEMORY;", nullptr, nullptr, &errmsg);
-	if (errmsg) {
-		sqlite3_free(errmsg);
-		errmsg = nullptr;
-	}
-	(void)sqlite3_exec(db, "PRAGMA temp_store=MEMORY;", nullptr, nullptr, &errmsg);
-	if (errmsg) {
-		sqlite3_free(errmsg);
-		errmsg = nullptr;
+	if (!eteacher::database_manager::ConfigureWriteConnection(db, kTag)) {
+		sqlite3_close(db);
+		return false;
 	}
 
-	const char *sql = "INSERT INTO words(\"new\") VALUES(?);";
+	std::string attached_path;
+	if (!AttachValidatedWordDb(db, DiscoverDbPath(), &attached_path)) {
+		ESP_LOGE(kTag, "add word failed: no valid words.db");
+		sqlite3_close(db);
+		return false;
+	}
+	ESP_LOGI(kTag, "add word attach words db ok: %s", attached_path.c_str());
+
+	int entry_id = 0;
+	if (!eteacher::database_manager::QueryDictionaryEntryIdByWord(db, "dictdb", word, &entry_id, kTag)) {
+		ESP_LOGE(kTag, "word not found in word_dictionary: %s", word.c_str());
+		sqlite3_close(db);
+		return false;
+	}
+	(void)sqlite3_exec(db, "DETACH DATABASE dictdb;", nullptr, nullptr, nullptr);
+	if (!eteacher::database_manager::BeginTransaction(db, kTag)) {
+		sqlite3_close(db);
+		return false;
+	}
+	bool tx_active = true;
+	const sqlite3_int64 now_sec = static_cast<sqlite3_int64>(esp_timer_get_time() / 1000000ULL);
+
+	const char *restore_sql =
+		"UPDATE vocab_items "
+		"SET is_deleted = ?, added_at = ?, source = ? "
+		"WHERE user_id = ? "
+		"AND entry_id = ?;";
 	sqlite3_stmt *stmt = nullptr;
-	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
+	rc = sqlite3_prepare_v2(db, restore_sql, -1, &stmt, nullptr);
 	if (rc != SQLITE_OK || !stmt) {
 		ESP_LOGE(kTag, "add word prepare failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
 		if (stmt) {
 			sqlite3_finalize(stmt);
 		}
+		if (tx_active) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			tx_active = false;
+		}
 		sqlite3_close(db);
 		return false;
 	}
 
-	rc = sqlite3_bind_text(stmt, 1, word.c_str(), -1, SQLITE_TRANSIENT);
+	rc = sqlite3_bind_int(stmt, 1, 0);
+	if (rc == SQLITE_OK) {
+		rc = sqlite3_bind_int64(stmt, 2, now_sec);
+	}
+	if (rc == SQLITE_OK) {
+		rc = sqlite3_bind_text(stmt, 3, "dictionary", -1, SQLITE_STATIC);
+	}
+	if (rc == SQLITE_OK) {
+		rc = sqlite3_bind_int(stmt, 4, kDefaultUserId);
+	}
+	if (rc == SQLITE_OK) {
+		rc = sqlite3_bind_int(stmt, 5, entry_id);
+	}
 	if (rc != SQLITE_OK) {
 		ESP_LOGE(kTag, "add word bind failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		if (tx_active) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			tx_active = false;
+		}
 		sqlite3_close(db);
 		return false;
 	}
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_DONE) {
-		ESP_LOGE(kTag, "add word step failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
+		ESP_LOGE(kTag, "add word restore step failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		if (tx_active) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			tx_active = false;
+		}
 		sqlite3_close(db);
 		return false;
 	}
-
+	const int restored = sqlite3_changes(db);
 	sqlite3_finalize(stmt);
+
+	if (restored <= 0) {
+		const char *insert_sql =
+			"INSERT INTO vocab_items(user_id, entry_id, added_at, source, is_favorite, is_difficult, is_mastered, is_deleted) "
+			"VALUES (?, ?, ?, ?, 0, 0, 0, 0);";
+		rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, nullptr);
+		if (rc != SQLITE_OK || !stmt) {
+			ESP_LOGE(kTag, "add word insert prepare failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
+			if (stmt) {
+				sqlite3_finalize(stmt);
+			}
+			if (tx_active) {
+				eteacher::database_manager::RollbackTransaction(db, kTag);
+				tx_active = false;
+			}
+			sqlite3_close(db);
+			return false;
+		}
+
+		rc = sqlite3_bind_int(stmt, 1, kDefaultUserId);
+		if (rc == SQLITE_OK) {
+			rc = sqlite3_bind_int(stmt, 2, entry_id);
+		}
+		if (rc == SQLITE_OK) {
+			rc = sqlite3_bind_int64(stmt, 3, now_sec);
+		}
+		if (rc == SQLITE_OK) {
+			rc = sqlite3_bind_text(stmt, 4, "dictionary", -1, SQLITE_STATIC);
+		}
+		if (rc != SQLITE_OK) {
+			ESP_LOGE(kTag, "add word insert bind failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			if (tx_active) {
+				eteacher::database_manager::RollbackTransaction(db, kTag);
+				tx_active = false;
+			}
+			sqlite3_close(db);
+			return false;
+		}
+
+		rc = sqlite3_step(stmt);
+		if (rc != SQLITE_DONE) {
+			ESP_LOGE(kTag, "add word insert step failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			if (tx_active) {
+				eteacher::database_manager::RollbackTransaction(db, kTag);
+				tx_active = false;
+			}
+			sqlite3_close(db);
+			return false;
+		}
+
+		const int inserted = sqlite3_changes(db);
+		sqlite3_finalize(stmt);
+		if (inserted <= 0) {
+			ESP_LOGE(kTag, "insert vocab_items no change word=%s entry_id=%d", word.c_str(), entry_id);
+			if (tx_active) {
+				eteacher::database_manager::RollbackTransaction(db, kTag);
+				tx_active = false;
+			}
+			sqlite3_close(db);
+			return false;
+		}
+	}
+	if (tx_active) {
+		if (!eteacher::database_manager::CommitTransaction(db, kTag)) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			sqlite3_close(db);
+			return false;
+		}
+		tx_active = false;
+	}
 	sqlite3_close(db);
 	ESP_LOGI(kTag, "word added to book: %s", word.c_str());
 	return true;
@@ -965,19 +858,37 @@ bool DictionaryApp::RemoveWordFromBook(const std::string &word) const {
 		return false;
 	}
 
-	char *errmsg = nullptr;
-	(void)sqlite3_exec(db, "PRAGMA journal_mode=MEMORY;", nullptr, nullptr, &errmsg);
-	if (errmsg) {
-		sqlite3_free(errmsg);
-		errmsg = nullptr;
-	}
-	(void)sqlite3_exec(db, "PRAGMA temp_store=MEMORY;", nullptr, nullptr, &errmsg);
-	if (errmsg) {
-		sqlite3_free(errmsg);
-		errmsg = nullptr;
+	if (!eteacher::database_manager::ConfigureWriteConnection(db, kTag)) {
+		sqlite3_close(db);
+		return false;
 	}
 
-	const char *sql = "DELETE FROM words WHERE \"new\" = ?;";
+	std::string attached_path;
+	if (!AttachValidatedWordDb(db, DiscoverDbPath(), &attached_path)) {
+		ESP_LOGE(kTag, "remove word failed: no valid words.db");
+		sqlite3_close(db);
+		return false;
+	}
+	ESP_LOGI(kTag, "remove word attach words db ok: %s", attached_path.c_str());
+
+	int entry_id = 0;
+	if (!eteacher::database_manager::QueryDictionaryEntryIdByWord(db, "dictdb", word, &entry_id, kTag)) {
+		sqlite3_close(db);
+		return false;
+	}
+	(void)sqlite3_exec(db, "DETACH DATABASE dictdb;", nullptr, nullptr, nullptr);
+	if (!eteacher::database_manager::BeginTransaction(db, kTag)) {
+		sqlite3_close(db);
+		return false;
+	}
+	bool tx_active = true;
+
+	const char *sql =
+		"UPDATE vocab_items "
+		"SET is_deleted = 1 "
+		"WHERE user_id = ? "
+		"AND entry_id = ? "
+		"AND (is_deleted = 0 OR is_deleted IS NULL);";
 	sqlite3_stmt *stmt = nullptr;
 	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
 	if (rc != SQLITE_OK || !stmt) {
@@ -985,14 +896,25 @@ bool DictionaryApp::RemoveWordFromBook(const std::string &word) const {
 		if (stmt) {
 			sqlite3_finalize(stmt);
 		}
+		if (tx_active) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			tx_active = false;
+		}
 		sqlite3_close(db);
 		return false;
 	}
 
-	rc = sqlite3_bind_text(stmt, 1, word.c_str(), -1, SQLITE_TRANSIENT);
+	rc = sqlite3_bind_int(stmt, 1, kDefaultUserId);
+	if (rc == SQLITE_OK) {
+		rc = sqlite3_bind_int(stmt, 2, entry_id);
+	}
 	if (rc != SQLITE_OK) {
 		ESP_LOGE(kTag, "remove word bind failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		if (tx_active) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			tx_active = false;
+		}
 		sqlite3_close(db);
 		return false;
 	}
@@ -1001,10 +923,23 @@ bool DictionaryApp::RemoveWordFromBook(const std::string &word) const {
 	if (rc != SQLITE_DONE) {
 		ESP_LOGE(kTag, "remove word step failed rc=%d msg=%s", rc, sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
+		if (tx_active) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			tx_active = false;
+		}
 		sqlite3_close(db);
 		return false;
 	}
 
+	if (tx_active) {
+		if (!eteacher::database_manager::CommitTransaction(db, kTag)) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			sqlite3_finalize(stmt);
+			sqlite3_close(db);
+			return false;
+		}
+		tx_active = false;
+	}
 	sqlite3_finalize(stmt);
 	sqlite3_close(db);
 	ESP_LOGI(kTag, "word removed from book: %s", word.c_str());

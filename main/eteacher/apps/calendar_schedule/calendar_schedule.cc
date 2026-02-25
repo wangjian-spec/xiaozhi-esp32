@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cJSON.h>
 #include <cstdio>
 #include <cstring>
+#include <dirent.h>
 #include <mutex>
 #include <sys/stat.h>
 #include <ctime>
@@ -28,8 +30,19 @@
 #include "eteacher/app_ui/input.h"
 #include "eteacher/app_ui/scene.h"
 #include "eteacher/apps/calendar_schedule/calendar_schedule_ui.h"
+#include "eteacher/database_manager/database_debug.h"
+#include "eteacher/database_manager/sqlite_db_api.h"
 
 #include "eteacher/apps/calendar_schedule/solar_term_day_table.inc"
+
+#undef ESP_LOGE
+#undef ESP_LOGW
+#undef ESP_LOGI
+#undef ESP_LOGD
+#define ESP_LOGE DB_LOGE
+#define ESP_LOGW DB_LOGW
+#define ESP_LOGI DB_LOGI
+#define ESP_LOGD DB_LOGD
 
 namespace {
 constexpr const char *kTag = "CalendarScheduleApp";
@@ -67,68 +80,22 @@ struct QrCaptureContext {
 static QrCaptureContext *g_qr_capture_context = nullptr;
 static std::mutex g_qr_generate_mutex;
 static std::recursive_mutex g_task_db_mutex;
-
-constexpr const char *kDataDbPathPrimary = "/sdcard/Data.db";
-constexpr const char *kDataDbPathSecondary = "/sd/Data.db";
-constexpr std::array<const char *, 8> kTaskColumns = {
-	"content", "done", "delete", "date", "starttime", "endtime", "priority", "period"};
+constexpr std::array<const char *, 10> kTaskColumns = {
+	"user_id", "task_type", "target_id", "title", "description", "start_at", "due_at", "is_completed", "is_deleted", "created_at"};
 
 constexpr const char *kAlertNoNetwork = "当前未连接网络，请在系统设置中连接WIFI！";
 
-bool FileExists(const char *path) {
-	if (!path || !path[0]) {
-		return false;
-	}
-	struct stat st {};
-	return ::stat(path, &st) == 0;
-}
-
 std::string DiscoverDataDbPath() {
-	if (FileExists(kDataDbPathPrimary)) {
-		return std::string(kDataDbPathPrimary);
-	}
-	if (FileExists(kDataDbPathSecondary)) {
-		return std::string(kDataDbPathSecondary);
-	}
-	return {};
+	return eteacher::database_manager::DiscoverUserDataDbPath(kTag, nullptr);
 }
 
 bool EnsureSqliteSdMounted() {
 	std::lock_guard<std::recursive_mutex> lock(g_task_db_mutex);
-
-	static bool mounted = false;
-	static bool attempted = false;
-	if (mounted) {
-		return true;
-	}
-	if (attempted) {
-		return false;
-	}
-	attempted = true;
-
-	if (SD.begin((int)SD_PIN_NUM_CS, SPI, 20000000, "/sdcard")) {
-		mounted = true;
-		return true;
-	}
-	if (SD.begin((int)SD_PIN_NUM_CS, SPI, 20000000, "/sd")) {
-		mounted = true;
-		return true;
-	}
-	return false;
+	return eteacher::database_manager::EnsureSqliteSdMounted(kTag);
 }
 
 bool EnsureSqliteRuntimeReady() {
-	static bool initialized = false;
-	if (initialized) {
-		return true;
-	}
-	const int rc = sqlite3_initialize();
-	if (rc != SQLITE_OK) {
-		ESP_LOGE(kTag, "sqlite3_initialize failed rc=%d", rc);
-		return false;
-	}
-	initialized = true;
-	return true;
+	return eteacher::database_manager::EnsureSqliteRuntimeReady(kTag);
 }
 
 void LogHttpdRuntime(const char *endpoint, const char *phase) {
@@ -332,30 +299,15 @@ bool ReadRequestBody(httpd_req_t *req, std::string &body) {
 }
 
 bool EnsureTaskTable(sqlite3 *db) {
-	if (!db) {
-		return false;
-	}
-	const char *sql =
-		"CREATE TABLE IF NOT EXISTS task ("
-		"content TEXT,"
-		"done INTEGER DEFAULT 0,"
-		"\"delete\" INTEGER DEFAULT 0,"
-		"date TEXT,"
-		"starttime TEXT,"
-		"endtime TEXT,"
-		"priority TEXT,"
-		"period TEXT"
-		");";
-	char *errmsg = nullptr;
-	const int rc = sqlite3_exec(db, sql, nullptr, nullptr, &errmsg);
-	if (errmsg) {
-		sqlite3_free(errmsg);
-	}
-	return rc == SQLITE_OK;
+	return eteacher::database_manager::EnsureTasksTable(db, kTag);
 }
 
 bool UpdateTaskFlagByRowId(int rowid, const char *column, int value) {
 	if (rowid <= 0 || !column || !column[0]) {
+		return false;
+	}
+	if (std::strcmp(column, "is_completed") != 0 && std::strcmp(column, "is_deleted") != 0) {
+		ESP_LOGW(kTag, "reject invalid update column: %s", column);
 		return false;
 	}
 
@@ -366,7 +318,7 @@ bool UpdateTaskFlagByRowId(int rowid, const char *column, int value) {
 
 	const std::string db_path = DiscoverDataDbPath();
 	if (db_path.empty()) {
-		ESP_LOGW(kTag, "Data.db not found");
+		ESP_LOGW(kTag, "user_data.db not found");
 		return false;
 	}
 
@@ -382,10 +334,14 @@ bool UpdateTaskFlagByRowId(int rowid, const char *column, int value) {
 		sqlite3_close(db);
 		return false;
 	}
+	if (!eteacher::database_manager::ConfigureWriteConnection(db, kTag)) {
+		sqlite3_close(db);
+		return false;
+	}
 
-	std::string sql = "UPDATE task SET \"";
+	std::string sql = "UPDATE tasks SET \"";
 	sql += column;
-	sql += "\"=? WHERE rowid=?;";
+	sql += "\"=? WHERE id=?;";
 
 	sqlite3_stmt *stmt = nullptr;
 	if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
@@ -398,7 +354,22 @@ bool UpdateTaskFlagByRowId(int rowid, const char *column, int value) {
 
 	sqlite3_bind_int(stmt, 1, value ? 1 : 0);
 	sqlite3_bind_int(stmt, 2, rowid);
+	if (!eteacher::database_manager::BeginTransaction(db, kTag)) {
+		sqlite3_finalize(stmt);
+		sqlite3_close(db);
+		return false;
+	}
 	const int rc = sqlite3_step(stmt);
+	if (rc == SQLITE_DONE) {
+		if (!eteacher::database_manager::CommitTransaction(db, kTag)) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			sqlite3_finalize(stmt);
+			sqlite3_close(db);
+			return false;
+		}
+	} else {
+		eteacher::database_manager::RollbackTransaction(db, kTag);
+	}
 	sqlite3_finalize(stmt);
 	sqlite3_close(db);
 	return rc == SQLITE_DONE;
@@ -446,13 +417,13 @@ tr:hover{background:#f9fafb}
 <div class='card'><h2 style='font-size:16px;margin-bottom:8px'>任务字段设置</h2><div id='form' class='row'></div></div>
 <div class='card'><table id='tbl'><thead></thead><tbody></tbody></table></div>
 <script>
-const defaultCols=['content','done','delete','date','starttime','endtime','priority','period'];
+const defaultCols=['user_id','task_type','target_id','title','description','start_at','due_at','is_completed','is_deleted','created_at'];
 let cols=[],rows=[],current={};
 let isNewMode=true;
 function setStatus(t,e=false){const s=document.getElementById('status');if(!s)return;s.textContent=t;s.style.color=e?'#b91c1c':'#374151';}
 async function api(u,m='GET',d){const o={method:m,headers:{'Content-Type':'application/json'}};if(d)o.body=JSON.stringify(d);const r=await fetch(u,o);if(!r.ok)throw new Error(await r.text());return r.json();}
-function fieldLabel(c){if(c==='content')return '待办内容';if(c==='done')return '完成状态';if(c==='delete')return '删除状态';if(c==='date')return '日期';if(c==='starttime')return '开始时间';if(c==='endtime')return '结束时间';if(c==='priority')return '优先级';if(c==='period')return '重复周期';return c;}
-function buildForm(){const f=document.getElementById('form');f.innerHTML='';cols.forEach(c=>{const wrap=document.createElement('div');wrap.className='field';const l=document.createElement('label');l.htmlFor='f_'+c;l.textContent=fieldLabel(c);wrap.appendChild(l);let el;if(c==='done'){el=document.createElement('select');el.innerHTML='<option value="0">未完成</option><option value="1">完成</option>';}else if(c==='delete'){el=document.createElement('select');el.innerHTML='<option value="0">未删除</option><option value="1">已删除</option>';}else if(c==='priority'){el=document.createElement('select');el.innerHTML='<option value="">(空)</option><option value="紧急">紧急</option><option value="非常重要">非常重要</option><option value="重要">重要</option><option value="一般">一般</option>';}else if(c==='period'){el=document.createElement('select');el.innerHTML='<option value="">(空)</option><option value="每天">每天</option><option value="每周一">每周一</option><option value="每周二">每周二</option><option value="每周三">每周三</option><option value="每周四">每周四</option><option value="每周五">每周五</option><option value="每周六">每周六</option><option value="每周日">每周日</option>';}else if(c==='date'){el=document.createElement('input');el.type='date';}else if(c==='starttime'||c==='endtime'){el=document.createElement('input');el.type='time';}else{el=document.createElement('input');el.type='text';el.placeholder='请输入 '+fieldLabel(c);}el.id='f_'+c;el.oninput=()=>{current[c]=el.value;};el.onchange=()=>{current[c]=el.value;};wrap.appendChild(el);f.appendChild(wrap);});}
+function fieldLabel(c){if(c==='user_id')return '用户ID';if(c==='task_type')return '任务类型';if(c==='target_id')return '目标ID';if(c==='title')return '标题';if(c==='description')return '描述';if(c==='start_at')return '开始时间戳';if(c==='due_at')return '截止时间戳';if(c==='is_completed')return '完成状态';if(c==='is_deleted')return '删除状态';if(c==='created_at')return '创建时间戳';return c;}
+function buildForm(){const f=document.getElementById('form');f.innerHTML='';cols.forEach(c=>{const wrap=document.createElement('div');wrap.className='field';const l=document.createElement('label');l.htmlFor='f_'+c;l.textContent=fieldLabel(c);wrap.appendChild(l);let el;if(c==='is_completed'){el=document.createElement('select');el.innerHTML='<option value="0">未完成</option><option value="1">完成</option>';}else if(c==='is_deleted'){el=document.createElement('select');el.innerHTML='<option value="0">未删除</option><option value="1">已删除</option>';}else{el=document.createElement('input');el.type='text';el.placeholder='请输入 '+fieldLabel(c);}el.id='f_'+c;el.oninput=()=>{current[c]=el.value;};el.onchange=()=>{current[c]=el.value;};wrap.appendChild(el);f.appendChild(wrap);});}
 function fillForm(){cols.forEach(c=>{const el=document.getElementById('f_'+c);if(el)el.value=(current[c]??'');});}
 function updateSaveButton(){const btn=document.getElementById('btn_save');if(!btn)return;btn.textContent=isNewMode?'确定添加':'保存修改';}
 function render(){const th=document.querySelector('#tbl thead');const tb=document.querySelector('#tbl tbody');th.innerHTML='<tr><th>rowid</th>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr>';tb.innerHTML='';rows.forEach(r=>{const tr=document.createElement('tr');tr.onclick=()=>{current=JSON.parse(JSON.stringify(r));isNewMode=false;updateSaveButton();fillForm();setStatus('已选择 rowid='+String(r.__rowid__||'')+'，可修改后保存');};tr.innerHTML='<td>'+r.__rowid__+'</td>'+cols.map(c=>'<td>'+String(r[c]??'')+'</td>').join('');tb.appendChild(tr);});}
@@ -530,9 +501,9 @@ esp_err_t HandleScheduleTasks(httpd_req_t *req) {
 	}
 	sqlite3_stmt *stmt = nullptr;
 	const char *sql =
-		"SELECT rowid AS __rowid__, content, IFNULL(done,0) AS done, IFNULL(\"delete\",0) AS \"delete\", "
-		"date, starttime, endtime, priority, period "
-		"FROM task ORDER BY date ASC, starttime ASC;";
+		"SELECT id AS __rowid__, user_id, task_type, target_id, title, description, start_at, due_at, "
+		"IFNULL(is_completed,0) AS is_completed, IFNULL(is_deleted,0) AS is_deleted, created_at "
+		"FROM tasks ORDER BY due_at ASC, start_at ASC;";
 	LogHttpdRuntime("/api/tasks", "before-prepare");
 	if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
 		if (stmt) sqlite3_finalize(stmt);
@@ -607,6 +578,11 @@ esp_err_t HandleScheduleTaskSave(httpd_req_t *req) {
 		cJSON_Delete(root);
 		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "ensure task table failed");
 	}
+	if (!eteacher::database_manager::ConfigureWriteConnection(db, kTag)) {
+		sqlite3_close(db);
+		cJSON_Delete(root);
+		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "configure db write mode failed");
+	}
 
 	std::vector<std::string> cols;
 	cols.reserve(kTaskColumns.size());
@@ -630,14 +606,14 @@ esp_err_t HandleScheduleTaskSave(httpd_req_t *req) {
 
 	std::string sql;
 	if (rowid > 0) {
-		sql = "UPDATE task SET ";
+		sql = "UPDATE tasks SET ";
 		for (size_t i = 0; i < used_cols.size(); ++i) {
 			if (i) sql += ",";
 			sql += "\"" + used_cols[i] + "\"=?";
 		}
-		sql += " WHERE rowid=?;";
+		sql += " WHERE id=?;";
 	} else {
-		sql = "INSERT INTO task (";
+		sql = "INSERT INTO tasks (";
 		for (size_t i = 0; i < used_cols.size(); ++i) {
 			if (i) sql += ",";
 			sql += "\"" + used_cols[i] + "\"";
@@ -657,6 +633,12 @@ esp_err_t HandleScheduleTaskSave(httpd_req_t *req) {
 		cJSON_Delete(root);
 		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "prepare failed");
 	}
+	if (!eteacher::database_manager::BeginTransaction(db, kTag)) {
+		sqlite3_finalize(stmt);
+		sqlite3_close(db);
+		cJSON_Delete(root);
+		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "begin transaction failed");
+	}
 
 	int bind_idx = 1;
 	for (const auto &c : used_cols) {
@@ -667,6 +649,17 @@ esp_err_t HandleScheduleTaskSave(httpd_req_t *req) {
 	}
 	int rc = sqlite3_step(stmt);
 	LogHttpdRuntime("/api/task/save", "after-step");
+	if (rc == SQLITE_DONE) {
+		if (!eteacher::database_manager::CommitTransaction(db, kTag)) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			sqlite3_finalize(stmt);
+			sqlite3_close(db);
+			cJSON_Delete(root);
+			return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "commit failed");
+		}
+	} else {
+		eteacher::database_manager::RollbackTransaction(db, kTag);
+	}
 	sqlite3_finalize(stmt);
 	sqlite3_close(db);
 	cJSON_Delete(root);
@@ -713,15 +706,34 @@ esp_err_t HandleScheduleTaskDelete(httpd_req_t *req) {
 		sqlite3_close(db);
 		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "ensure task table failed");
 	}
+	if (!eteacher::database_manager::ConfigureWriteConnection(db, kTag)) {
+		sqlite3_close(db);
+		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "configure db write mode failed");
+	}
 	sqlite3_stmt *stmt = nullptr;
-	if (sqlite3_prepare_v2(db, "UPDATE task SET \"delete\"=1 WHERE rowid=?;", -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+	if (sqlite3_prepare_v2(db, "UPDATE tasks SET is_deleted=1 WHERE id=?;", -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
 		if (stmt) sqlite3_finalize(stmt);
 		sqlite3_close(db);
 		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "prepare failed");
 	}
 	sqlite3_bind_int(stmt, 1, rowid);
+	if (!eteacher::database_manager::BeginTransaction(db, kTag)) {
+		sqlite3_finalize(stmt);
+		sqlite3_close(db);
+		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "begin transaction failed");
+	}
 	int rc = sqlite3_step(stmt);
 	LogHttpdRuntime("/api/task/delete", "after-step");
+	if (rc == SQLITE_DONE) {
+		if (!eteacher::database_manager::CommitTransaction(db, kTag)) {
+			eteacher::database_manager::RollbackTransaction(db, kTag);
+			sqlite3_finalize(stmt);
+			sqlite3_close(db);
+			return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "commit failed");
+		}
+	} else {
+		eteacher::database_manager::RollbackTransaction(db, kTag);
+	}
 	sqlite3_finalize(stmt);
 	sqlite3_close(db);
 	if (rc != SQLITE_DONE) {
@@ -2016,7 +2028,7 @@ bool CalendarScheduleApp::ToggleSelectedTaskDone() {
 		return false;
 	}
 	const bool next_done = !task.done;
-	if (!UpdateTaskFlagByRowId(task.rowid, "done", next_done ? 1 : 0)) {
+	if (!UpdateTaskFlagByRowId(task.rowid, "is_completed", next_done ? 1 : 0)) {
 		return false;
 	}
 	RefreshTodoLists();
@@ -2030,7 +2042,7 @@ bool CalendarScheduleApp::ToggleTaskDeletedByRowId(int rowid) {
 	for (const auto &task : visible_tasks_) {
 		if (task.rowid == rowid) {
 			const bool next_deleted = !task.deleted;
-			if (!UpdateTaskFlagByRowId(task.rowid, "delete", next_deleted ? 1 : 0)) {
+			if (!UpdateTaskFlagByRowId(task.rowid, "is_deleted", next_deleted ? 1 : 0)) {
 				return false;
 			}
 			RefreshTodoLists();
@@ -2122,14 +2134,14 @@ std::vector<CalendarScheduleApp::TaskEntry> CalendarScheduleApp::QueryTasks() co
 
 	const std::string db_path = DiscoverDataDbPath();
 	if (db_path.empty()) {
-		ESP_LOGW(kTag, "Data.db not found");
+		ESP_LOGW(kTag, "user_data.db not found");
 		return out;
 	}
 
 	sqlite3 *db = nullptr;
 	int rc = sqlite3_open_v2(db_path.c_str(), &db, SQLITE_OPEN_READONLY, nullptr);
 	if (rc != SQLITE_OK || !db) {
-		ESP_LOGW(kTag, "open Data.db failed rc=%d", rc);
+		ESP_LOGW(kTag, "open user_data.db failed rc=%d", rc);
 		if (db) {
 			sqlite3_close(db);
 		}
@@ -2137,7 +2149,8 @@ std::vector<CalendarScheduleApp::TaskEntry> CalendarScheduleApp::QueryTasks() co
 	}
 
 	const char *sql =
-		"SELECT rowid, content, done, IFNULL(\"delete\", 0), date, priority FROM task ORDER BY date ASC, starttime ASC;";
+		"SELECT id, title, description, is_completed, IFNULL(is_deleted, 0), due_at, task_type "
+		"FROM tasks ORDER BY due_at ASC, start_at ASC;";
 	sqlite3_stmt *stmt = nullptr;
 	rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
 	if (rc != SQLITE_OK || !stmt) {
@@ -2165,19 +2178,30 @@ std::vector<CalendarScheduleApp::TaskEntry> CalendarScheduleApp::QueryTasks() co
 
 	while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
 		const int rowid = sqlite3_column_int(stmt, 0);
-		const char *content_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
-		const char *done_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
-		const char *deleted_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
-		const char *date_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
-		const char *priority_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 5));
-		const int done_int = sqlite3_column_int(stmt, 2);
-		const int deleted_int = sqlite3_column_int(stmt, 3);
+		const char *title_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+		const char *description_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
+		const char *done_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+		const char *deleted_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
+		const sqlite3_int64 due_at = sqlite3_column_int64(stmt, 5);
+		const char *task_type_ptr = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+		const int done_int = sqlite3_column_int(stmt, 3);
+		const int deleted_int = sqlite3_column_int(stmt, 4);
 
 		TaskEntry task{};
 		task.rowid = rowid;
-		task.content = content_ptr ? std::string(content_ptr) : std::string();
-		task.date = date_ptr ? std::string(date_ptr) : std::string();
-		task.priority = priority_ptr ? std::string(priority_ptr) : std::string();
+		const std::string title = title_ptr ? std::string(title_ptr) : std::string();
+		const std::string description = description_ptr ? std::string(description_ptr) : std::string();
+		task.content = !title.empty() ? title : description;
+		task.priority = task_type_ptr ? std::string(task_type_ptr) : std::string();
+		if (due_at > 0) {
+			std::time_t ts = static_cast<std::time_t>(due_at);
+			std::tm local_tm{};
+			localtime_r(&ts, &local_tm);
+			char buf[40] = {0};
+			std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d", local_tm.tm_year + 1900, local_tm.tm_mon + 1,
+				local_tm.tm_mday);
+			task.date = buf;
+		}
 		task.done = IsDoneValue(done_ptr, done_int);
 		task.deleted = IsDeletedValue(deleted_ptr, deleted_int);
 
