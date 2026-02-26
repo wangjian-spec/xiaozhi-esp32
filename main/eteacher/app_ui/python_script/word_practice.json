@@ -16,7 +16,6 @@
   },
   "resources": {
     "texts": {
-      "TEXT_LABEL_PRESSAREAD": "Label",
       "TEXT_TOPBAR_408ADC": "TopBar",
       "TEXT_BOTTOMBAR_AABB85": "BottomBar"
     },
@@ -110,18 +109,127 @@
       "parent": "root_page_3b66",
       "properties": {}
     },
-    "word_practice_A": {
-      "type": "Image",
+    "label_A1": {
+      "type": "Label",
       "rect": {
-        "x": 223,
-        "y": 101,
-        "w": 16,
-        "h": 16
+        "x": 49,
+        "y": 211,
+        "w": 20,
+        "h": 20
       },
       "style": null,
       "z": 0,
-      "parent": "root_page_1faf",
+      "parent": "root_page_3b66",
       "properties": {}
+    },
+    "label_B1": {
+      "type": "Label",
+      "rect": {
+        "x": 144,
+        "y": 212,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_3b66",
+      "properties": {}
+    },
+    "label_C1": {
+      "type": "Label",
+      "rect": {
+        "x": 234,
+        "y": 212,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_3b66",
+      "properties": {}
+    },
+    "label_D1": {
+      "type": "Label",
+      "rect": {
+        "x": 330,
+        "y": 212,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_3b66",
+      "properties": {}
+    },
+    "root_page_0b9a": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "label_A2": {
+      "type": "Label",
+      "rect": {
+        "x": 36,
+        "y": 124,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_0b9a",
+      "properties": {}
+    },
+    "label_B2": {
+      "type": "Label",
+      "rect": {
+        "x": 206,
+        "y": 126,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_0b9a",
+      "properties": {}
+    },
+    "label_C2": {
+      "type": "Label",
+      "rect": {
+        "x": 35,
+        "y": 186,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_0b9a",
+      "properties": {}
+    },
+    "label_D2": {
+      "type": "Label",
+      "rect": {
+        "x": 207,
+        "y": 188,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_0b9a",
+      "properties": {}
+    },
+    "root_page_1faf": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
     },
     "label_A": {
       "type": "Label",
@@ -130,19 +238,6 @@
         "y": 101,
         "w": 50,
         "h": 20
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1faf",
-      "properties": {}
-    },
-    "word_practice_B": {
-      "type": "Image",
-      "rect": {
-        "x": 223,
-        "y": 133,
-        "w": 16,
-        "h": 16
       },
       "style": null,
       "z": 0,
@@ -175,19 +270,6 @@
       "parent": "root_page_1faf",
       "properties": {}
     },
-    "word_practice_C": {
-      "type": "Image",
-      "rect": {
-        "x": 223,
-        "y": 171,
-        "w": 16,
-        "h": 16
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1faf",
-      "properties": {}
-    },
     "label_D": {
       "type": "Label",
       "rect": {
@@ -195,76 +277,6 @@
         "y": 203,
         "w": 50,
         "h": 20
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1faf",
-      "properties": {}
-    },
-    "word_practice_D": {
-      "type": "Image",
-      "rect": {
-        "x": 223,
-        "y": 201,
-        "w": 16,
-        "h": 16
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1faf",
-      "properties": {}
-    },
-    "root_page_0b9a": {
-      "type": "Container",
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 400,
-        "h": 300
-      }
-    },
-    "root_page_1faf": {
-      "type": "Container",
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 400,
-        "h": 300
-      }
-    },
-    "word_practice_down": {
-      "type": "Image",
-      "rect": {
-        "x": 48,
-        "y": 170,
-        "w": 16,
-        "h": 16
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1faf",
-      "properties": {}
-    },
-    "word_practice_up": {
-      "type": "Image",
-      "rect": {
-        "x": 48,
-        "y": 102,
-        "w": 16,
-        "h": 16
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1faf",
-      "properties": {}
-    },
-    "word_practice_left": {
-      "type": "Image",
-      "rect": {
-        "x": 48,
-        "y": 134,
-        "w": 16,
-        "h": 16
       },
       "style": null,
       "z": 0,
@@ -291,19 +303,6 @@
         "y": 100,
         "w": 50,
         "h": 20
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1faf",
-      "properties": {}
-    },
-    "word_practice_right": {
-      "type": "Image",
-      "rect": {
-        "x": 48,
-        "y": 206,
-        "w": 16,
-        "h": 16
       },
       "style": null,
       "z": 0,
@@ -397,6 +396,32 @@
         "h": 300
       }
     },
+    "textarea_InputAnswer": {
+      "type": "TextArea",
+      "rect": {
+        "x": 0,
+        "y": 115,
+        "w": 400,
+        "h": 60
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d55e",
+      "properties": {}
+    },
+    "dialog_SelectBoard": {
+      "type": "Dialog",
+      "rect": {
+        "x": 0,
+        "y": 200,
+        "w": 400,
+        "h": 60
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d55e",
+      "properties": {}
+    },
     "root_page_5d74": {
       "type": "Container",
       "rect": {
@@ -430,9 +455,7 @@
       "style": null,
       "z": 0,
       "parent": "root_page_5d74",
-      "properties": {
-        "textId": "TEXT_LABEL_PRESSAREAD"
-      }
+      "properties": {}
     },
     "label_PressDSkip": {
       "type": "Label",
@@ -445,9 +468,7 @@
       "style": null,
       "z": 0,
       "parent": "root_page_5d74",
-      "properties": {
-        "textId": "TEXT_LABEL_PRESSAREAD"
-      }
+      "properties": {}
     },
     "label_ASRresult": {
       "type": "Label",
@@ -507,19 +528,6 @@
         "properties": {
           "textId": "TEXT_BOTTOMBAR_AABB85"
         }
-      },
-      "dialog_SelectBoard": {
-        "type": "Dialog",
-        "rect": {
-          "x": 1,
-          "y": 198,
-          "w": 400,
-          "h": 60
-        },
-        "style": null,
-        "z": 0,
-        "parent": "root_public",
-        "properties": {}
       },
       "word_practice_teacher": {
         "type": "Image",

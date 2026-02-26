@@ -66,9 +66,7 @@ def create_question_schema(conn: sqlite3.Connection) -> None:
 			stage TEXT,
 			difficulty INTEGER,
 			content_json TEXT,
-			answer TEXT,
-			audio_path TEXT,
-			image_path TEXT
+			answer TEXT
 		)
 		"""
 	)
@@ -284,8 +282,8 @@ def seed_words(conn: sqlite3.Connection) -> None:
 	)
 
 
-def build_question_content(question_type: str, idx: int) -> tuple[str, str]:
-	if question_type == "choice":
+def build_question_content(question_kind: str, idx: int) -> tuple[str, str]:
+	if question_kind == "choice":
 		prompt = f"Choose the best meaning for word_{idx}."
 		options = {
 			"A": f"option_A_{idx}",
@@ -296,14 +294,14 @@ def build_question_content(question_type: str, idx: int) -> tuple[str, str]:
 		answer = random.choice(list(options.keys()))
 		payload = {"question": prompt, "options": options}
 		return json.dumps(payload, ensure_ascii=False), answer
-	if question_type == "fill":
+	if question_kind == "fill":
 		answer = f"keyword_{idx}"
 		payload = {
 			"question": f"Fill in the blank: Learning English is ____ ({idx}).",
 			"hint": "Use one adjective",
 		}
 		return json.dumps(payload, ensure_ascii=False), answer
-	if question_type == "listen":
+	if question_kind == "listen":
 		answer = f"listen_answer_{idx % 10}"
 		payload = {
 			"question": "Listen to audio and write what you hear.",
@@ -320,23 +318,22 @@ def build_question_content(question_type: str, idx: int) -> tuple[str, str]:
 
 
 def seed_questions(conn: sqlite3.Connection) -> None:
-	types = ["choice", "fill", "listen", "speak"]
+	question_kinds = ["choice", "fill", "listen", "speak"]
 	stages = ["primary", "middle", "high", "cet4", "cet6"]
 	rows = []
 	for i in range(1, ROW_COUNT + 1):
-		question_type = types[(i - 1) % len(types)]
+		question_type = str(random.randint(1, 10))
+		question_kind = random.choice(question_kinds)
 		stage = stages[(i - 1) % len(stages)]
 		difficulty = ((i - 1) % 6) + 1
-		content_json, answer = build_question_content(question_type, i)
-		audio_path = f"audio/question_{i:03d}.ogg" if question_type in {"listen", "speak"} else None
-		image_path = f"image/question_{i:03d}.png" if i % 4 == 0 else None
-		rows.append((i, question_type, stage, difficulty, content_json, answer, audio_path, image_path))
+		content_json, answer = build_question_content(question_kind, i)
+		rows.append((i, question_type, stage, difficulty, content_json, answer))
 
 	conn.executemany(
 		"""
 		INSERT INTO question_bank
-		(id, question_type, stage, difficulty, content_json, answer, audio_path, image_path)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		(id, question_type, stage, difficulty, content_json, answer)
+		VALUES (?, ?, ?, ?, ?, ?)
 		""",
 		rows,
 	)

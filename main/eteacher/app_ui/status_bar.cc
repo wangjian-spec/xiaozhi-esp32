@@ -9,14 +9,10 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
-#include <cstring>
-#include <vector>
 
-#include "assets.h"
 #include "audio/audio_codec.h"
 #include "boards/common/board.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
-#include "eteacher/font_manager/font_manager.h"
 #include <esp_log.h>
 
 
@@ -25,10 +21,6 @@ namespace {
 
 static constexpr char kTag[] = "StatusBar";
 static constexpr char kTopDateTimeFont[] = "wenquanyi_11pt";
-
-static inline uint16_t ReadLE16(const uint8_t* p) {
-    return static_cast<uint16_t>(static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8));
-}
 
 void SplitDateWeekAndClock(std::string_view full, std::string& out_date_week, std::string& out_clock) {
     out_date_week.clear();
@@ -53,55 +45,6 @@ void SplitDateWeekAndClock(std::string_view full, std::string& out_date_week, st
     }
 }
 } // anonymous
-
-// Implementations of helpers declared in status_bar.h (use anonymous ReadLE16/kTag above)
-bool LoadBinImage(const std::string& name, BinImage* out) {
-    if (!out) return false;
-    void* ptr = nullptr;
-    size_t size = 0;
-    if (!Assets::GetInstance().GetAssetData(name, ptr, size) || !ptr || size < 4) {
-        ESP_LOGW(kTag, "Icon not found or too small: %s", name.c_str());
-        return false;
-    }
-    const auto* data = static_cast<const uint8_t*>(ptr);
-    const uint16_t w = ReadLE16(data);
-    const uint16_t h = ReadLE16(data + 2);
-    const size_t stride = (w + 7u) / 8u;
-    const size_t bytes = static_cast<size_t>(stride) * h;
-    if (size < 4 + bytes) {
-        ESP_LOGW(kTag, "Icon size mismatch: %s", name.c_str());
-        static std::vector<uint8_t> scratch;
-        if (scratch.size() < bytes) scratch.resize(bytes);
-        std::fill(scratch.begin(), scratch.begin() + bytes, 0x00);
-        const size_t available = size > 4 ? (size - 4) : 0;
-        if (available > 0) {
-            std::memcpy(scratch.data(), data + 4, std::min(available, bytes));
-        }
-        out->data = scratch.data();
-        out->width = w;
-        out->height = h;
-        out->data_size = bytes;
-        return true;
-    }
-    out->data = data + 4;
-    out->width = w;
-    out->height = h;
-    out->data_size = bytes;
-    return true;
-}
-
-int16_t GetFontHeight(std::string_view font_name) {
-    const auto* font = eteacher::font_manager::GetBuiltinFont(font_name);
-    if (!font || !font->Ready()) return 12;
-    const auto& header = font->Header();
-    return static_cast<int16_t>(header.ascent + header.descent);
-}
-
-int16_t GetFontAscent(std::string_view font_name) {
-    const auto* font = eteacher::font_manager::GetBuiltinFont(font_name);
-    if (!font || !font->Ready()) return 9;
-    return static_cast<int16_t>(font->Header().ascent);
-}
 
 void DrawIconWithText(Adafruit_GFX& gfx,
                       CustomEpdDisplay* epd,

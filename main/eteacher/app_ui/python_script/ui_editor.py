@@ -989,6 +989,23 @@ class EditorWindow(QMainWindow):
                 return False
         return True
 
+    def is_unique_widget_id_global(self, widget_id: str, current: Optional[WidgetData] = None) -> bool:
+        if not widget_id:
+            return False
+        for scene in self.project.scenes:
+            for widget in scene.widgets:
+                if widget is current:
+                    continue
+                if widget.id == widget_id:
+                    return False
+        if self.project.public_page:
+            for widget in self.project.public_page.widgets:
+                if widget is current:
+                    continue
+                if widget.id == widget_id:
+                    return False
+        return True
+
     def on_selection_changed(self):
         selected = self.selected_items()
         if not selected:
@@ -1039,7 +1056,7 @@ class EditorWindow(QMainWindow):
             return
         item = selected[0]
         new_id = self.prop_id.text().strip() or item.data.id
-        if not self.is_unique_widget_id(new_id, current=item.data):
+        if not self.is_unique_widget_id_global(new_id, current=item.data):
             QMessageBox.warning(self, "Duplicate ID", f"Widget ID '{new_id}' already exists.")
             self._updating_properties = True
             self.prop_id.setText(item.data.id)
@@ -1177,6 +1194,22 @@ class EditorWindow(QMainWindow):
         widgets: Dict[str, Dict[str, object]] = {}
         public_widgets: Dict[str, Dict[str, object]] = {}
         pages: Dict[str, Dict[str, object]] = {}
+        used_widget_ids: Dict[str, str] = {}
+
+        def register_widget_id(widget_id: str, owner: str) -> bool:
+            prev = used_widget_ids.get(widget_id)
+            if prev is None:
+                used_widget_ids[widget_id] = owner
+                return True
+            if prev == owner:
+                return True
+            QMessageBox.warning(
+                self,
+                "Duplicate ID",
+                f"Widget ID '{widget_id}' is duplicated in '{prev}' and '{owner}'.\n"
+                f"Please rename it before exporting.",
+            )
+            return False
 
         def add_scene_widgets(scene: SceneData, root_id: str, target_widgets: Dict[str, Dict[str, object]]):
             target_widgets[root_id] = {
@@ -1185,6 +1218,8 @@ class EditorWindow(QMainWindow):
             }
             widget_ids = {w.id for w in scene.widgets}
             for w in scene.widgets:
+                if not register_widget_id(w.id, scene.id):
+                    return False
                 if w.parent in widget_ids and w.parent != w.id:
                     parent_id = w.parent
                 else:
@@ -1208,10 +1243,12 @@ class EditorWindow(QMainWindow):
                     "parent": parent_id,
                     "properties": props,
                 }
+            return True
 
         for scene in self.project.scenes:
             root_id = f"root_{scene.id}"
-            add_scene_widgets(scene, root_id, widgets)
+            if not add_scene_widgets(scene, root_id, widgets):
+                return
             pages[scene.id] = {
                 "name": scene.name,
                 "root": root_id,
@@ -1220,7 +1257,8 @@ class EditorWindow(QMainWindow):
         public_section = None
         if self.project.public_page:
             root_id = "root_public"
-            add_scene_widgets(self.project.public_page, root_id, public_widgets)
+            if not add_scene_widgets(self.project.public_page, root_id, public_widgets):
+                return
             public_section = {
                 "page": {
                     "name": self.project.public_page.name,

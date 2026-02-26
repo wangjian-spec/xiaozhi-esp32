@@ -6,6 +6,7 @@
 #include <wifi_manager.h>
 
 #include "eteacher/app_manager/menu.h"
+#include "eteacher/app_ui/common_ui_utils.h"
 
 class Adafruit_GFX;
 class CustomEpdDisplay;
@@ -48,20 +49,6 @@ inline eteacher::app_menu::MenuStatus BuildMenuStatus(Board &board) {
     status.volume_text = FormatVolumeText(board);
     return status;
 }
-
-
-// Shared helpers used by status bar and menu rendering
-struct BinImage {
-    const uint8_t* data = nullptr;
-    uint16_t width = 0;
-    uint16_t height = 0;
-    size_t data_size = 0;
-};
-
-bool LoadBinImage(const std::string& name, BinImage* out);
-
-int16_t GetFontHeight(std::string_view font_name);
-int16_t GetFontAscent(std::string_view font_name);
 
 void DrawIconWithText(Adafruit_GFX& gfx,
                       CustomEpdDisplay* epd,

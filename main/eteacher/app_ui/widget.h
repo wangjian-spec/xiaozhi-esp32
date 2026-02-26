@@ -205,6 +205,57 @@ public:
     virtual const char* Label(int index) const = 0;
 };
 
+class ListViewWidget;
+class DialogWidget;
+
+struct ListViewProfile {
+    int rows = 0;
+    int cols = 1;
+    bool selection_enabled = true;
+    bool focus_highlight_enabled = true;
+    bool activation_enabled = true;
+};
+
+class ListViewBehavior {
+public:
+    virtual ~ListViewBehavior() = default;
+    virtual InputResult OnInput(ListViewWidget& widget, const InputEvent& e, InputPhase phase) = 0;
+    virtual FocusIntent OnFocusKey(ListViewWidget& widget, KeyCode key) = 0;
+    virtual void OnDraw(ListViewWidget& widget, Painter& p) = 0;
+};
+
+struct DialogProfile {
+    enum class Mode : uint8_t {
+        PlainText,
+        Prompt,
+        Grid,
+    };
+
+    Mode mode = Mode::PlainText;
+    int grid_rows = 2;
+    int grid_cols = 0;
+    bool navigation_enabled = false;
+    bool selection_highlight_enabled = true;
+    std::string confirm_label = "确认";
+    std::string cancel_label = "取消";
+};
+
+struct TextAreaProfile {
+    enum class DecorationMode : uint8_t {
+        Box,
+        UnderlineDashed,
+    };
+
+    DecorationMode decoration_mode = DecorationMode::Box;
+};
+
+class DialogBehavior {
+public:
+    virtual ~DialogBehavior() = default;
+    virtual InputResult OnInput(DialogWidget& widget, const InputEvent& e, InputPhase phase) = 0;
+    virtual void OnDraw(DialogWidget& widget, Painter& p) = 0;
+};
+
 class LabelWidget : public TextWidget {
 protected:
     Size OnMeasure(const Size& constraint) override;
@@ -233,9 +284,14 @@ private:
 class TextAreaWidget : public TextWidget {
 public:
     TextAreaWidget();
+    void SetProfile(const TextAreaProfile& profile);
+    const TextAreaProfile& Profile() const;
 
 protected:
     void OnDraw(Painter& p) override;
+
+private:
+    TextAreaProfile profile_{};
 };
 
 class ListViewWidget : public TextWidget {
@@ -249,10 +305,26 @@ public:
     void SetItems(std::vector<std::string> items);
     void SetItemModel(std::unique_ptr<ItemModel> model);
     void SetRows(int rows);
+    void SetGrid(int rows, int cols);
     int Rows() const;
+    int Cols() const;
+
+    void SetSelectionEnabled(bool enabled);
+    bool SelectionEnabled() const;
+
+    void SetProfile(const ListViewProfile& profile);
+    const ListViewProfile& Profile() const;
+    void SetBehavior(std::unique_ptr<ListViewBehavior> behavior);
+    void ResetBehavior();
 
     int SelectedIndex() const;
+    void SetSelectedIndex(int index);
     std::string SelectedItem() const;
+    void ActivateSelected();
+
+    int ItemCount() const;
+    const char* ItemLabel(int index) const;
+    void ClampSelection();
 
 protected:
     void OnDraw(Painter& p) override;
@@ -262,15 +334,16 @@ protected:
 private:
     void SetModelFromText();
     int EffectiveRowCount() const;
-    int ItemCount() const;
-    const char* ItemLabel(int index) const;
-    void ClampSelection();
+    int EffectiveColCount() const;
 
     int rows_ = 0;
+    int cols_ = 1;
     int selected_index_ = 0;
     std::unique_ptr<ItemModel> model_{};
     ActivateCallback on_activated_ = nullptr;
     void* on_activated_ctx_ = nullptr;
+    ListViewProfile profile_{};
+    std::unique_ptr<ListViewBehavior> behavior_{};
 };
 
 class TabViewWidget : public TextWidget {
@@ -320,8 +393,38 @@ protected:
 };
 
 class DialogWidget : public TextWidget {
+public:
+    InputResult OnInput(const InputEvent& e, InputPhase phase) override;
+
+    void SetProfile(const DialogProfile& profile);
+    const DialogProfile& Profile() const;
+    void SetBehavior(std::unique_ptr<DialogBehavior> behavior);
+    void ResetBehavior();
+
+    void SetItems(std::vector<std::string> items);
+    const std::vector<std::string>& Items();
+    int SelectedIndex() const;
+    void SetSelectedIndex(int index);
+    void NotifySelected();
+
+    using SelectCallback = void (*)(DialogWidget* widget, int index, void* ctx);
+    void SetOnSelected(SelectCallback callback, void* ctx = nullptr);
+
 protected:
     void OnDraw(Painter& p) override;
+    void OnTextChanged() override;
+
+private:
+    void EnsureItemsFromText();
+    void ClampSelection();
+
+    DialogProfile profile_{};
+    std::unique_ptr<DialogBehavior> behavior_{};
+    std::vector<std::string> items_{};
+    bool items_from_text_cached_ = false;
+    int selected_index_ = 0;
+    SelectCallback on_selected_ = nullptr;
+    void* on_selected_ctx_ = nullptr;
 };
 
 class SoftKeyboardWidget : public BasicWidget {

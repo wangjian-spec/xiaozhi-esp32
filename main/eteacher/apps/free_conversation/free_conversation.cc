@@ -15,14 +15,13 @@
 
 #include <esp_log.h>
 
-#include "assets.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/app_manager/app_manager.h"
 #include "eteacher/app_manager/menu.h"
+#include "eteacher/app_ui/common_ui_utils.h"
 #include "eteacher/app_ui/status_bar.h"
 #include "eteacher/app_service/app_service.h"
 #include "eteacher/epd_manager/epd_manager.h"
-#include "eteacher/font_manager/font_manager.h"
 #include "wifi_manager.h"
 
 namespace {
@@ -35,67 +34,11 @@ static constexpr int kMaxHistoryLines = 100;
 static constexpr int kAvatarGap = 6;
 static constexpr int kLineGap = 4;
 
-struct BinImage {
-	const uint8_t* data = nullptr;
-	uint16_t width = 0;
-	uint16_t height = 0;
-	size_t data_size = 0;
-};
-
-static inline uint16_t ReadLE16(const uint8_t* p) {
-	return static_cast<uint16_t>(static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8));
-}
-
-bool LoadBinImage(const std::string& name, BinImage* out) {
-	if (!out) {
-		return false;
-	}
-	void* ptr = nullptr;
-	size_t size = 0;
-	if (!Assets::GetInstance().GetAssetData(name, ptr, size) || !ptr || size < 4) {
-		return false;
-	}
-	const auto* data = static_cast<const uint8_t*>(ptr);
-	const uint16_t w = ReadLE16(data);
-	const uint16_t h = ReadLE16(data + 2);
-	const size_t stride = (w + 7u) / 8u;
-	const size_t bytes = static_cast<size_t>(stride) * h;
-	if (size < 4 + bytes) {
-		return false;
-	}
-	out->data = data + 4;
-	out->width = w;
-	out->height = h;
-	out->data_size = bytes;
-	return true;
-}
-
-bool LoadBinImageFallback(const std::vector<std::string>& names, BinImage* out) {
-	for (const auto& name : names) {
-		if (LoadBinImage(name, out)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-
-int16_t GetFontHeight(std::string_view font_name) {
-	const auto* font = eteacher::font_manager::GetBuiltinFont(font_name);
-	if (!font || !font->Ready()) {
-		return 12;
-	}
-	const auto& header = font->Header();
-	return static_cast<int16_t>(header.ascent + header.descent);
-}
-
-int16_t GetFontAscent(std::string_view font_name) {
-	const auto* font = eteacher::font_manager::GetBuiltinFont(font_name);
-	if (!font || !font->Ready()) {
-		return 9;
-	}
-	return static_cast<int16_t>(font->Header().ascent);
-}
+using BinImage = eteacher::app_ui::BinImage;
+using eteacher::app_ui::GetFontAscent;
+using eteacher::app_ui::GetFontHeight;
+using eteacher::app_ui::LoadBinImage;
+using eteacher::app_ui::LoadBinImageFallback;
 
 void DrawBatteryIcon(Adafruit_GFX& gfx, int16_t right_x, int16_t top_y, int16_t bar_h, int level) {
 	const int16_t battery_w = 22;

@@ -65,6 +65,12 @@ CREATE TABLE question_bank (
 );
 ```
 
+  `DatabaseCreate.py` 生成规则（`question_bank`）：
+
+  - `question_type`：随机生成 `1~10`（以文本形式写入）
+  - `audio_path`：每条记录都写入有效路径（非空）
+  - `image_path`：每条记录都写入有效路径（非空）
+
 ### 2.3 动态用户库 `user_data.db`
 
 #### A. 账号与设备
