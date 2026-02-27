@@ -148,7 +148,7 @@ static const app_ui::desc::TextDesc kText_page_1faf_word_practice_speaker_1 = {
     0x00000000u
 };
 
-static const app_ui::desc::TextDesc kText_page_1faf_image_29a0b0 = {
+static const app_ui::desc::TextDesc kText_page_1faf_word_practice_speaker_2 = {
     "",
     0x00000000u
 };
@@ -174,7 +174,7 @@ static const app_ui::desc::WidgetDesc kScene_page_1faf_widgets[] = {
     { 0x102F8D2Eu, 0xE5478F92u, app_ui::WidgetType::Label, {116, 168, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_down },
     { 0x3A32AEE3u, 0xE5478F92u, app_ui::WidgetType::Label, {116, 134, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_label_left },
     { 0xA7C4F81Du, 0xE5478F92u, app_ui::WidgetType::Image, {84, 101, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_speaker_1 },
-    { 0x1E669029u, 0xE5478F92u, app_ui::WidgetType::Image, {84, 133, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_image_29a0b0 },
+    { 0xA4C4F364u, 0xE5478F92u, app_ui::WidgetType::Image, {84, 133, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_speaker_2 },
     { 0xA5C4F4F7u, 0xE5478F92u, app_ui::WidgetType::Image, {84, 169, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_speaker_3 },
     { 0xA2C4F03Eu, 0xE5478F92u, app_ui::WidgetType::Image, {84, 203, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_1faf_word_practice_speaker_4 },
 };
@@ -238,7 +238,7 @@ static const app_ui::desc::WidgetDesc kScene_page_5d74_widgets[] = {
     { 0xA4144FDCu, 0x5C0F8034u, app_ui::WidgetType::Image, {18, 175, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_word_practice_mick },
     { 0x24F8BC60u, 0x5C0F8034u, app_ui::WidgetType::Label, {60, 175, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_label_pressAread },
     { 0x8138F428u, 0x5C0F8034u, app_ui::WidgetType::Label, {250, 175, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_label_PressDSkip },
-    { 0xBB35B429u, 0x5C0F8034u, app_ui::WidgetType::Label, {19, 218, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_label_ASRresult },
+    { 0xBB35B429u, 0x5C0F8034u, app_ui::WidgetType::Label, {60, 123, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_5d74_label_ASRresult },
 };
 
 static const app_ui::desc::SceneDesc kScene_page_5d74 = {
@@ -335,7 +335,7 @@ static const app_ui::desc::WidgetDesc kScene_public_widgets[] = {
     { 0xBD6C3E3Fu, 0xDE440657u, app_ui::WidgetType::Image, {15, 261, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 5, &kText_public_word_prictice_bad },
     { 0x2C695914u, 0xDE440657u, app_ui::WidgetType::Label, {45, 261, 350, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_alert },
     { 0x12756A55u, 0xDE440657u, app_ui::WidgetType::Image, {20, 82, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_speaker },
-    { 0x5B4BF056u, 0xDE440657u, app_ui::WidgetType::Label, {55, 82, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_question },
+    { 0x5B4BF056u, 0xDE440657u, app_ui::WidgetType::Label, {55, 82, 300, 40}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_question },
 };
 
 static const app_ui::desc::SceneDesc kScene_public = {

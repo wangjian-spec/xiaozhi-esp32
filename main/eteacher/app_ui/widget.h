@@ -249,6 +249,73 @@ struct TextAreaProfile {
     DecorationMode decoration_mode = DecorationMode::Box;
 };
 
+struct LabelProfile {
+    bool focus_invert = true;
+    int16_t text_offset_x = 0;
+    int16_t text_offset_y = 0;
+};
+
+struct ButtonProfile {
+    bool focus_invert = true;
+    int16_t min_text_x = 2;
+    int16_t min_text_y = 1;
+};
+
+struct ImageProfile {
+    bool draw_border = true;
+    bool draw_fallback_text = true;
+};
+
+struct TabViewProfile {
+    int rows = 1;
+    int cols = 0;
+    bool focus_highlight_enabled = true;
+};
+
+struct FrameProfile {
+    bool draw_border = true;
+    int16_t text_offset_x = 4;
+    int16_t text_offset_y = 2;
+    int16_t min_line_height = 10;
+};
+
+struct MenuProfile {
+    bool draw_border = true;
+    int divider_count = 2;
+    int16_t text_offset_x = 2;
+    int16_t text_offset_y = 2;
+};
+
+struct SoftKeyboardProfile {
+    int page = 0;
+    int selected_index = 0;
+    bool wrap_navigation = true;
+    uint32_t nav_repeat_step_ms = 60;
+};
+
+struct BarProfile {
+    bool inverted = true;
+    int16_t text_offset_x = 2;
+    int16_t text_offset_y = 2;
+};
+
+struct CheckboxProfile {
+    bool checked = false;
+};
+
+struct RadioProfile {
+    bool checked = false;
+};
+
+struct SwitchProfile {
+    bool checked = false;
+};
+
+struct ProgressProfile {
+    uint8_t value = 0;
+    uint8_t max_value = 100;
+};
+
 class DialogBehavior {
 public:
     virtual ~DialogBehavior() = default;
@@ -257,18 +324,35 @@ public:
 };
 
 class LabelWidget : public TextWidget {
+public:
+    void SetProfile(const LabelProfile& profile);
+    const LabelProfile& Profile() const;
+
 protected:
     Size OnMeasure(const Size& constraint) override;
     void OnDraw(Painter& p) override;
+
+private:
+    LabelProfile profile_{};
 };
 
 class ButtonWidget : public LabelWidget {
+public:
+    void SetProfile(const ButtonProfile& profile);
+    const ButtonProfile& Profile() const;
+
 protected:
     void OnDraw(Painter& p) override;
+
+private:
+    ButtonProfile profile_{};
 };
 
 class ImageWidget : public TextWidget {
 public:
+    void SetProfile(const ImageProfile& profile);
+    const ImageProfile& Profile() const;
+
     void SetQrCode(int size, const std::vector<uint8_t>& modules);
     void ClearQrCode();
     bool HasQrCode() const;
@@ -277,6 +361,7 @@ protected:
     void OnDraw(Painter& p) override;
 
 private:
+    ImageProfile profile_{};
     int qr_size_ = 0;
     std::vector<uint8_t> qr_modules_{};
 };
@@ -304,13 +389,6 @@ public:
 
     void SetItems(std::vector<std::string> items);
     void SetItemModel(std::unique_ptr<ItemModel> model);
-    void SetRows(int rows);
-    void SetGrid(int rows, int cols);
-    int Rows() const;
-    int Cols() const;
-
-    void SetSelectionEnabled(bool enabled);
-    bool SelectionEnabled() const;
 
     void SetProfile(const ListViewProfile& profile);
     const ListViewProfile& Profile() const;
@@ -336,8 +414,6 @@ private:
     int EffectiveRowCount() const;
     int EffectiveColCount() const;
 
-    int rows_ = 0;
-    int cols_ = 1;
     int selected_index_ = 0;
     std::unique_ptr<ItemModel> model_{};
     ActivateCallback on_activated_ = nullptr;
@@ -355,9 +431,8 @@ public:
 
     void SetItems(std::vector<std::string> items);
     void SetItemModel(std::unique_ptr<ItemModel> model);
-    void SetGrid(int rows, int cols);
-    int Rows() const;
-    int Cols() const;
+    void SetProfile(const TabViewProfile& profile);
+    const TabViewProfile& Profile() const;
 
     int SelectedIndex() const;
     void SetSelectedIndex(int index);
@@ -376,20 +451,33 @@ private:
     int EffectiveRows() const;
     int EffectiveCols() const;
 
-    int rows_ = 1;
-    int cols_ = 0;
     int selected_index_ = 0;
     std::unique_ptr<ItemModel> model_{};
+    TabViewProfile profile_{};
 };
 
 class FrameWidget : public TextWidget {
+public:
+    void SetProfile(const FrameProfile& profile);
+    const FrameProfile& Profile() const;
+
 protected:
     void OnDraw(Painter& p) override;
+
+private:
+    FrameProfile profile_{};
 };
 
 class MenuWidget : public TextWidget {
+public:
+    void SetProfile(const MenuProfile& profile);
+    const MenuProfile& Profile() const;
+
 protected:
     void OnDraw(Painter& p) override;
+
+private:
+    MenuProfile profile_{};
 };
 
 class DialogWidget : public TextWidget {
@@ -432,13 +520,13 @@ public:
     SoftKeyboardWidget();
 
     InputResult OnInput(const InputEvent& e, InputPhase phase) override;
-    bool Focusable() const override { return true; }
 
     using KeyCallback = void (*)(SoftKeyboardWidget* widget, const char* value, void* ctx);
     void SetOnKey(KeyCallback callback, void* ctx = nullptr);
 
-    int Page() const;
-    void SetPage(int page);
+    void SetProfile(const SoftKeyboardProfile& profile);
+    const SoftKeyboardProfile& Profile() const;
+
     int SelectedIndex() const;
     void SetSelectedIndex(int index);
     const std::string& LastOutput() const;
@@ -457,64 +545,79 @@ private:
     std::string last_output_{};
     KeyCallback on_key_ = nullptr;
     void* on_key_ctx_ = nullptr;
+    SoftKeyboardProfile profile_{};
 };
 
 class TopBarWidget : public TextWidget {
+public:
+    void SetProfile(const BarProfile& profile);
+    const BarProfile& Profile() const;
+
 protected:
     void OnDraw(Painter& p) override;
+
+private:
+    BarProfile profile_{};
 };
 
 class BottomBarWidget : public TextWidget {
+public:
+    void SetProfile(const BarProfile& profile);
+    const BarProfile& Profile() const;
+
 protected:
     void OnDraw(Painter& p) override;
+
+private:
+    BarProfile profile_{};
 };
 
 class CheckboxWidget : public TextWidget {
 public:
-    void SetChecked(bool checked);
-    bool Checked() const;
+    void SetProfile(const CheckboxProfile& profile);
+    const CheckboxProfile& Profile() const;
 
 protected:
     void OnDraw(Painter& p) override;
 
 private:
-    bool checked_ = false;
+    CheckboxProfile profile_{};
 };
 
 class RadioWidget : public TextWidget {
 public:
-    void SetChecked(bool checked);
-    bool Checked() const;
+    void SetProfile(const RadioProfile& profile);
+    const RadioProfile& Profile() const;
 
 protected:
     void OnDraw(Painter& p) override;
 
 private:
-    bool checked_ = false;
+    RadioProfile profile_{};
 };
 
 class SwitchWidget : public TextWidget {
 public:
-    void SetChecked(bool checked);
-    bool Checked() const;
+    void SetProfile(const SwitchProfile& profile);
+    const SwitchProfile& Profile() const;
 
 protected:
     void OnDraw(Painter& p) override;
 
 private:
-    bool checked_ = false;
+    SwitchProfile profile_{};
 };
 
 class ProgressWidget : public TextWidget {
 public:
-    void SetValue(uint8_t value);
-    uint8_t Value() const;
+    void SetProfile(const ProgressProfile& profile);
+    const ProgressProfile& Profile() const;
 
 protected:
     void OnDraw(Painter& p) override;
 
 private:
-    uint8_t value_ = 0;
+    ProgressProfile profile_{};
 };
 
 } // namespace app_ui

@@ -1,208 +1,36 @@
 ﻿{
   "version": "1.0",
+  "question_type": "1",
   "questions": [
     {
       "id": 1001,
-      "question_type": "1",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
-        "audio": "",
-        "word": "apple",
-        "question": "Select the correct picture",
+        "audio": "dog.ogg",
+        "question": "dog",
         "options": [
-          {"key": "A", "image": "apple.png"},
-          {"key": "B", "image": "banana.png"},
-          {"key": "C", "image": "cat.png"},
-          {"key": "D", "image": "dog.png"}
-        ]
-      },
-      "answer": "A"
-    },
-
-    {
-      "id": 1002,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "dog",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "cat.png"},
-          {"key": "B", "image": "dog.png"},
-          {"key": "C", "image": "book.png"},
-          {"key": "D", "image": "fish.png"}
-        ]
-      },
-      "answer": "B"
-    },
-
-    {
-      "id": 1003,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "cat",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "dog.png"},
-          {"key": "B", "image": "bird.png"},
-          {"key": "C", "image": "cat.png"},
-          {"key": "D", "image": "apple.png"}
-        ]
-      },
-      "answer": "C"
-    },
-
-    {
-      "id": 1004,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "book",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "pen.png"},
-          {"key": "B", "image": "book.png"},
-          {"key": "C", "image": "sun.png"},
-          {"key": "D", "image": "moon.png"}
-        ]
-      },
-      "answer": "B"
-    },
-
-    {
-      "id": 1005,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "pen",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "pen.png"},
-          {"key": "B", "image": "pencil.png"},
-          {"key": "C", "image": "book.png"},
-          {"key": "D", "image": "bag.png"}
-        ]
-      },
-      "answer": "A"
-    },
-
-    {
-      "id": 1006,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "sun",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "moon.png"},
-          {"key": "B", "image": "star.png"},
-          {"key": "C", "image": "sun.png"},
-          {"key": "D", "image": "cloud.png"}
-        ]
-      },
-      "answer": "C"
-    },
-
-    {
-      "id": 1007,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "moon",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "sun.png"},
-          {"key": "B", "image": "moon.png"},
-          {"key": "C", "image": "star.png"},
-          {"key": "D", "image": "sky.png"}
-        ]
-      },
-      "answer": "B"
-    },
-
-    {
-      "id": 1008,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "car",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "bus.png"},
-          {"key": "B", "image": "bike.png"},
-          {"key": "C", "image": "train.png"},
-          {"key": "D", "image": "car.png"}
+          {"key": "A", "image": "apple.bin"},
+          {"key": "B", "image": "banana.bin"},
+          {"key": "C", "image": "cat.bin"},
+          {"key": "D", "image": "dog.bin"}
         ]
       },
       "answer": "D"
-    },
-
-    {
-      "id": 1009,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "fish",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "fish.png"},
-          {"key": "B", "image": "bird.png"},
-          {"key": "C", "image": "cat.png"},
-          {"key": "D", "image": "dog.png"}
-        ]
-      },
-      "answer": "A"
-    },
-
-    {
-      "id": 1010,
-      "question_type": "1",
-      "stage": "primary",
-      "difficulty": 1,
-      "content_json": {
-        "audio": "",
-        "word": "milk",
-        "question": "Select the correct picture",
-        "options": [
-          {"key": "A", "image": "water.png"},
-          {"key": "B", "image": "juice.png"},
-          {"key": "C", "image": "milk.png"},
-          {"key": "D", "image": "tea.png"}
-        ]
-      },
-      "answer": "C"
     }
   ]
 }
 {
   "version": "1.0",
+  "question_type": "2",
   "questions": [
     {
       "id": 2001,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'apple'?",
+        "question": "apple",
         "options": [
           {"key": "A", "text": "苹果"},
           {"key": "B", "text": "香蕉"},
@@ -212,15 +40,13 @@
       },
       "answer": "A"
     },
-
     {
       "id": 2002,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'dog'?",
+        "question": "dog",
         "options": [
           {"key": "A", "text": "猫"},
           {"key": "B", "text": "狗"},
@@ -230,15 +56,13 @@
       },
       "answer": "B"
     },
-
     {
       "id": 2003,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'cat'?",
+        "question": "cat",
         "options": [
           {"key": "A", "text": "鸟"},
           {"key": "B", "text": "猫"},
@@ -248,15 +72,13 @@
       },
       "answer": "B"
     },
-
     {
       "id": 2004,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'book'?",
+        "question": "book",
         "options": [
           {"key": "A", "text": "钢笔"},
           {"key": "B", "text": "书"},
@@ -266,15 +88,13 @@
       },
       "answer": "B"
     },
-
     {
       "id": 2005,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'pen'?",
+        "question": "pen",
         "options": [
           {"key": "A", "text": "铅笔"},
           {"key": "B", "text": "书"},
@@ -284,15 +104,13 @@
       },
       "answer": "C"
     },
-
     {
       "id": 2006,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'sun'?",
+        "question": "sun",
         "options": [
           {"key": "A", "text": "星星"},
           {"key": "B", "text": "云"},
@@ -302,15 +120,13 @@
       },
       "answer": "C"
     },
-
     {
       "id": 2007,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'moon'?",
+        "question": "moon",
         "options": [
           {"key": "A", "text": "太阳"},
           {"key": "B", "text": "月亮"},
@@ -320,15 +136,13 @@
       },
       "answer": "B"
     },
-
     {
       "id": 2008,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'car'?",
+        "question": "car",
         "options": [
           {"key": "A", "text": "公共汽车"},
           {"key": "B", "text": "自行车"},
@@ -338,15 +152,13 @@
       },
       "answer": "D"
     },
-
     {
       "id": 2009,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'fish'?",
+        "question": "fish",
         "options": [
           {"key": "A", "text": "鱼"},
           {"key": "B", "text": "鸟"},
@@ -356,15 +168,13 @@
       },
       "answer": "A"
     },
-
     {
       "id": 2010,
-      "question_type": "2",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "What is the meaning of 'milk'?",
+        "question": "milk",
         "options": [
           {"key": "A", "text": "水"},
           {"key": "B", "text": "果汁"},
@@ -378,15 +188,15 @@
 }
 {
   "version": "1.0",
+  "question_type": "3",
   "questions": [
     {
       "id": 3001,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“苹果”的英文是？",
+        "question": "苹果",
         "options": [
           {"key": "A", "text": "apple"},
           {"key": "B", "text": "banana"},
@@ -396,15 +206,13 @@
       },
       "answer": "A"
     },
-
     {
       "id": 3002,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“狗”的英文是？",
+        "question": "狗",
         "options": [
           {"key": "A", "text": "cat"},
           {"key": "B", "text": "fish"},
@@ -414,15 +222,13 @@
       },
       "answer": "C"
     },
-
     {
       "id": 3003,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“猫”的英文是？",
+        "question": "猫",
         "options": [
           {"key": "A", "text": "bird"},
           {"key": "B", "text": "dog"},
@@ -432,15 +238,13 @@
       },
       "answer": "D"
     },
-
     {
       "id": 3004,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“书”的英文是？",
+        "question": "书",
         "options": [
           {"key": "A", "text": "pen"},
           {"key": "B", "text": "book"},
@@ -450,15 +254,13 @@
       },
       "answer": "B"
     },
-
     {
       "id": 3005,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“钢笔”的英文是？",
+        "question": "钢笔",
         "options": [
           {"key": "A", "text": "pencil"},
           {"key": "B", "text": "book"},
@@ -468,15 +270,13 @@
       },
       "answer": "C"
     },
-
     {
       "id": 3006,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“太阳”的英文是？",
+        "question": "太阳",
         "options": [
           {"key": "A", "text": "moon"},
           {"key": "B", "text": "star"},
@@ -486,15 +286,13 @@
       },
       "answer": "C"
     },
-
     {
       "id": 3007,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“月亮”的英文是？",
+        "question": "月亮",
         "options": [
           {"key": "A", "text": "sun"},
           {"key": "B", "text": "cloud"},
@@ -504,15 +302,13 @@
       },
       "answer": "C"
     },
-
     {
       "id": 3008,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“汽车”的英文是？",
+        "question": "汽车",
         "options": [
           {"key": "A", "text": "bus"},
           {"key": "B", "text": "bike"},
@@ -522,15 +318,13 @@
       },
       "answer": "D"
     },
-
     {
       "id": 3009,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“鱼”的英文是？",
+        "question": "鱼",
         "options": [
           {"key": "A", "text": "fish"},
           {"key": "B", "text": "bird"},
@@ -540,15 +334,13 @@
       },
       "answer": "A"
     },
-
     {
       "id": 3010,
-      "question_type": "3",
       "stage": "primary",
       "difficulty": 1,
       "content_json": {
         "audio": "",
-        "question": "“牛奶”的英文是？",
+        "question": "牛奶",
         "options": [
           {"key": "A", "text": "water"},
           {"key": "B", "text": "juice"},
@@ -957,60 +749,60 @@
 {
   "version": "1.0",
   "questions": [
-    {"id": 7001, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "苹果"}, "answer": "apple"},
-    {"id": 7002, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "狗"}, "answer": "dog"},
-    {"id": 7003, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "猫"}, "answer": "cat"},
-    {"id": 7004, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "书"}, "answer": "book"},
-    {"id": 7005, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "钢笔"}, "answer": "pen"},
-    {"id": 7006, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "太阳"}, "answer": "sun"},
-    {"id": 7007, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "月亮"}, "answer": "moon"},
-    {"id": 7008, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "汽车"}, "answer": "car"},
-    {"id": 7009, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "鱼"}, "answer": "fish"},
-    {"id": 7010, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "牛奶"}, "answer": "milk"}
+    {"id": 7001, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "苹果"}, "answer": "apple"},
+    {"id": 7002, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "狗"}, "answer": "dog"},
+    {"id": 7003, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "猫"}, "answer": "cat"},
+    {"id": 7004, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "书"}, "answer": "book"},
+    {"id": 7005, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "钢笔"}, "answer": "pen"},
+    {"id": 7006, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "太阳"}, "answer": "sun"},
+    {"id": 7007, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "月亮"}, "answer": "moon"},
+    {"id": 7008, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "汽车"}, "answer": "car"},
+    {"id": 7009, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "鱼"}, "answer": "fish"},
+    {"id": 7010, "question_type": "7", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "牛奶"}, "answer": "milk"}
   ]
 }
 {
   "version": "1.0",
   "questions": [
-    {"id": 8001, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "apple"}, "answer": "apple"},
-    {"id": 8002, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "dog"}, "answer": "dog"},
-    {"id": 8003, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "cat"}, "answer": "cat"},
-    {"id": 8004, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "book"}, "answer": "book"},
-    {"id": 8005, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "pen"}, "answer": "pen"},
-    {"id": 8006, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "sun"}, "answer": "sun"},
-    {"id": 8007, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "moon"}, "answer": "moon"},
-    {"id": 8008, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "car"}, "answer": "car"},
-    {"id": 8009, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "fish"}, "answer": "fish"},
-    {"id": 8010, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "word": "milk"}, "answer": "milk"}
+    {"id": 8001, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "apple"}, "answer": "apple"},
+    {"id": 8002, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "dog"}, "answer": "dog"},
+    {"id": 8003, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "cat"}, "answer": "cat"},
+    {"id": 8004, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "book"}, "answer": "book"},
+    {"id": 8005, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "pen"}, "answer": "pen"},
+    {"id": 8006, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "sun"}, "answer": "sun"},
+    {"id": 8007, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "moon"}, "answer": "moon"},
+    {"id": 8008, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "car"}, "answer": "car"},
+    {"id": 8009, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "fish"}, "answer": "fish"},
+    {"id": 8010, "question_type": "8", "stage": "primary", "difficulty": 1, "content_json": {"audio": "", "question": "milk"}, "answer": "milk"}
   ]
 }
 {
   "version": "1.0",
   "questions": [
-    {"id": 9001, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "我有一只狗。"}, "answer": "I have a dog."},
-    {"id": 9002, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "这是我的书。"}, "answer": "This is my book."},
-    {"id": 9003, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "这只猫很小。"}, "answer": "The cat is small."},
-    {"id": 9004, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "我喜欢苹果。"}, "answer": "I like apples."},
-    {"id": 9005, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "他是我的老师。"}, "answer": "He is my teacher."},
-    {"id": 9006, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "她有一支钢笔。"}, "answer": "She has a pen."},
-    {"id": 9007, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "我们去上学。"}, "answer": "We go to school."},
-    {"id": 9008, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "太阳很大。"}, "answer": "The sun is big."},
-    {"id": 9009, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "他们是我的朋友。"}, "answer": "They are my friends."},
-    {"id": 9010, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "我看见一只鸟。"}, "answer": "I see a bird."}
+    {"id": 9001, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我有一只狗。"}, "answer": "I have a dog."},
+    {"id": 9002, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "这是我的书。"}, "answer": "This is my book."},
+    {"id": 9003, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "这只猫很小。"}, "answer": "The cat is small."},
+    {"id": 9004, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我喜欢苹果。"}, "answer": "I like apples."},
+    {"id": 9005, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "他是我的老师。"}, "answer": "He is my teacher."},
+    {"id": 9006, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "她有一支钢笔。"}, "answer": "She has a pen."},
+    {"id": 9007, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我们去上学。"}, "answer": "We go to school."},
+    {"id": 9008, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "太阳很大。"}, "answer": "The sun is big."},
+    {"id": 9009, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "他们是我的朋友。"}, "answer": "They are my friends."},
+    {"id": 9010, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我看见一只鸟。"}, "answer": "I see a bird."}
   ]
 }
 {
   "version": "1.0",
   "questions": [
-    {"id": 10001, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "I have a dog."}, "answer": "I have a dog."},
-    {"id": 10002, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "This is my book."}, "answer": "This is my book."},
-    {"id": 10003, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "The cat is small."}, "answer": "The cat is small."},
-    {"id": 10004, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "I like apples."}, "answer": "I like apples."},
-    {"id": 10005, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "He is my teacher."}, "answer": "He is my teacher."},
-    {"id": 10006, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "She has a pen."}, "answer": "She has a pen."},
-    {"id": 10007, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "We go to school."}, "answer": "We go to school."},
-    {"id": 10008, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "The sun is big."}, "answer": "The sun is big."},
-    {"id": 10009, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "They are my friends."}, "answer": "They are my friends."},
-    {"id": 10010, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "sentence": "I see a bird."}, "answer": "I see a bird."}
+    {"id": 10001, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "I have a dog."}, "answer": "I have a dog."},
+    {"id": 10002, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "This is my book."}, "answer": "This is my book."},
+    {"id": 10003, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "The cat is small."}, "answer": "The cat is small."},
+    {"id": 10004, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "I like apples."}, "answer": "I like apples."},
+    {"id": 10005, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "He is my teacher."}, "answer": "He is my teacher."},
+    {"id": 10006, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "She has a pen."}, "answer": "She has a pen."},
+    {"id": 10007, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "We go to school."}, "answer": "We go to school."},
+    {"id": 10008, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "The sun is big."}, "answer": "The sun is big."},
+    {"id": 10009, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "They are my friends."}, "answer": "They are my friends."},
+    {"id": 10010, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "I see a bird."}, "answer": "I see a bird."}
   ]
 }

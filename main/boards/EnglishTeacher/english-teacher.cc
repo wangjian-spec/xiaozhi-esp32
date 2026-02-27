@@ -234,6 +234,18 @@ void EnglishTeacherBoard::InitializeButtons() {
 		#endif
 		post_button(ButtonEvent{AppButton::Select});
 	});
+	start_button_.OnPressDown([&]() {
+		#if APP_UI_DEBUG
+		ESP_LOGW(kTag, "START: PressDown");
+		#endif
+		post_button(ButtonEvent{AppButton::Start, ButtonAction::PressDown});
+	});
+	start_button_.OnPressUp([&]() {
+		#if APP_UI_DEBUG
+		ESP_LOGW(kTag, "START: PressUp");
+		#endif
+		post_button(ButtonEvent{AppButton::Start, ButtonAction::PressUp});
+	});
 	start_button_.OnClick([&]() {
 		#if APP_UI_DEBUG
 		ESP_LOGW(kTag, "START: Click");

@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstring>
 #include <cstdio>
+#include <memory>
 #include <random>
 #include <string_view>
 
@@ -16,6 +18,7 @@
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/apps/word_practice/word_practice_ui.h"
 #include "eteacher/database_manager/database_debug.h"
+#include "eteacher/app_service/app_service.h"
 #include "eteacher/database_manager/sqlite_db_api.h"
 
 #undef ESP_LOGE
@@ -39,6 +42,10 @@ constexpr uint32_t kWidgetPublicCorrect = 0x7A89E02Au;
 constexpr uint32_t kWidgetPublicWrong = 0x845D7D71u;
 constexpr uint32_t kWidgetPublicSpeaker = 0x12756A55u;
 constexpr uint32_t kWidgetSpeakMic = 0xA4144FDCu;
+constexpr uint32_t kWidgetSpeaker1 = 0xA7C4F81Du;
+constexpr uint32_t kWidgetSpeaker2 = 0xA4C4F364u;
+constexpr uint32_t kWidgetSpeaker3 = 0xA5C4F4F7u;
+constexpr uint32_t kWidgetSpeaker4 = 0xA2C4F03Eu;
 
 constexpr uint32_t kWidgetLabelA = 0xA1804BC5u;
 constexpr uint32_t kWidgetLabelB = 0x9E80470Cu;
@@ -48,6 +55,10 @@ constexpr uint32_t kWidgetLabelA1 = 0x30F7911Cu;
 constexpr uint32_t kWidgetLabelB1 = 0xC0F02507u;
 constexpr uint32_t kWidgetLabelC1 = 0xC4F269EAu;
 constexpr uint32_t kWidgetLabelD1 = 0x34EACB75u;
+constexpr uint32_t kWidgetImageA = 0x682A05DAu;
+constexpr uint32_t kWidgetImageB = 0x672A0447u;
+constexpr uint32_t kWidgetImageC = 0x662A02B4u;
+constexpr uint32_t kWidgetImageD = 0x652A0121u;
 constexpr uint32_t kWidgetLabelA2 = 0x33F795D5u;
 constexpr uint32_t kWidgetLabelB2 = 0xC1F0269Au;
 constexpr uint32_t kWidgetLabelC2 = 0xC3F26857u;
@@ -71,6 +82,7 @@ constexpr uint32_t kWidgetLabelPressDSkip = 0x8138F428u;
 constexpr uint32_t kWidgetBottomBar = 0x80DAA8ADu;
 constexpr uint32_t kWidgetTextAreaInputAnswer = 0x9210078Au;
 constexpr uint32_t kWidgetDialogSelectBoard = 0x3175DFAAu;
+constexpr const char *kQuestionAudioDir = "/resource/audio/wrods/";
 
 bool IsClickLike(const ButtonEvent &event) {
 	return event.action == ButtonAction::Click;
@@ -80,6 +92,32 @@ bool IsNextQuestionTriggerButton(AppButton button) {
 	return button == AppButton::Up || button == AppButton::Down || button == AppButton::Left ||
 		   button == AppButton::Right || button == AppButton::A || button == AppButton::B ||
 		   button == AppButton::C || button == AppButton::D;
+}
+
+std::string BuildQuestionAudioPath(const std::string &audio_filename) {
+	std::string name = audio_filename;
+	while (!name.empty() && std::isspace(static_cast<unsigned char>(name.front())) != 0) {
+		name.erase(name.begin());
+	}
+	while (!name.empty() && std::isspace(static_cast<unsigned char>(name.back())) != 0) {
+		name.pop_back();
+	}
+	if (name.empty()) {
+		return {};
+	}
+	auto lower = name;
+	std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
+		return static_cast<char>(std::tolower(ch));
+	});
+	if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".mp3") == 0) {
+		name.replace(name.size() - 4, 4, ".ogg");
+	} else if (lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".opus") == 0) {
+		name.replace(name.size() - 5, 5, ".ogg");
+	}
+	if (name[0] == '/') {
+		return name;
+	}
+	return std::string(kQuestionAudioDir) + name;
 }
 
 std::string Trim(const std::string &value) {
@@ -259,6 +297,114 @@ bool StepDone(sqlite3_stmt *stmt) {
 	return rc == SQLITE_DONE || rc == SQLITE_ROW;
 }
 
+constexpr int kPromptDashWidthShort = 60;
+constexpr int kPromptDashWidthLong = 300;
+constexpr int kPromptDashGapPx = 2;
+constexpr int16_t kQuestionBaseX = 55;
+constexpr int16_t kQuestionBaseY = 82;
+constexpr int16_t kSpeakerBaseX = 20;
+constexpr int16_t kSpeakerBaseY = 82;
+
+struct DashLineProfile {
+	int16_t black_len = 4;
+	int16_t white_len = 1;
+};
+
+class DashedLineWidget : public app_ui::Widget {
+public:
+	void SetProfile(const DashLineProfile &profile) {
+		profile_.black_len = std::max<int16_t>(1, profile.black_len);
+		profile_.white_len = std::max<int16_t>(1, profile.white_len);
+		MarkMeasureDirty();
+		MarkDirty();
+	}
+
+	const DashLineProfile &Profile() const {
+		return profile_;
+	}
+
+protected:
+	app_ui::Size OnMeasure(const app_ui::Size &constraint) override {
+		return constraint;
+	}
+
+	void OnDraw(app_ui::Painter &p) override {
+		const app_ui::Rect rect = LocalRect();
+		if (rect.w <= 0 || rect.h <= 0) {
+			return;
+		}
+
+		p.SetDrawColor(app_ui::Color::Black);
+		const int step = std::max<int>(1, profile_.black_len + profile_.white_len);
+		for (int16_t x = 0; x < rect.w; x = static_cast<int16_t>(x + step)) {
+			const int seg_w = std::min<int>(profile_.black_len, rect.w - x);
+			if (seg_w > 0) {
+				p.DrawHLine({x, 0}, seg_w);
+			}
+		}
+	}
+
+private:
+	DashLineProfile profile_{};
+};
+
+std::string FitUtf8TextToWidth(const std::string &text, int max_width, const char *font_name, CustomEpdDisplay *epd, size_t *used_bytes) {
+	if (used_bytes) {
+		*used_bytes = 0;
+	}
+	if (text.empty()) {
+		return {};
+	}
+	if (!epd || max_width <= 0) {
+		if (used_bytes) {
+			*used_bytes = text.size();
+		}
+		return text;
+	}
+
+	const int full_width = static_cast<int>(epd->MeasureUtf8Width(text, font_name));
+	if (full_width <= max_width) {
+		if (used_bytes) {
+			*used_bytes = text.size();
+		}
+		return text;
+	}
+
+	size_t idx = 0;
+	size_t best = 0;
+	while (idx < text.size()) {
+		size_t next = idx;
+		uint32_t cp = 0;
+		if (!DecodeNextUtf8Codepoint(text, next, cp)) {
+			next = idx + 1;
+		}
+		const std::string candidate = text.substr(0, next);
+		const int candidate_width = static_cast<int>(epd->MeasureUtf8Width(candidate, font_name));
+		if (candidate_width > max_width) {
+			break;
+		}
+		best = next;
+		idx = next;
+	}
+
+	if (best == 0) {
+		best = 1;
+	}
+
+	if (used_bytes) {
+		*used_bytes = best;
+	}
+	return text.substr(0, best);
+}
+
+int FontLineHeight(const char *font_name) {
+	const auto *font = eteacher::font_manager::GetBuiltinFont(font_name ? font_name : "wenquanyi_11pt");
+	if (!font || !font->Ready()) {
+		return 16;
+	}
+	return static_cast<int>(font->Header().ascent + font->Header().descent);
+}
+
 }  // namespace
 
 MenuMeta WordPracticeApp::GetMenuMeta() const {
@@ -270,6 +416,10 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	ui_ready_ = false;
 	root_ = nullptr;
 	epd_ = dynamic_cast<CustomEpdDisplay *>(ctx.board.GetDisplay());
+	speak_recording_ = false;
+	if (epd_) {
+		epd_->SetChatMessageListener(this);
+	}
 
 	label_question_type_ = nullptr;
 	label_correct_count_ = nullptr;
@@ -284,10 +434,18 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	dialog_select_board_ = nullptr;
 	image_good_ = nullptr;
 	image_bad_ = nullptr;
+	image_public_speaker_ = nullptr;
+	image_a_ = nullptr;
+	image_b_ = nullptr;
+	image_c_ = nullptr;
+	image_d_ = nullptr;
 	label_a_ = nullptr;
 	label_b_ = nullptr;
 	label_c_ = nullptr;
 	label_d_ = nullptr;
+	label_question_line2_ = nullptr;
+	question_dash_line1_ = nullptr;
+	question_dash_line2_ = nullptr;
 	label_up_ = nullptr;
 	label_left_ = nullptr;
 	label_down_ = nullptr;
@@ -311,6 +469,9 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	type56_input_answer_.clear();
 	recent_types_.clear();
 	textbook_name_ = "default";
+	current_audio_path_.clear();
+	question_prompt_profile_ = {};
+	CancelQuestionAudioAutoPlay();
 
 	router_.Reset();
 	scene_load_id_ = 0;
@@ -346,6 +507,15 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 
 void WordPracticeApp::OnExit(AppContext &ctx) {
 	(void)ctx;
+	if (speak_recording_) {
+		AppService::GetInstance().StopListening();
+		speak_recording_ = false;
+	}
+	if (epd_) {
+		epd_->SetChatMessageListener(nullptr);
+	}
+	CancelQuestionAudioAutoPlay();
+	current_audio_path_.clear();
 	ctx_ = nullptr;
 	ui_ready_ = false;
 	root_ = nullptr;
@@ -354,11 +524,15 @@ void WordPracticeApp::OnExit(AppContext &ctx) {
 }
 
 void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
-	if (!ui_ready_ || !IsClickLike(event)) {
+	if (!ui_ready_) {
+		return;
+	}
+	const bool is_speak_type = (current_question_type_ >= 7 && current_question_type_ <= 10);
+	if (!is_speak_type && !IsClickLike(event)) {
 		return;
 	}
 
-	if (event.id == AppButton::Start && total_answered_ >= pass_target_questions_) {
+	if (event.id == AppButton::Start && event.action == ButtonAction::Click && total_answered_ >= pass_target_questions_) {
 		correct_count_ = 0;
 		wrong_count_ = 0;
 		total_answered_ = 0;
@@ -371,6 +545,17 @@ void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 			label_alert_->SetText("");
 		}
 		PickNextQuestion();
+		Render(ctx);
+		return;
+	}
+
+	if (event.id == AppButton::Start && event.action == ButtonAction::Click && !current_audio_path_.empty() &&
+		!(current_question_type_ == 5 || current_question_type_ == 6 || is_speak_type)) {
+		if (!PlayAudioFromSd(current_audio_path_)) {
+			if (label_alert_) {
+				label_alert_->SetText("音频播放失败");
+			}
+		}
 		Render(ctx);
 		return;
 	}
@@ -392,7 +577,7 @@ void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 	if (current_question_type_ == 4) {
 		HandleType4Action(event.id);
 	} else if (current_question_type_ >= 7 && current_question_type_ <= 10) {
-		HandleSpeakAction(event.id);
+		HandleSpeakAction(event);
 	} else if (current_question_type_ == 5 || current_question_type_ == 6) {
 		HandleType56Action(event.id);
 	} else {
@@ -484,6 +669,40 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	}
 	image_good_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageGood));
 	image_bad_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageBad));
+	image_public_speaker_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetPublicSpeaker));
+	image_a_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageA));
+	image_b_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageB));
+	image_c_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageC));
+	image_d_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageD));
+
+	label_question_line2_ = nullptr;
+	question_dash_line1_ = nullptr;
+	question_dash_line2_ = nullptr;
+	if (root_) {
+		auto *line2 = dynamic_cast<app_ui::LabelWidget *>(root_->AddChild(std::make_unique<app_ui::LabelWidget>()));
+		if (line2) {
+			line2->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			line2->SetFontName("wenquanyi_11pt");
+			line2->SetVisible(false);
+		}
+		label_question_line2_ = line2;
+
+		auto *dash1 = dynamic_cast<DashedLineWidget *>(root_->AddChild(std::make_unique<DashedLineWidget>()));
+		if (dash1) {
+			dash1->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			dash1->SetProfile({4, 1});
+			dash1->SetVisible(false);
+		}
+		question_dash_line1_ = dash1;
+
+		auto *dash2 = dynamic_cast<DashedLineWidget *>(root_->AddChild(std::make_unique<DashedLineWidget>()));
+		if (dash2) {
+			dash2->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			dash2->SetProfile({4, 1});
+			dash2->SetVisible(false);
+		}
+		question_dash_line2_ = dash2;
+	}
 
 	label_a_ = dynamic_cast<app_ui::LabelWidget *>(root->FindById(kWidgetLabelA));
 	label_b_ = dynamic_cast<app_ui::LabelWidget *>(root->FindById(kWidgetLabelB));
@@ -516,6 +735,10 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	set_image(kWidgetPublicCorrect, "word_practice_correct.bin");
 	set_image(kWidgetPublicWrong, "word_practice_wrong.bin");
 	set_image(kWidgetPublicSpeaker, "word_practice_speaker.bin");
+	set_image(kWidgetSpeaker1, "word_practice_speaker.bin");
+	set_image(kWidgetSpeaker2, "word_practice_speaker.bin");
+	set_image(kWidgetSpeaker3, "word_practice_speaker.bin");
+	set_image(kWidgetSpeaker4, "word_practice_speaker.bin");
 	if (image_good_) image_good_->SetText("word_practice_good.bin");
 	if (image_bad_) image_bad_->SetText("word_practice_bad.bin");
 	if (image_good_) image_good_->SetVisible(false);
@@ -537,6 +760,12 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	if (label_left_) label_left_->SetFontName("wenquanyi_11pt");
 	if (label_down_) label_down_->SetFontName("wenquanyi_11pt");
 	if (label_right_) label_right_->SetFontName("wenquanyi_11pt");
+	if (label_question_) {
+		label_question_->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+	}
+	if (image_public_speaker_) {
+		image_public_speaker_->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+	}
 }
 
 void WordPracticeApp::LoadQuestionPool() {
@@ -714,7 +943,13 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	}
 
 	current_choice_ = BuildChoiceState(q);
+	current_audio_path_ = BuildQuestionAudioPath(current_choice_.audio_filename);
 	textbook_name_ = current_choice_.textbook_name.empty() ? (q.stage.empty() ? "default" : q.stage) : current_choice_.textbook_name;
+	if (!current_audio_path_.empty()) {
+		ScheduleQuestionAudioAutoPlay();
+	} else {
+		CancelQuestionAudioAutoPlay();
+	}
 
 	if (label_question_type_) {
 		label_question_type_->SetText(TypeTitle(q.type));
@@ -731,11 +966,9 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	if (bottom_bar_) {
 		bottom_bar_->SetText(TypeInstruction(q.type));
 	}
-	if (label_question_) {
-		label_question_->SetText(current_choice_.prompt);
-	}
+	UpdateQuestionPromptPresentation(q.type, current_choice_.prompt);
 	if (label_asr_result_) {
-		label_asr_result_->SetText("等待作答");
+		label_asr_result_->SetText("");
 	}
 	if (q.type >= 7 && q.type <= 10) {
 		if (label_press_aread_) {
@@ -838,6 +1071,24 @@ void WordPracticeApp::PresentCurrentQuestion() {
 		RefreshType4Widgets();
 	} else {
 		const bool is_translation_type = (q.type == 2 || q.type == 3);
+		if (q.type == 1) {
+			auto set_option_image = [](app_ui::ImageWidget *widget, const std::vector<std::string> &images, size_t index) {
+				if (!widget) {
+					return;
+				}
+				const std::string image_name = (index < images.size()) ? Trim(images[index]) : "";
+				if (!image_name.empty()) {
+					widget->SetText("words/" + image_name);
+				} else {
+					widget->SetText("");
+				}
+			};
+			set_option_image(image_a_, current_choice_.option_images, 0);
+			set_option_image(image_b_, current_choice_.option_images, 1);
+			set_option_image(image_c_, current_choice_.option_images, 2);
+			set_option_image(image_d_, current_choice_.option_images, 3);
+		}
+
 		if (label_a_) {
 			const std::string option = current_choice_.options.size() > 0 ? current_choice_.options[0] : "";
 			const std::string option_key = current_choice_.option_keys.size() > 0 ? current_choice_.option_keys[0] : "A";
@@ -910,13 +1161,140 @@ void WordPracticeApp::ShowSessionSummary() {
 	summary += " 分数:" + std::to_string(score_);
 	summary += " 正确:" + std::to_string(correct_count_);
 	summary += " 错误:" + std::to_string(wrong_count_);
-	label_question_->SetText(summary);
+	UpdateQuestionPromptPresentation(current_question_type_, summary);
 	if (label_alert_) {
 		label_alert_->SetText("");
 	}
 	if (bottom_bar_) {
 		bottom_bar_->SetText(pass ? "Start继续下一轮" : "Start重开本轮");
 	}
+}
+
+void WordPracticeApp::UpdateQuestionPromptPresentation(int question_type, const std::string &prompt) {
+	question_prompt_profile_ = BuildQuestionPromptProfile(question_type);
+	const bool show = question_prompt_profile_.visible;
+	const std::string prompt_text = Trim(prompt);
+	if (image_public_speaker_) {
+		image_public_speaker_->SetRectInParent({kSpeakerBaseX, kSpeakerBaseY, 20, 20});
+		image_public_speaker_->SetVisible(show);
+	}
+	if (label_question_) {
+		label_question_->SetVisible(show);
+	}
+	if (label_question_line2_) {
+		label_question_line2_->SetVisible(false);
+		label_question_line2_->SetText("");
+	}
+	if (question_dash_line1_) {
+		question_dash_line1_->SetVisible(false);
+	}
+	if (question_dash_line2_) {
+		question_dash_line2_->SetVisible(false);
+	}
+
+	if (!show || !label_question_) {
+		return;
+	}
+
+	int dash_width = question_prompt_profile_.dash_width;
+	if (question_type == 5 || question_type == 6 || question_type == 9 || question_type == 10) {
+		const int label_width = static_cast<int>(label_question_->RectInParent().w);
+		if (label_width > 0) {
+			dash_width = label_width;
+		}
+	}
+	if (dash_width <= 0) {
+		label_question_->SetText(prompt_text);
+		return;
+	}
+
+	const DashLineProfile dash_profile = {
+		static_cast<int16_t>(question_prompt_profile_.dash_black_len),
+		static_cast<int16_t>(question_prompt_profile_.dash_white_len),
+	};
+	if (auto *dash1 = dynamic_cast<DashedLineWidget *>(question_dash_line1_)) {
+		dash1->SetProfile(dash_profile);
+	}
+	if (auto *dash2 = dynamic_cast<DashedLineWidget *>(question_dash_line2_)) {
+		dash2->SetProfile(dash_profile);
+	}
+
+	const char *font_name = label_question_->FontName();
+	const int line_height = std::max(1, FontLineHeight(font_name));
+	const app_ui::Rect base_rect = {kQuestionBaseX, kQuestionBaseY, static_cast<int16_t>(dash_width), static_cast<int16_t>(line_height)};
+	const int full_width = static_cast<int>(epd_ ? epd_->MeasureUtf8Width(prompt_text, font_name) : 0);
+
+	size_t used_bytes = 0;
+	std::string line1;
+	std::string line2;
+	if (full_width <= dash_width) {
+		line1 = prompt_text;
+		used_bytes = prompt_text.size();
+	} else {
+		line1 = FitUtf8TextToWidth(prompt_text, dash_width, font_name, epd_, &used_bytes);
+		if (used_bytes < prompt_text.size()) {
+			line2 = FitUtf8TextToWidth(prompt_text.substr(used_bytes), dash_width, font_name, epd_, nullptr);
+		}
+	}
+
+	const int draw_line1_width = dash_width;
+	const int draw_line2_width = dash_width;
+
+	label_question_->SetRectInParent({base_rect.x, base_rect.y, static_cast<int16_t>(draw_line1_width), static_cast<int16_t>(line_height)});
+	label_question_->SetText(line1);
+
+	if (auto *dash1 = dynamic_cast<DashedLineWidget *>(question_dash_line1_)) {
+		dash1->SetRectInParent({base_rect.x, static_cast<int16_t>(base_rect.y + line_height + question_prompt_profile_.dash_gap_px),
+			static_cast<int16_t>(draw_line1_width), 1});
+		dash1->SetVisible(true);
+	}
+
+	if (!line2.empty()) {
+		const int16_t line2_y = static_cast<int16_t>(base_rect.y + line_height + question_prompt_profile_.dash_gap_px + 1 + question_prompt_profile_.dash_gap_px);
+		if (label_question_line2_) {
+			label_question_line2_->SetRectInParent({base_rect.x, line2_y, static_cast<int16_t>(draw_line2_width), static_cast<int16_t>(line_height)});
+			label_question_line2_->SetText(line2);
+			label_question_line2_->SetVisible(true);
+		}
+
+		if (auto *dash2 = dynamic_cast<DashedLineWidget *>(question_dash_line2_)) {
+			dash2->SetRectInParent({base_rect.x, static_cast<int16_t>(line2_y + line_height + question_prompt_profile_.dash_gap_px),
+				static_cast<int16_t>(draw_line2_width), 1});
+			dash2->SetVisible(true);
+		}
+	}
+}
+
+WordPracticeApp::QuestionPromptProfile WordPracticeApp::BuildQuestionPromptProfile(int question_type) const {
+	QuestionPromptProfile profile;
+	profile.dash_gap_px = kPromptDashGapPx;
+	profile.max_lines = 2;
+	profile.dash_black_len = 4;
+	profile.dash_white_len = 1;
+
+	switch (question_type) {
+		case 1:
+		case 2:
+		case 3:
+		case 7:
+		case 8:
+			profile.visible = true;
+			profile.dash_width = kPromptDashWidthShort;
+			break;
+		case 5:
+		case 6:
+		case 9:
+		case 10:
+			profile.visible = true;
+			profile.dash_width = kPromptDashWidthLong;
+			break;
+		default:
+			profile.visible = false;
+			profile.dash_width = 0;
+			break;
+	}
+
+	return profile;
 }
 
 void WordPracticeApp::HandleAnswer(AppButton button) {
@@ -1152,10 +1530,33 @@ void WordPracticeApp::HandleType4Action(AppButton button) {
 	}
 }
 
-void WordPracticeApp::HandleSpeakAction(AppButton button) {
+void WordPracticeApp::HandleSpeakAction(const ButtonEvent &event) {
 	if (total_answered_ >= pass_target_questions_ || current_index_ >= question_pool_.size()) {
 		return;
 	}
+
+	if (event.id == AppButton::Start) {
+		if (event.action == ButtonAction::PressDown) {
+			if (!speak_recording_) {
+				ESP_LOGI(kTag, "type7-10 start press-down: begin listening");
+				AppService::GetInstance().StartListening();
+				speak_recording_ = true;
+			}
+		} else if (event.action == ButtonAction::PressUp) {
+			if (speak_recording_) {
+				ESP_LOGI(kTag, "type7-10 start press-up: stop listening");
+				AppService::GetInstance().StopListening();
+				speak_recording_ = false;
+			}
+		}
+		return;
+	}
+
+	if (!IsClickLike(event)) {
+		return;
+	}
+
+	const AppButton button = event.id;
 
 	if (button != AppButton::A && button != AppButton::D) {
 		return;
@@ -1177,9 +1578,6 @@ void WordPracticeApp::HandleSpeakAction(AppButton button) {
 		if (image_bad_) {
 			image_bad_->SetVisible(false);
 		}
-		if (label_asr_result_) {
-			label_asr_result_->SetText("朗读完成，判定通过");
-		}
 		if (label_alert_) {
 			label_alert_->SetText("答对了，太棒了！");
 		}
@@ -1196,9 +1594,6 @@ void WordPracticeApp::HandleSpeakAction(AppButton button) {
 		if (image_good_) {
 			image_good_->SetVisible(false);
 		}
-		if (label_asr_result_) {
-			label_asr_result_->SetText("已跳过");
-		}
 		if (label_alert_) {
 			label_alert_->SetText("答错了，正确答案是" + answer_text);
 		}
@@ -1212,6 +1607,24 @@ void WordPracticeApp::HandleSpeakAction(AppButton button) {
 	if (total_answered_ < pass_target_questions_) {
 		awaiting_next_question_ = true;
 	}
+}
+
+void WordPracticeApp::OnChatMessage(const char* role, const char* content) {
+	if (!ctx_ || !ui_ready_ || !label_asr_result_ || !role || !content) {
+		return;
+	}
+	if (current_question_type_ < 7 || current_question_type_ > 10) {
+		return;
+	}
+	if (::strcmp(role, "user") != 0) {
+		return;
+	}
+	if (content[0] == '\0') {
+		return;
+	}
+	ESP_LOGI(kTag, "type7-10 asr text: %s", content);
+	label_asr_result_->SetText(content);
+	Render(*ctx_);
 }
 
 void WordPracticeApp::RefreshType56Widgets() {
@@ -1419,6 +1832,7 @@ WordPracticeApp::ChoiceState WordPracticeApp::BuildChoiceState(const QuestionDat
 	state.prompt = "请作答";
 	state.option_keys = {"A", "B", "C", "D"};
 	state.options = {"A", "B", "C", "D"};
+	state.option_images = {"", "", "", ""};
 	state.expected = q.answer;
 	state.textbook_name = q.stage.empty() ? "default" : q.stage;
 
@@ -1442,16 +1856,14 @@ WordPracticeApp::ChoiceState WordPracticeApp::BuildChoiceState(const QuestionDat
 		state.prompt = prompt;
 	}
 
-	if (q.type == 1) {
-		std::string word = JsonString(root, "word");
-		if (!word.empty()) {
-			state.prompt = word;
-		}
-	}
-
 	std::string textbook = JsonString(root, "textbook");
 	if (!textbook.empty()) {
 		state.textbook_name = textbook;
+	}
+
+	std::string audio_file = Trim(JsonString(root, "audio"));
+	if (!audio_file.empty()) {
+		state.audio_filename = audio_file;
 	}
 
 	cJSON *options_obj = cJSON_GetObjectItemCaseSensitive(root, "options");
@@ -1470,6 +1882,11 @@ WordPracticeApp::ChoiceState WordPracticeApp::BuildChoiceState(const QuestionDat
 				std::string key = Trim(JsonString(entry, "key"));
 				if (!key.empty()) {
 					state.option_keys[i] = key;
+				}
+
+				std::string image = Trim(JsonString(entry, "image"));
+				if (!image.empty()) {
+					state.option_images[i] = image;
 				}
 
 				std::string text = JsonString(entry, "tex");
@@ -1503,6 +1920,11 @@ WordPracticeApp::ChoiceState WordPracticeApp::BuildChoiceState(const QuestionDat
 				}
 				if (!key.empty()) {
 					state.option_keys[dst_index] = key;
+				}
+
+				std::string image = Trim(JsonString(item, "image"));
+				if (!image.empty()) {
+					state.option_images[dst_index] = image;
 				}
 
 				std::string text = JsonString(item, "tex");
@@ -1817,4 +2239,75 @@ void WordPracticeApp::SaveAnswerStats(const QuestionData &q, bool correct) {
 
 std::unique_ptr<AppBase> MakeWordPracticeApp() {
 	return std::make_unique<WordPracticeApp>();
+}
+
+bool WordPracticeApp::PlayAudioFromSd(const std::string &audio_path) {
+	if (audio_path.empty()) {
+		return false;
+	}
+
+	File file = SD.open(audio_path.c_str(), FILE_READ);
+	if (!file) {
+		ESP_LOGW(kTag, "Open audio failed: %s", audio_path.c_str());
+		return false;
+	}
+
+	const size_t file_size = static_cast<size_t>(file.size());
+	if (file_size == 0) {
+		file.close();
+		ESP_LOGW(kTag, "Empty audio file: %s", audio_path.c_str());
+		return false;
+	}
+
+	std::string ogg_data(file_size, '\0');
+	const size_t read_size = file.readBytes(ogg_data.data(), static_cast<int>(file_size));
+	file.close();
+	if (read_size != file_size) {
+		ESP_LOGW(kTag, "Read audio failed: %s (%u/%u)", audio_path.c_str(), static_cast<unsigned>(read_size),
+				 static_cast<unsigned>(file_size));
+		return false;
+	}
+
+	AppService::GetInstance().PlaySound(ogg_data);
+	return true;
+}
+
+void WordPracticeApp::ScheduleQuestionAudioAutoPlay() {
+	if (current_audio_path_.empty()) {
+		return;
+	}
+
+	if (question_audio_timer_ == nullptr) {
+		esp_timer_create_args_t timer_args = {
+			.callback = &WordPracticeApp::QuestionAudioTimerCallback,
+			.arg = this,
+			.dispatch_method = ESP_TIMER_TASK,
+			.name = "wp_audio_delay",
+			.skip_unhandled_events = true,
+		};
+		if (esp_timer_create(&timer_args, &question_audio_timer_) != ESP_OK) {
+			question_audio_timer_ = nullptr;
+			return;
+		}
+	}
+
+	(void)esp_timer_stop(question_audio_timer_);
+	(void)esp_timer_start_once(question_audio_timer_, 1000000);
+}
+
+void WordPracticeApp::CancelQuestionAudioAutoPlay() {
+	if (question_audio_timer_ == nullptr) {
+		return;
+	}
+	(void)esp_timer_stop(question_audio_timer_);
+	(void)esp_timer_delete(question_audio_timer_);
+	question_audio_timer_ = nullptr;
+}
+
+void WordPracticeApp::QuestionAudioTimerCallback(void *arg) {
+	auto *self = static_cast<WordPracticeApp *>(arg);
+	if (!self || self->current_audio_path_.empty()) {
+		return;
+	}
+	(void)self->PlayAudioFromSd(self->current_audio_path_);
 }

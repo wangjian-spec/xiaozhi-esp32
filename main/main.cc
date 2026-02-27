@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #include <esp_log.h>
 #include <esp_err.h>
 #include <nvs.h>

@@ -348,7 +348,7 @@
       "parent": "root_page_1faf",
       "properties": {}
     },
-    "image_29a0b0": {
+    "word_practice_speaker_2": {
       "type": "Image",
       "rect": {
         "x": 84,
@@ -473,8 +473,8 @@
     "label_ASRresult": {
       "type": "Label",
       "rect": {
-        "x": 19,
-        "y": 218,
+        "x": 60,
+        "y": 123,
         "w": 100,
         "h": 20
       },
@@ -677,8 +677,8 @@
         "rect": {
           "x": 55,
           "y": 82,
-          "w": 50,
-          "h": 20
+          "w": 300,
+          "h": 40
         },
         "style": null,
         "z": 0,

@@ -1581,12 +1581,14 @@ void CalendarScheduleApp::BindWidgets(app_ui::Widget *root) {
 		listview_task_->SetFontName("wenquanyi_11pt");
 		const int list_h = listview_task_->DeclaredRect().h;
 		const int rows = std::max(1, list_h / 40);
-		listview_task_->SetRows(rows);
+		auto profile = listview_task_->Profile();
+		profile.rows = rows;
+		listview_task_->SetProfile(profile);
 	}
 	if (checkbox_todo_) {
 		checkbox_todo_->SetFontName("wenquanyi_11pt");
 		checkbox_todo_->SetText("待办");
-		checkbox_todo_->SetChecked(true);
+		checkbox_todo_->SetProfile(app_ui::CheckboxProfile{true});
 	}
 	if (checkbox_done_) {
 		checkbox_done_->SetFontName("wenquanyi_11pt");
@@ -1598,7 +1600,7 @@ void CalendarScheduleApp::BindWidgets(app_ui::Widget *root) {
 	}
 	if (radio_all_) {
 		radio_all_->SetFontName("wenquanyi_11pt");
-		radio_all_->SetChecked(true);
+		radio_all_->SetProfile(app_ui::RadioProfile{true});
 	}
 	if (radio_today_) {
 		radio_today_->SetFontName("wenquanyi_11pt");
@@ -1766,17 +1768,23 @@ bool CalendarScheduleApp::HandleTodoFilterAction(const ButtonEvent &event) {
 	}
 
 	if (checkbox_todo_ && checkbox_todo_->Focused()) {
-		checkbox_todo_->SetChecked(!checkbox_todo_->Checked());
+		auto profile = checkbox_todo_->Profile();
+		profile.checked = !profile.checked;
+		checkbox_todo_->SetProfile(profile);
 		RefreshTodoLists();
 		return true;
 	}
 	if (checkbox_done_ && checkbox_done_->Focused()) {
-		checkbox_done_->SetChecked(!checkbox_done_->Checked());
+		auto profile = checkbox_done_->Profile();
+		profile.checked = !profile.checked;
+		checkbox_done_->SetProfile(profile);
 		RefreshTodoLists();
 		return true;
 	}
 	if (checkbox_delete_ && checkbox_delete_->Focused()) {
-		checkbox_delete_->SetChecked(!checkbox_delete_->Checked());
+		auto profile = checkbox_delete_->Profile();
+		profile.checked = !profile.checked;
+		checkbox_delete_->SetProfile(profile);
 		RefreshTodoLists();
 		return true;
 	}
@@ -2059,13 +2067,13 @@ void CalendarScheduleApp::SetTodoFilter(TodoFilter filter) {
 
 void CalendarScheduleApp::UpdateTodoFilterChecks() {
 	if (radio_all_) {
-		radio_all_->SetChecked(todo_filter_ == TodoFilter::All);
+		radio_all_->SetProfile(app_ui::RadioProfile{todo_filter_ == TodoFilter::All});
 	}
 	if (radio_today_) {
-		radio_today_->SetChecked(todo_filter_ == TodoFilter::Today);
+		radio_today_->SetProfile(app_ui::RadioProfile{todo_filter_ == TodoFilter::Today});
 	}
 	if (radio_this_week_) {
-		radio_this_week_->SetChecked(todo_filter_ == TodoFilter::ThisWeek);
+		radio_this_week_->SetProfile(app_ui::RadioProfile{todo_filter_ == TodoFilter::ThisWeek});
 	}
 }
 
@@ -2077,9 +2085,9 @@ void CalendarScheduleApp::RefreshTodoLists() {
 	std::vector<TaskEntry> tasks = QueryTasks();
 	std::vector<std::string> list_items;
 	visible_tasks_.clear();
-	const bool show_todo = checkbox_todo_ ? checkbox_todo_->Checked() : true;
-	const bool show_done = checkbox_done_ ? checkbox_done_->Checked() : true;
-	const bool show_delete = checkbox_delete_ ? checkbox_delete_->Checked() : false;
+	const bool show_todo = checkbox_todo_ ? checkbox_todo_->Profile().checked : true;
+	const bool show_done = checkbox_done_ ? checkbox_done_->Profile().checked : true;
+	const bool show_delete = checkbox_delete_ ? checkbox_delete_->Profile().checked : false;
 
 	for (const auto &task : tasks) {
 		if (task.deleted) {

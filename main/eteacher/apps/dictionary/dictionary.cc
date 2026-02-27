@@ -387,7 +387,9 @@ void DictionaryApp::ShowKeyboard() {
 	keyboard_visible_ = true;
 	suppress_auto_keyboard_ = false;
 	if (keyboard_) {
-		keyboard_->SetPage(0);
+		auto profile = keyboard_->Profile();
+		profile.page = 0;
+		keyboard_->SetProfile(profile);
 		keyboard_->SetSelectedIndex(0);
 		keyboard_->SetVisible(true);
 		ui_engine_.RequestFocus(keyboard_->Id());

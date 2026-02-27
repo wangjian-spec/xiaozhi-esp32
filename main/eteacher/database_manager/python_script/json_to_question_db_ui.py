@@ -333,7 +333,17 @@ class QuestionDbImporterApp:
                 questions = data.get("questions")
                 if not isinstance(questions, list):
                     raise ValueError("questions 字段必须是数组")
-                return [q for q in questions if isinstance(q, dict)]
+
+                parent_question_type = data.get("question_type")
+                normalized: list[dict] = []
+                for q in questions:
+                    if not isinstance(q, dict):
+                        continue
+                    item = dict(q)
+                    if "question_type" not in item and parent_question_type is not None:
+                        item["question_type"] = parent_question_type
+                    normalized.append(item)
+                return normalized
             return [data]
         if isinstance(data, list):
             return [q for q in data if isinstance(q, dict)]

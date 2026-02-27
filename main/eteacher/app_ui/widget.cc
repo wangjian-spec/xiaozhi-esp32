@@ -43,6 +43,96 @@ const char* kKeyboardPage3[kKeyboardPageSize] = {
     "", "", "", "", "", "", "", "", ""
 };
 
+bool IsKeyDownOrRepeat(const InputEvent& e) {
+    return e.type == InputType::KeyDown || e.type == InputType::KeyRepeat;
+}
+
+bool IsActivationKey(KeyCode key) {
+    return key == KeyCode::Start || key == KeyCode::Select;
+}
+
+int ClampIndexByCount(int index, int count) {
+    if (count <= 0) {
+        return 0;
+    }
+    if (index < 0) {
+        return 0;
+    }
+    const int max_index = count - 1;
+    if (index > max_index) {
+        return max_index;
+    }
+    return index;
+}
+
+void DrawCenteredTextInCell(Painter& p, int x, int y, int w, int h, const char* label) {
+    if (!label || !label[0] || w <= 0 || h <= 0) {
+        return;
+    }
+
+    const Size text_size = p.MeasureText(label, nullptr);
+    int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
+    int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
+    if (text_size.w > w) {
+        tx = static_cast<int16_t>(x + 2);
+    }
+    if (text_size.h > h) {
+        ty = static_cast<int16_t>(y + 2);
+    }
+    p.DrawText({tx, ty}, label);
+}
+
+int ResolveGridCols(int item_count, int rows_hint, int cols_hint) {
+    const int rows = std::max(1, rows_hint);
+    if (cols_hint > 0) {
+        return cols_hint;
+    }
+    return std::max(1, (item_count + rows - 1) / rows);
+}
+
+struct GridLayoutMetrics {
+    int rows = 1;
+    int cols = 1;
+    int cell_w = 1;
+    int cell_h = 1;
+};
+
+GridLayoutMetrics MakeGridLayoutMetrics(const Rect& rect, int rows_hint, int cols_hint) {
+    GridLayoutMetrics metrics;
+    metrics.rows = std::max(1, rows_hint);
+    metrics.cols = std::max(1, cols_hint);
+    metrics.cell_w = std::max(1, rect.w / metrics.cols);
+    metrics.cell_h = std::max(1, rect.h / metrics.rows);
+    return metrics;
+}
+
+void DrawGridOutline(Painter& p, const Rect& rect, const GridLayoutMetrics& metrics) {
+    p.SetDrawColor(Color::Black);
+    p.DrawRect(rect);
+    for (int r = 1; r < metrics.rows; ++r) {
+        p.DrawHLine({0, static_cast<int16_t>(r * metrics.cell_h)}, rect.w);
+    }
+    for (int c = 1; c < metrics.cols; ++c) {
+        p.DrawVLine({static_cast<int16_t>(c * metrics.cell_w), 0}, rect.h);
+    }
+}
+
+void DrawSimpleBarFallback(Painter& p, const Rect& rect, const std::string& text) {
+    p.SetDrawColor(Color::Black);
+    p.FillRect(rect);
+    p.SetTextColor(Color::White);
+    if (!text.empty()) {
+        p.DrawText({2, 2}, text.c_str());
+    }
+}
+
+uint8_t ClampProgressValue(uint8_t value, uint8_t max_value) {
+    if (max_value == 0) {
+        return 0;
+    }
+    return value > max_value ? max_value : value;
+}
+
 std::string TrimCopy(const std::string& value) {
     size_t start = 0;
     while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start]))) {
@@ -304,7 +394,7 @@ public:
         if (!widget.Enabled() || !widget.Visible()) {
             return InputResult::Continue;
         }
-        if (e.type != InputType::KeyDown && e.type != InputType::KeyRepeat) {
+        if (!IsKeyDownOrRepeat(e)) {
             return InputResult::Continue;
         }
         if (!widget.Profile().activation_enabled) {
@@ -316,8 +406,8 @@ public:
             return InputResult::Continue;
         }
 
-        const int key = e.key;
-        if (key == static_cast<int>(KeyCode::Start) || key == static_cast<int>(KeyCode::Select)) {
+        const KeyCode key = static_cast<KeyCode>(e.key);
+        if (IsActivationKey(key)) {
             widget.ActivateSelected();
             return InputResult::Consume;
         }
@@ -330,11 +420,11 @@ public:
         if (count <= 0) {
             return FocusIntent::Bubble;
         }
-        if (!widget.SelectionEnabled()) {
+        if (!widget.Profile().selection_enabled) {
             return FocusIntent::Bubble;
         }
 
-        const int cols = std::max(1, widget.Cols());
+        const int cols = std::max(1, widget.Profile().cols);
         if (cols <= 1) {
             if (key == KeyCode::Up) {
                 if (widget.SelectedIndex() > 0) {
@@ -351,7 +441,7 @@ public:
                 return FocusIntent::EscapeDown;
             }
 
-            const int page_rows = std::max(1, widget.Rows() > 0 ? widget.Rows() : count);
+            const int page_rows = std::max(1, widget.Profile().rows > 0 ? widget.Profile().rows : count);
             if (key == KeyCode::Left) {
                 const int old = widget.SelectedIndex();
                 widget.SetSelectedIndex(std::max(0, old - page_rows));
@@ -414,7 +504,7 @@ public:
             return;
         }
 
-        const int cols = std::max(1, widget.Cols());
+        const int cols = std::max(1, widget.Profile().cols);
         if (cols <= 1) {
             DrawLinear(widget, p, rect);
             return;
@@ -425,7 +515,7 @@ public:
 private:
     void DrawLinear(ListViewWidget& widget, Painter& p, const Rect& rect) {
         const int item_count = widget.ItemCount();
-        const int rows = std::max(1, widget.Rows() > 0 ? widget.Rows() : item_count);
+        const int rows = std::max(1, widget.Profile().rows > 0 ? widget.Profile().rows : item_count);
         int start_index = 0;
         if (item_count > rows) {
             start_index = widget.SelectedIndex() - rows / 2;
@@ -504,26 +594,23 @@ private:
 
     void DrawGrid(ListViewWidget& widget, Painter& p, const Rect& rect) {
         const int item_count = widget.ItemCount();
-        const int cols = std::max(1, widget.Cols());
-        const int rows = std::max(1, widget.Rows());
-        const int cell_w = std::max(1, rect.w / cols);
-        const int cell_h = std::max(1, rect.h / rows);
-        const int page_size = rows * cols;
+        const GridLayoutMetrics metrics = MakeGridLayoutMetrics(rect, widget.Profile().rows, widget.Profile().cols);
+        const int page_size = metrics.rows * metrics.cols;
         const auto& profile = widget.Profile();
         const bool focused = profile.selection_enabled && profile.focus_highlight_enabled && widget.Focused();
 
         int start_index = 0;
-        if (item_count > page_size && widget.SelectionEnabled()) {
+        if (item_count > page_size && widget.Profile().selection_enabled) {
             start_index = (widget.SelectedIndex() / page_size) * page_size;
         }
 
-        for (int r = 0; r < rows; ++r) {
-            const int y = r * cell_h;
-            for (int c = 0; c < cols; ++c) {
-                const int index = start_index + r * cols + c;
-                const int x = c * cell_w;
-                const int w = (c == cols - 1) ? (rect.w - x) : cell_w;
-                const int h = (r == rows - 1) ? (rect.h - y) : cell_h;
+        for (int r = 0; r < metrics.rows; ++r) {
+            const int y = r * metrics.cell_h;
+            for (int c = 0; c < metrics.cols; ++c) {
+                const int index = start_index + r * metrics.cols + c;
+                const int x = c * metrics.cell_w;
+                const int w = (c == metrics.cols - 1) ? (rect.w - x) : metrics.cell_w;
+                const int h = (r == metrics.rows - 1) ? (rect.h - y) : metrics.cell_h;
                 if (w <= 0 || h <= 0) {
                     continue;
                 }
@@ -535,28 +622,11 @@ private:
 
                 if (index < item_count) {
                     const char* label = widget.ItemLabel(index);
-                    const Size text_size = p.MeasureText(label, nullptr);
-                    int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
-                    int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
-                    if (text_size.w > w) {
-                        tx = static_cast<int16_t>(x + 2);
-                    }
-                    if (text_size.h > h) {
-                        ty = static_cast<int16_t>(y + 2);
-                    }
-                    p.DrawText({tx, ty}, label);
+                    DrawCenteredTextInCell(p, x, y, w, h, label);
                 }
             }
         }
-
-        p.SetDrawColor(Color::Black);
-        p.DrawRect(rect);
-        for (int r = 1; r < rows; ++r) {
-            p.DrawHLine({0, static_cast<int16_t>(r * cell_h)}, rect.w);
-        }
-        for (int c = 1; c < cols; ++c) {
-            p.DrawVLine({static_cast<int16_t>(c * cell_w), 0}, rect.h);
-        }
+        DrawGridOutline(p, rect, metrics);
     }
 };
 
@@ -569,7 +639,7 @@ public:
         if (!widget.Enabled() || !widget.Visible()) {
             return InputResult::Continue;
         }
-        if (e.type != InputType::KeyDown && e.type != InputType::KeyRepeat) {
+        if (!IsKeyDownOrRepeat(e)) {
             return InputResult::Continue;
         }
 
@@ -578,9 +648,8 @@ public:
             return InputResult::Continue;
         }
 
-        const int key = e.key;
-        if (key == static_cast<int>(KeyCode::Start) || key == static_cast<int>(KeyCode::Select) ||
-            key == static_cast<int>(KeyCode::C)) {
+        const KeyCode key = static_cast<KeyCode>(e.key);
+        if (IsActivationKey(key) || key == KeyCode::C) {
             widget.NotifySelected();
             return InputResult::Consume;
         }
@@ -590,11 +659,11 @@ public:
         }
 
         if (profile.mode == DialogProfile::Mode::Prompt) {
-            if (key == static_cast<int>(KeyCode::Left)) {
+            if (key == KeyCode::Left) {
                 widget.SetSelectedIndex(0);
                 return InputResult::Consume;
             }
-            if (key == static_cast<int>(KeyCode::Right)) {
+            if (key == KeyCode::Right) {
                 widget.SetSelectedIndex(1);
                 return InputResult::Consume;
             }
@@ -607,21 +676,20 @@ public:
             return InputResult::Continue;
         }
 
-        const int cols = std::max(1, profile.grid_cols > 0 ? profile.grid_cols :
-                                  std::max(1, (count + std::max(1, profile.grid_rows) - 1) / std::max(1, profile.grid_rows)));
-        if (key == static_cast<int>(KeyCode::Left)) {
+        const int cols = ResolveGridCols(count, profile.grid_rows, profile.grid_cols);
+        if (key == KeyCode::Left) {
             widget.SetSelectedIndex(std::max(0, widget.SelectedIndex() - 1));
             return InputResult::Consume;
         }
-        if (key == static_cast<int>(KeyCode::Right)) {
+        if (key == KeyCode::Right) {
             widget.SetSelectedIndex(std::min(count - 1, widget.SelectedIndex() + 1));
             return InputResult::Consume;
         }
-        if (key == static_cast<int>(KeyCode::Up)) {
+        if (key == KeyCode::Up) {
             widget.SetSelectedIndex(std::max(0, widget.SelectedIndex() - cols));
             return InputResult::Consume;
         }
-        if (key == static_cast<int>(KeyCode::Down)) {
+        if (key == KeyCode::Down) {
             widget.SetSelectedIndex(std::min(count - 1, widget.SelectedIndex() + cols));
             return InputResult::Consume;
         }
@@ -697,16 +765,7 @@ private:
         p.SetDrawColor(highlight ? Color::Black : Color::White);
         p.FillRect({static_cast<int16_t>(x), static_cast<int16_t>(y), static_cast<int16_t>(w), static_cast<int16_t>(h)});
         p.SetTextColor(highlight ? Color::White : Color::Black);
-        const Size text_size = p.MeasureText(label, nullptr);
-        int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
-        int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
-        if (text_size.w > w) {
-            tx = static_cast<int16_t>(x + 2);
-        }
-        if (text_size.h > h) {
-            ty = static_cast<int16_t>(y + 2);
-        }
-        p.DrawText({tx, ty}, label);
+        DrawCenteredTextInCell(p, x, y, w, h, label);
     }
 
     void DrawGrid(DialogWidget& widget,
@@ -723,17 +782,16 @@ private:
         }
 
         const int rows = std::max(1, rows_hint);
-        const int cols = std::max(1, cols_hint > 0 ? cols_hint : static_cast<int>((items.size() + rows - 1) / rows));
-        const int cell_w = std::max(1, rect.w / cols);
-        const int cell_h = std::max(1, rect.h / rows);
+        const int cols = ResolveGridCols(static_cast<int>(items.size()), rows_hint, cols_hint);
+        const GridLayoutMetrics metrics = MakeGridLayoutMetrics(rect, rows, cols);
 
-        for (int r = 0; r < rows; ++r) {
-            const int y = r * cell_h;
-            for (int c = 0; c < cols; ++c) {
-                const int index = r * cols + c;
-                const int x = c * cell_w;
-                const int w = (c == cols - 1) ? (rect.w - x) : cell_w;
-                const int h = (r == rows - 1) ? (rect.h - y) : cell_h;
+        for (int r = 0; r < metrics.rows; ++r) {
+            const int y = r * metrics.cell_h;
+            for (int c = 0; c < metrics.cols; ++c) {
+                const int index = r * metrics.cols + c;
+                const int x = c * metrics.cell_w;
+                const int w = (c == metrics.cols - 1) ? (rect.w - x) : metrics.cell_w;
+                const int h = (r == metrics.rows - 1) ? (rect.h - y) : metrics.cell_h;
                 if (w <= 0 || h <= 0) {
                     continue;
                 }
@@ -745,28 +803,12 @@ private:
 
                 if (index < static_cast<int>(items.size())) {
                     const char* label = items[static_cast<size_t>(index)].c_str();
-                    const Size text_size = p.MeasureText(label, nullptr);
-                    int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
-                    int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
-                    if (text_size.w > w) {
-                        tx = static_cast<int16_t>(x + 2);
-                    }
-                    if (text_size.h > h) {
-                        ty = static_cast<int16_t>(y + 2);
-                    }
-                    p.DrawText({tx, ty}, label);
+                    DrawCenteredTextInCell(p, x, y, w, h, label);
                 }
             }
         }
 
-        p.SetDrawColor(Color::Black);
-        p.DrawRect(rect);
-        for (int r = 1; r < rows; ++r) {
-            p.DrawHLine({0, static_cast<int16_t>(r * cell_h)}, rect.w);
-        }
-        for (int c = 1; c < cols; ++c) {
-            p.DrawVLine({static_cast<int16_t>(c * cell_w), 0}, rect.h);
-        }
+        DrawGridOutline(p, rect, metrics);
         (void)widget;
     }
 };
@@ -1147,20 +1189,40 @@ Size LabelWidget::OnMeasure(const Size& constraint) {
     return constraint;
 }
 
+void LabelWidget::SetProfile(const LabelProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const LabelProfile& LabelWidget::Profile() const {
+    return profile_;
+}
+
 void LabelWidget::OnDraw(Painter& p) {
-    if (Focused()) {
+    if (Focused() && profile_.focus_invert) {
         p.SetDrawColor(Color::Black);
         p.FillRect(LocalRect());
         p.SetTextColor(Color::White);
     } else {
         p.SetTextColor(Color::Black);
     }
-    p.DrawText({0, 0}, text_.c_str());
+    p.DrawText({profile_.text_offset_x, profile_.text_offset_y}, text_.c_str());
+}
+
+void ButtonWidget::SetProfile(const ButtonProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const ButtonProfile& ButtonWidget::Profile() const {
+    return profile_;
 }
 
 void ButtonWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
-    const bool focused = Focused();
+    const bool focused = Focused() && profile_.focus_invert;
     p.SetDrawColor(focused ? Color::Black : Color::White);
     p.FillRect(rect);
     p.SetDrawColor(Color::Black);
@@ -1169,13 +1231,23 @@ void ButtonWidget::OnDraw(Painter& p) {
     const Size text_size = p.MeasureText(text_.c_str(), nullptr);
     int16_t x = static_cast<int16_t>((rect.w - text_size.w) / 2);
     int16_t y = static_cast<int16_t>((rect.h - text_size.h) / 2);
-    if (x < 2) {
-        x = 2;
+    if (x < profile_.min_text_x) {
+        x = profile_.min_text_x;
     }
-    if (y < 1) {
-        y = 1;
+    if (y < profile_.min_text_y) {
+        y = profile_.min_text_y;
     }
     p.DrawText({x, y}, text_.c_str());
+}
+
+void ImageWidget::SetProfile(const ImageProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const ImageProfile& ImageWidget::Profile() const {
+    return profile_;
 }
 
 void ImageWidget::SetQrCode(int size, const std::vector<uint8_t>& modules) {
@@ -1215,8 +1287,10 @@ void ImageWidget::OnDraw(Painter& p) {
         }
     }
 
-    p.SetDrawColor(Color::Black);
-    p.DrawRect(rect);
+    if (profile_.draw_border) {
+        p.SetDrawColor(Color::Black);
+        p.DrawRect(rect);
+    }
     Rect inner = {1, 1, static_cast<int16_t>(rect.w - 2), static_cast<int16_t>(rect.h - 2)};
     if (inner.w > 0 && inner.h > 0) {
         p.SetDrawColor(Color::White);
@@ -1303,6 +1377,20 @@ TabViewWidget::TabViewWidget() {
     SetFontName("wenquanyi_11pt");
 }
 
+void TabViewWidget::SetProfile(const TabViewProfile& profile) {
+    profile_ = profile;
+    if (profile_.rows <= 0) {
+        profile_.rows = 1;
+    }
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const TabViewProfile& TabViewWidget::Profile() const {
+    return profile_;
+}
+
 InputResult ListViewWidget::OnInput(const InputEvent& e, InputPhase phase) {
     ListViewBehavior* behavior = behavior_ ? behavior_.get() : &DefaultListViewBehaviorInstance();
     return behavior->OnInput(*this, e, phase);
@@ -1327,45 +1415,11 @@ void ListViewWidget::SetItemModel(std::unique_ptr<ItemModel> model) {
     MarkDirty();
 }
 
-void ListViewWidget::SetRows(int rows) {
-    rows_ = rows > 0 ? rows : 0;
-    profile_.rows = rows_;
-    ClampSelection();
-    MarkMeasureDirty();
-    MarkDirty();
-}
-
-void ListViewWidget::SetGrid(int rows, int cols) {
-    rows_ = rows > 0 ? rows : 0;
-    cols_ = cols > 0 ? cols : 1;
-    profile_.rows = rows_;
-    profile_.cols = cols_;
-    ClampSelection();
-    MarkMeasureDirty();
-    MarkDirty();
-}
-
-int ListViewWidget::Rows() const {
-    return rows_;
-}
-
-int ListViewWidget::Cols() const {
-    return std::max(1, cols_);
-}
-
-void ListViewWidget::SetSelectionEnabled(bool enabled) {
-    profile_.selection_enabled = enabled;
-    MarkDirty();
-}
-
-bool ListViewWidget::SelectionEnabled() const {
-    return profile_.selection_enabled;
-}
-
 void ListViewWidget::SetProfile(const ListViewProfile& profile) {
     profile_ = profile;
-    rows_ = profile_.rows > 0 ? profile_.rows : 0;
-    cols_ = profile_.cols > 0 ? profile_.cols : 1;
+    if (profile_.cols <= 0) {
+        profile_.cols = 1;
+    }
     ClampSelection();
     MarkMeasureDirty();
     MarkDirty();
@@ -1430,9 +1484,6 @@ int ListViewWidget::EffectiveRowCount() const {
     if (profile_.rows > 0) {
         return profile_.rows;
     }
-    if (rows_ > 0) {
-        return rows_;
-    }
     if (EffectiveColCount() > 1) {
         const int count = ItemCount();
         if (count <= 0) {
@@ -1444,10 +1495,7 @@ int ListViewWidget::EffectiveRowCount() const {
 }
 
 int ListViewWidget::EffectiveColCount() const {
-    if (profile_.cols > 0) {
-        return profile_.cols;
-    }
-    return std::max(1, cols_);
+    return std::max(1, profile_.cols);
 }
 
 int ListViewWidget::ItemCount() const {
@@ -1463,17 +1511,7 @@ const char* ListViewWidget::ItemLabel(int index) const {
 }
 
 void ListViewWidget::ClampSelection() {
-    const int count = ItemCount();
-    if (count <= 0) {
-        selected_index_ = 0;
-        return;
-    }
-    const int max_index = count - 1;
-    if (selected_index_ < 0) {
-        selected_index_ = 0;
-    } else if (selected_index_ > max_index) {
-        selected_index_ = max_index;
-    }
+    selected_index_ = ClampIndexByCount(selected_index_, ItemCount());
 }
 
 void ListViewWidget::OnDraw(Painter& p) {
@@ -1490,22 +1528,21 @@ void TabViewWidget::OnDraw(Painter& p) {
         return;
     }
 
-    const int cell_w = rect.w / cols;
-    const int cell_h = rect.h / rows;
+    const GridLayoutMetrics metrics = MakeGridLayoutMetrics(rect, rows, cols);
     const bool focused = Focused();
     auto* epd_painter = dynamic_cast<EpdPainter*>(&p);
 
-    for (int r = 0; r < rows; ++r) {
-        const int y = r * cell_h;
+    for (int r = 0; r < metrics.rows; ++r) {
+        const int y = r * metrics.cell_h;
         if (y >= rect.h) {
             break;
         }
-        for (int c = 0; c < cols; ++c) {
-            const int index = r * cols + c;
-            const int x = c * cell_w;
-            const int w = (c == cols - 1) ? (rect.w - x) : cell_w;
-            const int h = (r == rows - 1) ? std::min(cell_h, rect.h - y) : cell_h;
-            const bool selected = focused && (index == selected_index_);
+        for (int c = 0; c < metrics.cols; ++c) {
+            const int index = r * metrics.cols + c;
+            const int x = c * metrics.cell_w;
+            const int w = (c == metrics.cols - 1) ? (rect.w - x) : metrics.cell_w;
+            const int h = (r == metrics.rows - 1) ? std::min(metrics.cell_h, rect.h - y) : metrics.cell_h;
+            const bool selected = focused && profile_.focus_highlight_enabled && (index == selected_index_);
 
             p.SetDrawColor(selected ? Color::Black : Color::White);
             p.FillRect({static_cast<int16_t>(x), static_cast<int16_t>(y), static_cast<int16_t>(w), static_cast<int16_t>(h)});
@@ -1539,31 +1576,12 @@ void TabViewWidget::OnDraw(Painter& p) {
                                                  font_name,
                                                  text_color);
                 } else {
-                    const Size text_size = p.MeasureText(label, nullptr);
-                    int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
-                    int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
-                    if (text_size.w > w) {
-                        tx = static_cast<int16_t>(x + 2);
-                    }
-                    if (text_size.h > h) {
-                        ty = static_cast<int16_t>(y + 2);
-                    }
-                    p.DrawText({tx, ty}, label);
+                    DrawCenteredTextInCell(p, x, y, w, h, label);
                 }
             }
         }
     }
-
-    p.SetDrawColor(Color::Black);
-    p.DrawRect(rect);
-    for (int r = 1; r < rows; ++r) {
-        const int y = r * cell_h;
-        p.DrawHLine({0, static_cast<int16_t>(y)}, rect.w);
-    }
-    for (int c = 1; c < cols; ++c) {
-        const int x = c * cell_w;
-        p.DrawVLine({static_cast<int16_t>(x), 0}, rect.h);
-    }
+    DrawGridOutline(p, rect, metrics);
 }
 
 InputResult TabViewWidget::OnInput(const InputEvent& e, InputPhase phase) {
@@ -1573,7 +1591,7 @@ InputResult TabViewWidget::OnInput(const InputEvent& e, InputPhase phase) {
     if (!Enabled() || !Visible()) {
         return InputResult::Continue;
     }
-    if (e.type != InputType::KeyDown && e.type != InputType::KeyRepeat) {
+    if (!IsKeyDownOrRepeat(e)) {
         return InputResult::Continue;
     }
 
@@ -1631,39 +1649,13 @@ void TabViewWidget::SetItemModel(std::unique_ptr<ItemModel> model) {
     MarkDirty();
 }
 
-void TabViewWidget::SetGrid(int rows, int cols) {
-    if (rows > 0) {
-        rows_ = rows;
-    }
-    if (cols > 0) {
-        cols_ = cols;
-    }
-    ClampSelection();
-    MarkMeasureDirty();
-    MarkDirty();
-}
-
-int TabViewWidget::Rows() const {
-    return rows_;
-}
-
-int TabViewWidget::Cols() const {
-    return cols_;
-}
-
 int TabViewWidget::SelectedIndex() const {
     return selected_index_;
 }
 
 void TabViewWidget::SetSelectedIndex(int index) {
     const int count = ItemCount();
-    if (count <= 0) {
-        selected_index_ = index < 0 ? 0 : index;
-        MarkDirty();
-        return;
-    }
-    const int max_index = count - 1;
-    const int clamped = index < 0 ? 0 : (index > max_index ? max_index : index);
+    const int clamped = (count <= 0) ? std::max(0, index) : ClampIndexByCount(index, count);
     if (selected_index_ == clamped) {
         return;
     }
@@ -1701,29 +1693,19 @@ const char* TabViewWidget::ItemLabel(int index) const {
 }
 
 void TabViewWidget::ClampSelection() {
-    const int count = ItemCount();
-    if (count <= 0) {
-        selected_index_ = 0;
-        return;
-    }
-    const int max_index = count - 1;
-    if (selected_index_ < 0) {
-        selected_index_ = 0;
-    } else if (selected_index_ > max_index) {
-        selected_index_ = max_index;
-    }
+    selected_index_ = ClampIndexByCount(selected_index_, ItemCount());
 }
 
 int TabViewWidget::EffectiveRows() const {
-    if (rows_ > 0) {
-        return rows_;
+    if (profile_.rows > 0) {
+        return profile_.rows;
     }
     return 1;
 }
 
 int TabViewWidget::EffectiveCols() const {
-    if (cols_ > 0) {
-        return cols_;
+    if (profile_.cols > 0) {
+        return profile_.cols;
     }
     const int rows = EffectiveRows();
     if (rows <= 0) {
@@ -1737,16 +1719,18 @@ int TabViewWidget::EffectiveCols() const {
 
 void FrameWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
-    p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
-    p.DrawRect(rect);
+    if (profile_.draw_border) {
+        p.SetDrawColor(Color::Black);
+        p.DrawRect(rect);
+    }
     if (!text_.empty()) {
-        const int16_t x = 4;
-        const int16_t top = 2;
+        const int16_t x = profile_.text_offset_x;
+        const int16_t top = profile_.text_offset_y;
         const Size line_size = p.MeasureText("A", nullptr);
         int16_t line_h = line_size.h > 0 ? line_size.h : 14;
-        if (line_h < 10) {
-            line_h = 10;
+        if (line_h < profile_.min_line_height) {
+            line_h = profile_.min_line_height;
         }
 
         size_t start = 0;
@@ -1773,18 +1757,43 @@ void FrameWidget::OnDraw(Painter& p) {
     }
 }
 
+void FrameWidget::SetProfile(const FrameProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const FrameProfile& FrameWidget::Profile() const {
+    return profile_;
+}
+
 void MenuWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
-    p.SetDrawColor(Color::Black);
     p.SetTextColor(Color::Black);
-    p.DrawRect(rect);
-    const int y1 = rect.h > 0 ? rect.h / 3 : 0;
-    const int y2 = rect.h > 0 ? rect.h * 2 / 3 : 0;
-    p.DrawHLine({2, static_cast<int16_t>(y1)}, rect.w - 4);
-    p.DrawHLine({2, static_cast<int16_t>(y2)}, rect.w - 4);
-    if (!text_.empty()) {
-        p.DrawText({2, 2}, text_.c_str());
+    p.SetDrawColor(Color::Black);
+    if (profile_.draw_border) {
+        p.DrawRect(rect);
     }
+    const int divider_count = std::max(0, profile_.divider_count);
+    if (divider_count > 0 && rect.h > 0) {
+        for (int i = 1; i <= divider_count; ++i) {
+            const int y = rect.h * i / (divider_count + 1);
+            p.DrawHLine({2, static_cast<int16_t>(y)}, rect.w - 4);
+        }
+    }
+    if (!text_.empty()) {
+        p.DrawText({profile_.text_offset_x, profile_.text_offset_y}, text_.c_str());
+    }
+}
+
+void MenuWidget::SetProfile(const MenuProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const MenuProfile& MenuWidget::Profile() const {
+    return profile_;
 }
 
 InputResult DialogWidget::OnInput(const InputEvent& e, InputPhase phase) {
@@ -1861,25 +1870,12 @@ void DialogWidget::EnsureItemsFromText() {
 
 void DialogWidget::ClampSelection() {
     if (profile_.mode == DialogProfile::Mode::Prompt) {
-        if (selected_index_ < 0) {
-            selected_index_ = 0;
-        } else if (selected_index_ > 1) {
-            selected_index_ = 1;
-        }
+        selected_index_ = ClampIndexByCount(selected_index_, 2);
         return;
     }
 
     EnsureItemsFromText();
-    const int count = static_cast<int>(items_.size());
-    if (count <= 0) {
-        selected_index_ = 0;
-        return;
-    }
-    if (selected_index_ < 0) {
-        selected_index_ = 0;
-    } else if (selected_index_ >= count) {
-        selected_index_ = count - 1;
-    }
+    selected_index_ = ClampIndexByCount(selected_index_, static_cast<int>(items_.size()));
 }
 
 void DialogWidget::OnTextChanged() {
@@ -1899,6 +1895,19 @@ SoftKeyboardWidget::SoftKeyboardWidget() {
     SetFontName("wenquanyi_11pt");
 }
 
+void SoftKeyboardWidget::SetProfile(const SoftKeyboardProfile& profile) {
+    profile_ = profile;
+    page_ = (profile_.page < 0) ? 0 : (profile_.page >= kKeyboardPages ? (kKeyboardPages - 1) : profile_.page);
+    selected_index_ = profile_.selected_index;
+    ClampSelection();
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const SoftKeyboardProfile& SoftKeyboardWidget::Profile() const {
+    return profile_;
+}
+
 InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
     if (phase == InputPhase::Capture) {
         return InputResult::Continue;
@@ -1906,7 +1915,7 @@ InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
     if (!Enabled() || !Visible()) {
         return InputResult::Continue;
     }
-    if (e.type != InputType::KeyDown && e.type != InputType::KeyRepeat) {
+    if (!IsKeyDownOrRepeat(e)) {
         return InputResult::Continue;
     }
 
@@ -1916,12 +1925,12 @@ InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
         const int key_value = static_cast<int>(key);
         uint32_t now_ms = e.timestamp;
         if (is_repeat) {
-            constexpr uint32_t kRepeatStepMs = 60;
+            const uint32_t repeat_step_ms = profile_.nav_repeat_step_ms > 0 ? profile_.nav_repeat_step_ms : 60;
             if (now_ms == 0) {
-                now_ms = last_nav_repeat_ms_ + kRepeatStepMs;
+                now_ms = last_nav_repeat_ms_ + repeat_step_ms;
             }
             if (last_nav_key_ == key_value && last_nav_repeat_ms_ != 0 && now_ms > last_nav_repeat_ms_ &&
-                (now_ms - last_nav_repeat_ms_) < kRepeatStepMs) {
+                (now_ms - last_nav_repeat_ms_) < repeat_step_ms) {
                 return InputResult::Consume;
             }
             last_nav_repeat_ms_ = now_ms;
@@ -1932,14 +1941,26 @@ InputResult SoftKeyboardWidget::OnInput(const InputEvent& e, InputPhase phase) {
 
         int row = selected_index_ / kKeyboardCols;
         int col = selected_index_ % kKeyboardCols;
-        if (key == KeyCode::Up) {
-            row = (row + kKeyboardRows - 1) % kKeyboardRows;
-        } else if (key == KeyCode::Down) {
-            row = (row + 1) % kKeyboardRows;
-        } else if (key == KeyCode::Left) {
-            col = (col + kKeyboardCols - 1) % kKeyboardCols;
-        } else if (key == KeyCode::Right) {
-            col = (col + 1) % kKeyboardCols;
+        if (profile_.wrap_navigation) {
+            if (key == KeyCode::Up) {
+                row = (row + kKeyboardRows - 1) % kKeyboardRows;
+            } else if (key == KeyCode::Down) {
+                row = (row + 1) % kKeyboardRows;
+            } else if (key == KeyCode::Left) {
+                col = (col + kKeyboardCols - 1) % kKeyboardCols;
+            } else if (key == KeyCode::Right) {
+                col = (col + 1) % kKeyboardCols;
+            }
+        } else {
+            if (key == KeyCode::Up) {
+                row = std::max(0, row - 1);
+            } else if (key == KeyCode::Down) {
+                row = std::min(kKeyboardRows - 1, row + 1);
+            } else if (key == KeyCode::Left) {
+                col = std::max(0, col - 1);
+            } else if (key == KeyCode::Right) {
+                col = std::min(kKeyboardCols - 1, col + 1);
+            }
         }
         const int next_index = row * kKeyboardCols + col;
         if (next_index != selected_index_) {
@@ -1980,19 +2001,6 @@ void SoftKeyboardWidget::SetOnKey(KeyCallback callback, void* ctx) {
     on_key_ctx_ = ctx;
 }
 
-int SoftKeyboardWidget::Page() const {
-    return page_;
-}
-
-void SoftKeyboardWidget::SetPage(int page) {
-    const int next = (page < 0) ? 0 : (page >= kKeyboardPages ? (kKeyboardPages - 1) : page);
-    if (page_ == next) {
-        return;
-    }
-    page_ = next;
-    MarkDirty();
-}
-
 int SoftKeyboardWidget::SelectedIndex() const {
     return selected_index_;
 }
@@ -2000,6 +2008,7 @@ int SoftKeyboardWidget::SelectedIndex() const {
 void SoftKeyboardWidget::SetSelectedIndex(int index) {
     selected_index_ = index;
     ClampSelection();
+    profile_.selected_index = selected_index_;
     MarkDirty();
 }
 
@@ -2008,11 +2017,7 @@ const std::string& SoftKeyboardWidget::LastOutput() const {
 }
 
 void SoftKeyboardWidget::ClampSelection() {
-    if (selected_index_ < 0) {
-        selected_index_ = 0;
-    } else if (selected_index_ >= kKeyboardPageSize) {
-        selected_index_ = kKeyboardPageSize - 1;
-    }
+    selected_index_ = ClampIndexByCount(selected_index_, kKeyboardPageSize);
 }
 
 const char* SoftKeyboardWidget::KeyLabel(int page, int index) const {
@@ -2041,15 +2046,14 @@ void SoftKeyboardWidget::OnDraw(Painter& p) {
     p.SetDrawColor(Color::White);
     p.FillRect(rect);
 
-    const int cell_w = rect.w / kKeyboardCols;
-    const int cell_h = rect.h / kKeyboardRows;
+    const GridLayoutMetrics metrics = MakeGridLayoutMetrics(rect, kKeyboardRows, kKeyboardCols);
 
-    for (int r = 0; r < kKeyboardRows; ++r) {
-        const int y = r * cell_h;
-        const int h = (r == kKeyboardRows - 1) ? (rect.h - y) : cell_h;
-        for (int c = 0; c < kKeyboardCols; ++c) {
-            const int x = c * cell_w;
-            const int w = (c == kKeyboardCols - 1) ? (rect.w - x) : cell_w;
+    for (int r = 0; r < metrics.rows; ++r) {
+        const int y = r * metrics.cell_h;
+        const int h = (r == metrics.rows - 1) ? (rect.h - y) : metrics.cell_h;
+        for (int c = 0; c < metrics.cols; ++c) {
+            const int x = c * metrics.cell_w;
+            const int w = (c == metrics.cols - 1) ? (rect.w - x) : metrics.cell_w;
             const int index = r * kKeyboardCols + c;
             const bool selected = (index == selected_index_);
             p.SetDrawColor(selected ? Color::Black : Color::White);
@@ -2058,39 +2062,26 @@ void SoftKeyboardWidget::OnDraw(Painter& p) {
 
             const char* label = KeyLabel(page_, index);
             if (label && label[0]) {
-                const Size text_size = p.MeasureText(label, nullptr);
-                int16_t tx = static_cast<int16_t>(x + (w - text_size.w) / 2);
-                int16_t ty = static_cast<int16_t>(y + (h - text_size.h) / 2);
-                if (text_size.w > w) {
-                    tx = static_cast<int16_t>(x + 2);
-                }
-                if (text_size.h > h) {
-                    ty = static_cast<int16_t>(y + 2);
-                }
-                p.DrawText({tx, ty}, label);
+                DrawCenteredTextInCell(p, x, y, w, h, label);
             }
         }
     }
-
-    p.SetDrawColor(Color::Black);
-    p.DrawRect(rect);
-    for (int r = 1; r < kKeyboardRows; ++r) {
-        p.DrawHLine({0, static_cast<int16_t>(r * cell_h)}, rect.w);
-    }
-    for (int c = 1; c < kKeyboardCols; ++c) {
-        p.DrawVLine({static_cast<int16_t>(c * cell_w), 0}, rect.h);
-    }
+    DrawGridOutline(p, rect, metrics);
 }
 
 void TopBarWidget::OnDraw(Painter& p) {
     auto* epd_painter = dynamic_cast<EpdPainter*>(&p);
     if (!epd_painter || !epd_painter->Epd()) {
-        Rect rect = LocalRect();
-        p.SetDrawColor(Color::Black);
-        p.FillRect(rect);
-        p.SetTextColor(Color::White);
-        if (!text_.empty()) {
-            p.DrawText({2, 2}, text_.c_str());
+        if (profile_.inverted) {
+            DrawSimpleBarFallback(p, LocalRect(), text_);
+        } else {
+            Rect rect = LocalRect();
+            p.SetDrawColor(Color::White);
+            p.FillRect(rect);
+            p.SetTextColor(Color::Black);
+            if (!text_.empty()) {
+                p.DrawText({profile_.text_offset_x, profile_.text_offset_y}, text_.c_str());
+            }
         }
         return;
     }
@@ -2104,15 +2095,29 @@ void TopBarWidget::OnDraw(Painter& p) {
     eteacher::app_ui::DrawTopBar(epd_painter->Gfx(), epd_painter->Epd(), style, status);
 }
 
+void TopBarWidget::SetProfile(const BarProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const BarProfile& TopBarWidget::Profile() const {
+    return profile_;
+}
+
 void BottomBarWidget::OnDraw(Painter& p) {
     auto* epd_painter = dynamic_cast<EpdPainter*>(&p);
     if (!epd_painter || !epd_painter->Epd()) {
-        Rect rect = LocalRect();
-        p.SetDrawColor(Color::Black);
-        p.FillRect(rect);
-        p.SetTextColor(Color::White);
-        if (!text_.empty()) {
-            p.DrawText({2, 2}, text_.c_str());
+        if (profile_.inverted) {
+            DrawSimpleBarFallback(p, LocalRect(), text_);
+        } else {
+            Rect rect = LocalRect();
+            p.SetDrawColor(Color::White);
+            p.FillRect(rect);
+            p.SetTextColor(Color::Black);
+            if (!text_.empty()) {
+                p.DrawText({profile_.text_offset_x, profile_.text_offset_y}, text_.c_str());
+            }
         }
         return;
     }
@@ -2125,16 +2130,24 @@ void BottomBarWidget::OnDraw(Painter& p) {
     eteacher::app_ui::DrawBottomBar(epd_painter->Gfx(), epd_painter->Epd(), style, text_);
 }
 
-void CheckboxWidget::SetChecked(bool checked) {
-    if (checked_ == checked) {
-        return;
-    }
-    checked_ = checked;
+void BottomBarWidget::SetProfile(const BarProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
     MarkDirty();
 }
 
-bool CheckboxWidget::Checked() const {
-    return checked_;
+const BarProfile& BottomBarWidget::Profile() const {
+    return profile_;
+}
+
+void CheckboxWidget::SetProfile(const CheckboxProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const CheckboxProfile& CheckboxWidget::Profile() const {
+    return profile_;
 }
 
 void CheckboxWidget::OnDraw(Painter& p) {
@@ -2148,7 +2161,7 @@ void CheckboxWidget::OnDraw(Painter& p) {
     const int text_h = std::max<int>(1, p.MeasureText("A", nullptr).h);
     const int box_y = std::max(0, (text_h - box) / 2);
     p.DrawRect({0, static_cast<int16_t>(box_y), static_cast<int16_t>(box), static_cast<int16_t>(box)});
-    if (checked_) {
+    if (profile_.checked) {
         const int x1 = std::max(1, box / 4);
         const int y1 = box_y + std::max(1, box / 2);
         const int x2 = std::max(x1 + 1, box / 2 - 1);
@@ -2164,16 +2177,14 @@ void CheckboxWidget::OnDraw(Painter& p) {
     p.DrawText({static_cast<int16_t>(box + 4), 0}, text_.c_str());
 }
 
-void RadioWidget::SetChecked(bool checked) {
-    if (checked_ == checked) {
-        return;
-    }
-    checked_ = checked;
+void RadioWidget::SetProfile(const RadioProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
     MarkDirty();
 }
 
-bool RadioWidget::Checked() const {
-    return checked_;
+const RadioProfile& RadioWidget::Profile() const {
+    return profile_;
 }
 
 void RadioWidget::OnDraw(Painter& p) {
@@ -2187,7 +2198,7 @@ void RadioWidget::OnDraw(Painter& p) {
     const int cx = radius + 1;
     const int cy = radius + 2;
     p.DrawCircle({static_cast<int16_t>(cx), static_cast<int16_t>(cy)}, radius);
-    if (checked_) {
+    if (profile_.checked) {
         const int outer_diameter = radius * 2;
         const int dot_diameter = std::max(1, outer_diameter / 2);
         const int dot_radius = std::max(1, dot_diameter / 2);
@@ -2202,23 +2213,21 @@ void RadioWidget::OnDraw(Painter& p) {
     p.DrawText({static_cast<int16_t>(radius * 2 + 4), 0}, text_.c_str());
 }
 
-void SwitchWidget::SetChecked(bool checked) {
-    if (checked_ == checked) {
-        return;
-    }
-    checked_ = checked;
+void SwitchWidget::SetProfile(const SwitchProfile& profile) {
+    profile_ = profile;
+    MarkMeasureDirty();
     MarkDirty();
 }
 
-bool SwitchWidget::Checked() const {
-    return checked_;
+const SwitchProfile& SwitchWidget::Profile() const {
+    return profile_;
 }
 
 void SwitchWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
     const int box_w = 28;
     const int box_h = std::min(12, rect.h > 0 ? rect.h : 12);
-    const bool is_on = checked_;
+    const bool is_on = profile_.checked;
 
     p.SetDrawColor(Color::Black);
     p.DrawRect({0, 0, static_cast<int16_t>(box_w), static_cast<int16_t>(box_h)});
@@ -2233,28 +2242,30 @@ void SwitchWidget::OnDraw(Painter& p) {
     p.DrawText({static_cast<int16_t>(box_w + 4), 0}, text_.c_str());
 }
 
+void ProgressWidget::SetProfile(const ProgressProfile& profile) {
+    profile_ = profile;
+    if (profile_.max_value == 0) {
+        profile_.max_value = 100;
+    }
+    profile_.value = ClampProgressValue(profile_.value, profile_.max_value);
+    MarkMeasureDirty();
+    MarkDirty();
+}
+
+const ProgressProfile& ProgressWidget::Profile() const {
+    return profile_;
+}
+
 void ProgressWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
-    const int percent = value_ > 100 ? 100 : value_;
+    const uint8_t max_value = profile_.max_value == 0 ? 100 : profile_.max_value;
+    const int percent = static_cast<int>(ClampProgressValue(profile_.value, max_value)) * 100 / max_value;
     p.SetDrawColor(Color::Black);
     p.DrawRect(rect);
     if (rect.w > 2 && rect.h > 2 && percent > 0) {
         const int fill_w = (rect.w - 2) * percent / 100;
         p.FillRect({1, 1, static_cast<int16_t>(fill_w), static_cast<int16_t>(rect.h - 2)});
     }
-}
-
-void ProgressWidget::SetValue(uint8_t value) {
-    const uint8_t clamped = value > 100 ? 100 : value;
-    if (value_ == clamped) {
-        return;
-    }
-    value_ = clamped;
-    MarkDirty();
-}
-
-uint8_t ProgressWidget::Value() const {
-    return value_;
 }
 
 } // namespace app_ui

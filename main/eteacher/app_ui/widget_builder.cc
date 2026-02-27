@@ -135,13 +135,13 @@ void ApplyCheckableDesc(TextWidget* widget, const desc::CheckableDesc* desc, Wid
     }
     switch (type) {
         case WidgetType::Checkbox:
-            static_cast<CheckboxWidget*>(widget)->SetChecked(desc->checked);
+            static_cast<CheckboxWidget*>(widget)->SetProfile(app_ui::CheckboxProfile{desc->checked});
             break;
         case WidgetType::Radio:
-            static_cast<RadioWidget*>(widget)->SetChecked(desc->checked);
+            static_cast<RadioWidget*>(widget)->SetProfile(app_ui::RadioProfile{desc->checked});
             break;
         case WidgetType::Switch:
-            static_cast<SwitchWidget*>(widget)->SetChecked(desc->checked);
+            static_cast<SwitchWidget*>(widget)->SetProfile(app_ui::SwitchProfile{desc->checked});
             break;
         default:
             break;
@@ -159,7 +159,9 @@ void ApplyProgressDesc(TextWidget* widget, const desc::ProgressDesc* desc) {
     if (desc->text && desc->text[0]) {
         widget->SetText(desc->text);
     }
-    static_cast<ProgressWidget*>(widget)->SetValue(desc->value);
+    app_ui::ProgressProfile profile;
+    profile.value = desc->value;
+    static_cast<ProgressWidget*>(widget)->SetProfile(profile);
 }
 
 // 静态描述符填充函数（用于生产路径，从 desc::WidgetDesc 填充 Widget 特定字段）
