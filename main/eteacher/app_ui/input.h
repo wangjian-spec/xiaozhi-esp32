@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <mutex>
 #include <queue>
+#include <unordered_map>
 #include <vector>
 
 #include "types.h"
@@ -57,7 +58,6 @@ public:
     void Push(const InputEvent& e);
     bool TryPop(InputEvent& out);
     void Clear();
-    size_t Size() const;
 
 private:
     mutable std::mutex mutex_;
@@ -79,17 +79,18 @@ public:
 
     Widget* Current() const;
 
-    void SetWrap(bool wrap);
-
 private:
     bool MoveSpatial(KeyCode key);
     void MoveLinear(int delta);
     bool SetCurrent(Widget* target);
     Widget* FindSpatialTarget(Widget* current, KeyCode key) const;
     void Traverse(Widget* node);
+    Widget* ResolveById(uint32_t id) const;
     Widget* ResolveByIndex(int index) const;
 
     std::vector<uint32_t> focus_ids_{};
+    std::unordered_map<uint32_t, int> focus_index_by_id_{};
+    std::unordered_map<uint32_t, Widget*> id_to_widget_{};
     int current_index_ = -1;
     bool wrap_ = true;
     bool dirty_ = true;

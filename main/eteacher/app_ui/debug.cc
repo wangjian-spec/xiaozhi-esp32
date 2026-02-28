@@ -24,15 +24,6 @@ void PrintApplyPendingFocus(uint32_t pending_focus_id, bool result) {
     printf("[UIEngine] Apply pending focus result=%d\n", result ? 1 : 0);
 }
 
-void PrintDebugVisibility(Widget* root, uint32_t tab_id, uint32_t saved_id) {
-    if (!root) return;
-    Widget* tabw = root->FindById(tab_id);
-    Widget* saved = root->FindById(saved_id);
-    printf("[UIEngine] DebugVisibility: tab=%p visible=%d saved=%p visible=%d\n",
-           tabw, tabw ? (tabw->Visible() ? 1 : 0) : 0,
-           saved, saved ? (saved->Visible() ? 1 : 0) : 0);
-}
-
 void DumpWidgetTree(Widget* root) {
     if (!root) return;
     std::function<void(Widget*, int)> dump;

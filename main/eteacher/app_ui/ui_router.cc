@@ -3,6 +3,8 @@
 
 #include "ui_router.h"
 
+namespace app_ui {
+
 void UiRouter::Reset() {
     scene_ids_.clear();
     index_ = 0;
@@ -197,3 +199,5 @@ bool UiRouter::Prev(AppContext& ctx) {
     const size_t prev_index = (index_ + scene_ids_.size() - 1) % scene_ids_.size();
     return Activate(ctx, prev_index);
 }
+
+} // namespace app_ui

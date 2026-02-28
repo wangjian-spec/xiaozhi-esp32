@@ -105,8 +105,9 @@ void ApplyWidgetCommon(Widget* widget, const desc::WidgetDesc& desc) {
     widget->SetEnabled((desc.flags & desc::kWidgetFlagEnabled) != 0);
     widget->SetFocusable((desc.flags & desc::kWidgetFlagFocusable) != 0);
 
-    auto* basic = static_cast<BasicWidget*>(widget);
-    basic->ApplyStyle(static_cast<uint16_t>(desc.style_id));
+    if (auto* basic = dynamic_cast<BasicWidget*>(widget)) {
+        basic->ApplyStyle(static_cast<uint16_t>(desc.style_id));
+    }
 }
 
 void ApplyTextDesc(TextWidget* widget, const desc::TextDesc* desc) {
@@ -135,13 +136,19 @@ void ApplyCheckableDesc(TextWidget* widget, const desc::CheckableDesc* desc, Wid
     }
     switch (type) {
         case WidgetType::Checkbox:
-            static_cast<CheckboxWidget*>(widget)->SetProfile(app_ui::CheckboxProfile{desc->checked});
+            if (auto* target = dynamic_cast<CheckboxWidget*>(widget)) {
+                target->SetProfile(app_ui::CheckboxProfile{desc->checked});
+            }
             break;
         case WidgetType::Radio:
-            static_cast<RadioWidget*>(widget)->SetProfile(app_ui::RadioProfile{desc->checked});
+            if (auto* target = dynamic_cast<RadioWidget*>(widget)) {
+                target->SetProfile(app_ui::RadioProfile{desc->checked});
+            }
             break;
         case WidgetType::Switch:
-            static_cast<SwitchWidget*>(widget)->SetProfile(app_ui::SwitchProfile{desc->checked});
+            if (auto* target = dynamic_cast<SwitchWidget*>(widget)) {
+                target->SetProfile(app_ui::SwitchProfile{desc->checked});
+            }
             break;
         default:
             break;
@@ -161,7 +168,9 @@ void ApplyProgressDesc(TextWidget* widget, const desc::ProgressDesc* desc) {
     }
     app_ui::ProgressProfile profile;
     profile.value = desc->value;
-    static_cast<ProgressWidget*>(widget)->SetProfile(profile);
+    if (auto* target = dynamic_cast<ProgressWidget*>(widget)) {
+        target->SetProfile(profile);
+    }
 }
 
 // 静态描述符填充函数（用于生产路径，从 desc::WidgetDesc 填充 Widget 特定字段）
@@ -181,19 +190,25 @@ void ApplyWidgetSpecific(Widget* widget, const desc::WidgetDesc& desc) {
         case WidgetType::Dialog:
         case WidgetType::TopBar:
         case WidgetType::BottomBar:
-            ApplyTextDesc(static_cast<TextWidget*>(widget),
-                          static_cast<const desc::TextDesc*>(desc.specific));
+            if (auto* text_widget = dynamic_cast<TextWidget*>(widget)) {
+                ApplyTextDesc(text_widget,
+                              static_cast<const desc::TextDesc*>(desc.specific));
+            }
             break;
         case WidgetType::Checkbox:
         case WidgetType::Radio:
         case WidgetType::Switch:
-            ApplyCheckableDesc(static_cast<TextWidget*>(widget),
-                               static_cast<const desc::CheckableDesc*>(desc.specific),
-                               desc.type);
+            if (auto* text_widget = dynamic_cast<TextWidget*>(widget)) {
+                ApplyCheckableDesc(text_widget,
+                                   static_cast<const desc::CheckableDesc*>(desc.specific),
+                                   desc.type);
+            }
             break;
         case WidgetType::Progress:
-            ApplyProgressDesc(static_cast<TextWidget*>(widget),
-                              static_cast<const desc::ProgressDesc*>(desc.specific));
+            if (auto* text_widget = dynamic_cast<TextWidget*>(widget)) {
+                ApplyProgressDesc(text_widget,
+                                  static_cast<const desc::ProgressDesc*>(desc.specific));
+            }
             break;
         default:
             break;

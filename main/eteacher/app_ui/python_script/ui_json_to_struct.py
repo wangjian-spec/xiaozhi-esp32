@@ -44,6 +44,10 @@ CHECKABLE_TYPES = {"Checkbox", "Radio", "Switch"}
 DEFAULT_FOCUSABLE = {"Button", "Checkbox", "Radio", "Switch", "TextArea", "ListView"}
 
 
+class ValidationError(ValueError):
+    pass
+
+
 def fnv1a(text: str) -> int:
     h = 0x811C9DC5
     for ch in text.encode("utf-8"):
@@ -164,6 +168,81 @@ def walk_widgets(root_id: str, widgets: Dict[str, Dict]) -> List[Tuple[str, str,
 
     dfs(root_id, "")
     return ordered
+
+
+def _register_hash(registry: Dict[int, str], value: str, label: str, collisions: List[str]) -> None:
+    h = fnv1a(value)
+    prev_value = registry.get(h)
+    if prev_value is None:
+        registry[h] = value
+        return
+    if prev_value != value:
+        collisions.append(f"0x{h:08X} -> \"{prev_value}\" collides with \"{value}\" ({label})")
+
+
+def validate_ui_data(data: Dict, json_path: Path) -> None:
+    widgets = data.get("widgets")
+    if not isinstance(widgets, dict):
+        raise ValidationError(f"[ui_gen] invalid widgets section in {json_path.name}")
+
+    pages = data.get("pages")
+    if not isinstance(pages, dict):
+        raise ValidationError(f"[ui_gen] invalid pages section in {json_path.name}")
+
+    hash_registry: Dict[int, str] = {}
+    collisions: List[str] = []
+
+    for widget_id, widget in widgets.items():
+        if not isinstance(widget_id, str) or not widget_id:
+            raise ValidationError(f"[ui_gen] widget id must be non-empty string in {json_path.name}")
+        _register_hash(hash_registry, widget_id, "widget_id", collisions)
+        if not isinstance(widget, dict):
+            continue
+        parent_id = widget.get("parent")
+        if isinstance(parent_id, str) and parent_id:
+            _register_hash(hash_registry, parent_id, "parent_id", collisions)
+        style = widget.get("style")
+        if isinstance(style, str) and style:
+            _register_hash(hash_registry, style, "style", collisions)
+        props = widget.get("properties")
+        if isinstance(props, dict):
+            for key in ("textId", "text", "TextID", "Text"):
+                value = props.get(key)
+                if isinstance(value, str) and value:
+                    _register_hash(hash_registry, value, "text_key", collisions)
+
+    for scene_id, scene in pages.items():
+        if not isinstance(scene_id, str) or not scene_id:
+            raise ValidationError(f"[ui_gen] scene id must be non-empty string in {json_path.name}")
+        _register_hash(hash_registry, scene_id, "scene_id", collisions)
+        if not isinstance(scene, dict):
+            raise ValidationError(f"[ui_gen] scene {scene_id} must be object in {json_path.name}")
+        root_id = scene.get("root")
+        if not isinstance(root_id, str) or not root_id:
+            raise ValidationError(f"[ui_gen] scene {scene_id} missing valid root in {json_path.name}")
+        if root_id not in widgets:
+            raise ValidationError(f"[ui_gen] scene {scene_id} root not found: {root_id} in {json_path.name}")
+        _register_hash(hash_registry, root_id, "scene_root", collisions)
+
+    public_section = data.get("public")
+    if isinstance(public_section, dict):
+        public_page = public_section.get("page")
+        public_widgets = public_section.get("widgets")
+        if isinstance(public_page, dict) and isinstance(public_widgets, dict):
+            root_id = public_page.get("root")
+            if not isinstance(root_id, str) or not root_id:
+                raise ValidationError(f"[ui_gen] public.page missing valid root in {json_path.name}")
+            if root_id not in public_widgets:
+                raise ValidationError(f"[ui_gen] public root not found: {root_id} in {json_path.name}")
+            _register_hash(hash_registry, root_id, "public_root", collisions)
+
+    if collisions:
+        unique_collisions = sorted(set(collisions))
+        head = unique_collisions[:8]
+        extra = len(unique_collisions) - len(head)
+        details = "\n  - ".join(head)
+        suffix = f"\n  ... and {extra} more" if extra > 0 else ""
+        raise ValidationError(f"[ui_gen] hash collisions in {json_path.name}:\n  - {details}{suffix}")
 
 
 def build_widget_desc(scene_id: str,
@@ -304,6 +383,7 @@ def emit_header(namespace: str, output_path: Path) -> None:
 
 def emit_source(json_path: Path, header_path: Path, output_path: Path) -> None:
     data = json.loads(json_path.read_text(encoding="utf-8"))
+    validate_ui_data(data, json_path)
 
     texts = {}
     resources = data.get("resources")
@@ -393,8 +473,12 @@ def main() -> int:
             continue
         header_path = app_dir / f"{app_name}_ui.h"
         source_path = app_dir / f"{app_name}_ui.cc"
-        emit_header(app_name, header_path)
-        emit_source(json_path, header_path, source_path)
+        try:
+            emit_header(app_name, header_path)
+            emit_source(json_path, header_path, source_path)
+        except ValidationError as exc:
+            print(str(exc))
+            continue
         print(f"[ui_gen] generated: {header_path.name}, {source_path.name}")
 
     return 0

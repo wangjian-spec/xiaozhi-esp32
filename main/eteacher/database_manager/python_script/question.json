@@ -518,106 +518,10 @@
       "difficulty": 2,
       "content_json": {
         "audio": "",
-        "prompt": "This is my book.",
-        "hints": ["这是", "我的", "书", "钢笔", "书包", "是", "我"]  // 干扰词：钢笔、书包
+        "prompt": "I have a small brown dog that likes to run in the park with me every morning after breakfast.",
+        "hints": ["我", "有", "一只", "小", "棕色", "狗", "喜欢", "每天", "早饭", "后", "和", "我", "在", "公园", "跑步", "猫", "鸟", "晚上"]
       },
-      "answer": "这是我的书。"
-    },
-    {
-      "id": 5003,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "The cat is small.",
-        "hints": ["这只", "猫", "很", "小", "狗", "鸟", "是"]  // 干扰词：狗、鸟
-      },
-      "answer": "这只猫很小。"
-    },
-    {
-      "id": 5004,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "I like apples.",
-        "hints": ["我", "喜欢", "苹果", "香蕉", "橘子"]  // 干扰词：香蕉、橘子
-      },
-      "answer": "我喜欢苹果。"
-    },
-    {
-      "id": 5005,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "He is my teacher.",
-        "hints": ["他", "是", "我的", "老师", "医生", "同学"]  // 干扰词：医生、同学
-      },
-      "answer": "他是我的老师。"
-    },
-    {
-      "id": 5006,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "She has a pen.",
-        "hints": ["她", "有", "一支", "钢笔", "铅笔", "橡皮"]  // 干扰词：铅笔、橡皮
-      },
-      "answer": "她有一支钢笔。"
-    },
-    {
-      "id": 5007,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "We go to school.",
-        "hints": ["我们", "去", "上学", "去上学", "家", "学校"]  // 干扰词：家、学校（学校可作干扰，答案强调动作顺序）
-      },
-      "answer": "我们去上学。"
-    },
-    {
-      "id": 5008,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "The sun is big.",
-        "hints": ["太阳", "很", "大", "月亮", "小", "星星"]  // 干扰词：月亮、小、星星
-      },
-      "answer": "太阳很大。"
-    },
-    {
-      "id": 5009,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "They are my friends.",
-        "hints": ["他们", "是", "我的", "朋友", "老师", "同学", "家人"]  // 干扰词：老师、同学、家人
-      },
-      "answer": "他们是我的朋友。"
-    },
-    {
-      "id": 5010,
-      "question_type": "5",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "I see a bird.",
-        "hints": ["我", "看见", "一只", "鸟", "猫", "狗", "鱼"]  // 干扰词：猫、狗、鱼
-      },
-      "answer": "我看见一只鸟。"
+      "answer": "我有一只小棕色的狗，它喜欢每天早饭后和我在公园跑步。"
     }
   ]
 }
@@ -636,113 +540,17 @@
       },
       "answer": "I have a dog."
     },
-    {
+     {
       "id": 6002,
       "question_type": "6",
       "stage": "primary",
       "difficulty": 2,
       "content_json": {
         "audio": "",
-        "prompt": "这是我的书。",
-        "hints": ["This", "is", "my", "book", "pen", "bag"]  // 干扰词：pen、bag
+        "prompt": "我有一只小棕色的狗，它喜欢每天早饭后和我在公园跑步。",
+        "hints": ["I", "have", "a", "small", "brown", "dog", "that", "likes", "to", "run", "in", "the", "park", "with", "me", "every", "morning", "after", "breakfast", "cat", "night", "swim"]
       },
-      "answer": "This is my book."
-    },
-    {
-      "id": 6003,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "这只猫很小。",
-        "hints": ["The", "cat", "is", "small", "dog", "bird"]  // 干扰词：dog、bird
-      },
-      "answer": "The cat is small."
-    },
-    {
-      "id": 6004,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "我喜欢苹果。",
-        "hints": ["I", "like", "apples", "oranges", "bananas"]  // 干扰词：oranges、bananas
-      },
-      "answer": "I like apples."
-    },
-    {
-      "id": 6005,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "他是我的老师。",
-        "hints": ["He", "is", "my", "teacher", "doctor", "student"]  // 干扰词：doctor、student
-      },
-      "answer": "He is my teacher."
-    },
-    {
-      "id": 6006,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "她有一支钢笔。",
-        "hints": ["She", "has", "a", "pen", "pencil", "eraser"]  // 干扰词：pencil、eraser
-      },
-      "answer": "She has a pen."
-    },
-    {
-      "id": 6007,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "我们去上学。",
-        "hints": ["We", "go", "to", "school", "home", "park"]  // 干扰词：home、park
-      },
-      "answer": "We go to school."
-    },
-    {
-      "id": 6008,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "太阳很大。",
-        "hints": ["The", "sun", "is", "big", "moon", "small", "star"]  // 干扰词：moon、small、star
-      },
-      "answer": "The sun is big."
-    },
-    {
-      "id": 6009,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "他们是我的朋友。",
-        "hints": ["They", "are", "my", "friends", "family", "teacher", "classmate"]  // 干扰词：family、teacher、classmate
-      },
-      "answer": "They are my friends."
-    },
-    {
-      "id": 6010,
-      "question_type": "6",
-      "stage": "primary",
-      "difficulty": 2,
-      "content_json": {
-        "audio": "",
-        "prompt": "我看见一只鸟。",
-        "hints": ["I", "see", "a", "bird", "cat", "dog", "fish"]  // 干扰词：cat、dog、fish
-      },
-      "answer": "I see a bird."
+      "answer": "I have a small brown dog that likes to run in the park with me every morning after breakfast."
     }
   ]
 }
@@ -780,29 +588,33 @@
   "version": "1.0",
   "questions": [
     {"id": 9001, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我有一只狗。"}, "answer": "I have a dog."},
-    {"id": 9002, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "这是我的书。"}, "answer": "This is my book."},
-    {"id": 9003, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "这只猫很小。"}, "answer": "The cat is small."},
-    {"id": 9004, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我喜欢苹果。"}, "answer": "I like apples."},
-    {"id": 9005, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "他是我的老师。"}, "answer": "He is my teacher."},
-    {"id": 9006, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "她有一支钢笔。"}, "answer": "She has a pen."},
-    {"id": 9007, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我们去上学。"}, "answer": "We go to school."},
-    {"id": 9008, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "太阳很大。"}, "answer": "The sun is big."},
-    {"id": 9009, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "他们是我的朋友。"}, "answer": "They are my friends."},
-    {"id": 9010, "question_type": "9", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "我看见一只鸟。"}, "answer": "I see a bird."}
+    {
+      "id": 9002,
+      "question_type": "9",
+      "stage": "primary",
+      "difficulty": 2,
+      "content_json": {
+        "audio": "",
+        "question": "我有一只小棕色的狗，它喜欢每天早饭后和我在公园跑步。"
+      },
+      "answer": "I have a small brown dog that likes to run in the park with me every morning after breakfast."
+    }
   ]
 }
 {
   "version": "1.0",
   "questions": [
     {"id": 10001, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "I have a dog."}, "answer": "I have a dog."},
-    {"id": 10002, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "This is my book."}, "answer": "This is my book."},
-    {"id": 10003, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "The cat is small."}, "answer": "The cat is small."},
-    {"id": 10004, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "I like apples."}, "answer": "I like apples."},
-    {"id": 10005, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "He is my teacher."}, "answer": "He is my teacher."},
-    {"id": 10006, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "She has a pen."}, "answer": "She has a pen."},
-    {"id": 10007, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "We go to school."}, "answer": "We go to school."},
-    {"id": 10008, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "The sun is big."}, "answer": "The sun is big."},
-    {"id": 10009, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "They are my friends."}, "answer": "They are my friends."},
-    {"id": 10010, "question_type": "10", "stage": "primary", "difficulty": 2, "content_json": {"audio": "", "question": "I see a bird."}, "answer": "I see a bird."}
+    {
+      "id": 10002,
+      "question_type": "10",
+      "stage": "primary",
+      "difficulty": 2,
+      "content_json": {
+        "audio": "",
+        "question": "I have a small brown dog that likes to run in the park with me every morning after breakfast."
+      },
+      "answer": "I have a small brown dog that likes to run in the park with me every morning after breakfast."
+    }
   ]
 }

@@ -214,6 +214,8 @@ struct ListViewProfile {
     bool selection_enabled = true;
     bool focus_highlight_enabled = true;
     bool activation_enabled = true;
+    bool split_item_text_by_tab = true;
+    bool parse_marker_prefix = true;
 };
 
 class ListViewBehavior {
@@ -236,6 +238,11 @@ struct DialogProfile {
     int grid_cols = 0;
     bool navigation_enabled = false;
     bool selection_highlight_enabled = true;
+    bool activation_on_key_c = true;
+    int16_t prompt_button_height = 24;
+    int prompt_max_lines = 8;
+    int16_t text_offset_x = 2;
+    int16_t text_offset_y = 2;
     std::string confirm_label = "确认";
     std::string cancel_label = "取消";
 };
@@ -247,10 +254,26 @@ struct TextAreaProfile {
     };
 
     DecorationMode decoration_mode = DecorationMode::Box;
+    int max_lines = 1;
+    int16_t text_offset_x = 2;
+    int16_t text_offset_y = 2;
+    int16_t line_gap_px = 2;
+    int16_t underline_margin_x = 2;
+    int16_t underline_segment = 2;
+    int16_t underline_gap = 2;
 };
 
 struct LabelProfile {
     bool focus_invert = true;
+    bool draw_border = false;
+    bool draw_rounded_border = false;
+    int16_t corner_radius = 6;
+    bool center_text_h = false;
+    bool center_text_v = false;
+    bool draw_left_prefix = false;
+    bool center_text_full_rect = false;
+    std::string left_prefix{};
+    int16_t left_prefix_gap = 4;
     int16_t text_offset_x = 0;
     int16_t text_offset_y = 0;
 };
@@ -264,11 +287,24 @@ struct ButtonProfile {
 struct ImageProfile {
     bool draw_border = true;
     bool draw_fallback_text = true;
+    int16_t content_inset = 1;
+    int16_t text_offset_x = 2;
+    int16_t text_offset_y = 2;
+    int quiet_zone_modules = 2;
 };
 
 struct TabViewProfile {
+    enum class NavigationMode : uint8_t {
+        Vertical,
+        Horizontal,
+        Grid,
+    };
+
     int rows = 1;
     int cols = 0;
+    NavigationMode navigation_mode = NavigationMode::Vertical;
+    bool selection_enabled = true;
+    bool wrap_navigation = false;
     bool focus_highlight_enabled = true;
 };
 
@@ -282,6 +318,7 @@ struct FrameProfile {
 struct MenuProfile {
     bool draw_border = true;
     int divider_count = 2;
+    int16_t divider_margin_x = 2;
     int16_t text_offset_x = 2;
     int16_t text_offset_y = 2;
 };
@@ -289,31 +326,68 @@ struct MenuProfile {
 struct SoftKeyboardProfile {
     int page = 0;
     int selected_index = 0;
+    int rows = 4;
+    int cols = 9;
+    int pages = 3;
     bool wrap_navigation = true;
     uint32_t nav_repeat_step_ms = 60;
+    bool activation_enabled = true;
+    bool page_switch_enabled = true;
+    KeyCode activation_key = static_cast<KeyCode>(6);
+    KeyCode page_switch_key = static_cast<KeyCode>(7);
+    bool draw_grid_outline = true;
+    std::string space_label = "空格";
+    std::string space_output = " ";
+    std::vector<std::string> key_labels{};
 };
 
 struct BarProfile {
+    enum class RenderMode : uint8_t {
+        Generic,
+        Native,
+    };
+
     bool inverted = true;
     int16_t text_offset_x = 2;
     int16_t text_offset_y = 2;
+    int16_t inverted_text_offset_x = 2;
+    int16_t inverted_text_offset_y = 2;
+    RenderMode render_mode = RenderMode::Native;
 };
 
 struct CheckboxProfile {
     bool checked = false;
+    bool focus_invert = true;
+    int16_t box_size = 10;
+    int16_t text_offset_x = 4;
 };
 
 struct RadioProfile {
     bool checked = false;
+    bool focus_invert = true;
+    int16_t radius = 5;
+    int16_t text_offset_x = 4;
 };
 
 struct SwitchProfile {
     bool checked = false;
+    bool focus_invert = false;
+    bool invert_when_on = true;
+    int16_t box_width = 28;
+    int16_t box_height = 12;
+    int16_t text_offset_x = 4;
+    int16_t state_text_offset_x = 2;
+    int16_t state_text_offset_y = 0;
+    int16_t state_inset = 1;
+    std::string on_label = "ON";
+    std::string off_label = "OFF";
 };
 
 struct ProgressProfile {
     uint8_t value = 0;
     uint8_t max_value = 100;
+    bool draw_border = true;
+    int16_t fill_inset = 1;
 };
 
 class DialogBehavior {
@@ -411,8 +485,6 @@ protected:
 
 private:
     void SetModelFromText();
-    int EffectiveRowCount() const;
-    int EffectiveColCount() const;
 
     int selected_index_ = 0;
     std::unique_ptr<ItemModel> model_{};

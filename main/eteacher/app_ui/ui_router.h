@@ -12,6 +12,8 @@
 // 声明了用于在应用内管理和切换场景的简单路由器（UiRouter），
 // 它维护场景 id 列表并通过回调激活目标场景。
 
+namespace app_ui {
+
 class UiRouter {
 public:
     using ActivateFn = std::function<bool(AppContext& ctx, size_t index, const std::string& scene_id)>;
@@ -53,3 +55,7 @@ private:
     std::vector<size_t> route_stack_{};
     RouterMode mode_ = RouterMode::Unset;
 };
+
+} // namespace app_ui
+
+using UiRouter = app_ui::UiRouter;

@@ -16,6 +16,7 @@
   },
   "resources": {
     "texts": {
+      "TEXT_IMAGE_WRITE": "Image",
       "TEXT_TOPBAR_408ADC": "TopBar",
       "TEXT_BOTTOMBAR_AABB85": "BottomBar"
     },
@@ -234,10 +235,10 @@
     "label_A": {
       "type": "Label",
       "rect": {
-        "x": 284,
-        "y": 101,
-        "w": 50,
-        "h": 20
+        "x": 215,
+        "y": 75,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -247,10 +248,10 @@
     "label_B": {
       "type": "Label",
       "rect": {
-        "x": 284,
-        "y": 135,
-        "w": 50,
-        "h": 20
+        "x": 213,
+        "y": 124,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -260,10 +261,10 @@
     "label_C": {
       "type": "Label",
       "rect": {
-        "x": 284,
-        "y": 170,
-        "w": 50,
-        "h": 20
+        "x": 213,
+        "y": 173,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -273,10 +274,10 @@
     "label_D": {
       "type": "Label",
       "rect": {
-        "x": 284,
-        "y": 203,
-        "w": 50,
-        "h": 20
+        "x": 212,
+        "y": 223,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -286,10 +287,10 @@
     "label_right": {
       "type": "Label",
       "rect": {
-        "x": 116,
-        "y": 202,
-        "w": 50,
-        "h": 20
+        "x": 37,
+        "y": 223,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -299,10 +300,10 @@
     "label_up": {
       "type": "Label",
       "rect": {
-        "x": 116,
-        "y": 100,
-        "w": 50,
-        "h": 20
+        "x": 37,
+        "y": 75,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -312,10 +313,10 @@
     "label_down": {
       "type": "Label",
       "rect": {
-        "x": 116,
-        "y": 168,
-        "w": 50,
-        "h": 20
+        "x": 37,
+        "y": 173,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -325,10 +326,10 @@
     "label_left": {
       "type": "Label",
       "rect": {
-        "x": 116,
-        "y": 134,
-        "w": 50,
-        "h": 20
+        "x": 37,
+        "y": 124,
+        "w": 160,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -338,8 +339,8 @@
     "word_practice_speaker_1": {
       "type": "Image",
       "rect": {
-        "x": 84,
-        "y": 101,
+        "x": 10,
+        "y": 80,
         "w": 20,
         "h": 20
       },
@@ -351,8 +352,8 @@
     "word_practice_speaker_2": {
       "type": "Image",
       "rect": {
-        "x": 84,
-        "y": 133,
+        "x": 9,
+        "y": 129,
         "w": 20,
         "h": 20
       },
@@ -364,8 +365,8 @@
     "word_practice_speaker_3": {
       "type": "Image",
       "rect": {
-        "x": 84,
-        "y": 169,
+        "x": 9,
+        "y": 178,
         "w": 20,
         "h": 20
       },
@@ -377,8 +378,8 @@
     "word_practice_speaker_4": {
       "type": "Image",
       "rect": {
-        "x": 84,
-        "y": 203,
+        "x": 9,
+        "y": 228,
         "w": 20,
         "h": 20
       },
@@ -399,9 +400,9 @@
     "textarea_InputAnswer": {
       "type": "TextArea",
       "rect": {
-        "x": 0,
-        "y": 115,
-        "w": 400,
+        "x": 40,
+        "y": 125,
+        "w": 350,
         "h": 60
       },
       "style": null,
@@ -413,14 +414,29 @@
       "type": "Dialog",
       "rect": {
         "x": 0,
-        "y": 200,
+        "y": 190,
         "w": 400,
-        "h": 60
+        "h": 70
       },
       "style": null,
       "z": 0,
       "parent": "root_page_d55e",
       "properties": {}
+    },
+    "image_write": {
+      "type": "Image",
+      "rect": {
+        "x": 10,
+        "y": 125,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_d55e",
+      "properties": {
+        "textId": "TEXT_IMAGE_WRITE"
+      }
     },
     "root_page_5d74": {
       "type": "Container",
@@ -434,8 +450,8 @@
     "word_practice_mick": {
       "type": "Image",
       "rect": {
-        "x": 18,
-        "y": 175,
+        "x": 15,
+        "y": 210,
         "w": 20,
         "h": 20
       },
@@ -447,10 +463,10 @@
     "label_pressAread": {
       "type": "Label",
       "rect": {
-        "x": 60,
-        "y": 175,
-        "w": 100,
-        "h": 20
+        "x": 51,
+        "y": 205,
+        "w": 140,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -460,10 +476,10 @@
     "label_PressDSkip": {
       "type": "Label",
       "rect": {
-        "x": 250,
-        "y": 175,
-        "w": 100,
-        "h": 20
+        "x": 221,
+        "y": 205,
+        "w": 140,
+        "h": 30
       },
       "style": null,
       "z": 0,
@@ -473,15 +489,30 @@
     "label_ASRresult": {
       "type": "Label",
       "rect": {
-        "x": 60,
-        "y": 123,
-        "w": 100,
-        "h": 20
+        "x": 40,
+        "y": 125,
+        "w": 350,
+        "h": 60
       },
       "style": null,
       "z": 0,
       "parent": "root_page_5d74",
       "properties": {}
+    },
+    "image_input": {
+      "type": "Image",
+      "rect": {
+        "x": 10,
+        "y": 125,
+        "w": 20,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_5d74",
+      "properties": {
+        "textId": "TEXT_IMAGE_WRITE"
+      }
     }
   },
   "public": {
@@ -532,8 +563,8 @@
       "word_practice_teacher": {
         "type": "Image",
         "rect": {
-          "x": 10,
-          "y": 30,
+          "x": 5,
+          "y": 22,
           "w": 32,
           "h": 32
         },
@@ -545,8 +576,8 @@
       "label_question_type": {
         "type": "Label",
         "rect": {
-          "x": 48,
-          "y": 38,
+          "x": 43,
+          "y": 30,
           "w": 50,
           "h": 20
         },
@@ -559,7 +590,7 @@
         "type": "Image",
         "rect": {
           "x": 196,
-          "y": 30,
+          "y": 22,
           "w": 32,
           "h": 32
         },
@@ -572,7 +603,7 @@
         "type": "Label",
         "rect": {
           "x": 261,
-          "y": 38,
+          "y": 31,
           "w": 50,
           "h": 20
         },
@@ -585,7 +616,7 @@
         "type": "Label",
         "rect": {
           "x": 338,
-          "y": 38,
+          "y": 31,
           "w": 50,
           "h": 20
         },
@@ -597,8 +628,8 @@
       "word_prictice_correct": {
         "type": "Image",
         "rect": {
-          "x": 242,
-          "y": 41,
+          "x": 239,
+          "y": 31,
           "w": 16,
           "h": 16
         },
@@ -611,7 +642,7 @@
         "type": "Image",
         "rect": {
           "x": 318,
-          "y": 41,
+          "y": 31,
           "w": 16,
           "h": 16
         },
@@ -624,7 +655,7 @@
         "type": "Image",
         "rect": {
           "x": 15,
-          "y": 261,
+          "y": 262,
           "w": 20,
           "h": 20
         },
@@ -637,7 +668,7 @@
         "type": "Image",
         "rect": {
           "x": 15,
-          "y": 261,
+          "y": 262,
           "w": 20,
           "h": 20
         },
@@ -649,8 +680,8 @@
       "label_alert": {
         "type": "Label",
         "rect": {
-          "x": 45,
-          "y": 261,
+          "x": 44,
+          "y": 264,
           "w": 350,
           "h": 20
         },
@@ -662,8 +693,8 @@
       "word_practice_speaker": {
         "type": "Image",
         "rect": {
-          "x": 20,
-          "y": 82,
+          "x": 10,
+          "y": 60,
           "w": 20,
           "h": 20
         },
@@ -675,10 +706,10 @@
       "label_question": {
         "type": "Label",
         "rect": {
-          "x": 55,
-          "y": 82,
-          "w": 300,
-          "h": 40
+          "x": 40,
+          "y": 60,
+          "w": 350,
+          "h": 60
         },
         "style": null,
         "z": 0,

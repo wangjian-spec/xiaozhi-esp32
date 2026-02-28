@@ -8,6 +8,7 @@
 #include <memory>
 #include <random>
 #include <string_view>
+#include <unordered_map>
 
 #include <SD.h>
 #include <cJSON.h>
@@ -46,6 +47,8 @@ constexpr uint32_t kWidgetSpeaker1 = 0xA7C4F81Du;
 constexpr uint32_t kWidgetSpeaker2 = 0xA4C4F364u;
 constexpr uint32_t kWidgetSpeaker3 = 0xA5C4F4F7u;
 constexpr uint32_t kWidgetSpeaker4 = 0xA2C4F03Eu;
+constexpr uint32_t kWidgetImageWrite = 0xDD2976A2u;
+constexpr uint32_t kWidgetImageInput = 0xE37DF08Du;
 
 constexpr uint32_t kWidgetLabelA = 0xA1804BC5u;
 constexpr uint32_t kWidgetLabelB = 0x9E80470Cu;
@@ -261,6 +264,57 @@ std::string NormalizeType56ForCompare(const std::string &value) {
 	return out;
 }
 
+std::string NormalizeLettersOnlyLower(const std::string &value) {
+	std::string out;
+	out.reserve(value.size());
+	for (unsigned char ch : value) {
+		if (std::isalpha(ch) != 0) {
+			out.push_back(static_cast<char>(std::tolower(ch)));
+		}
+	}
+	return out;
+}
+
+std::vector<std::string> NormalizeSentenceWordsLower(const std::string &value) {
+	std::vector<std::string> words;
+	std::string current;
+	for (unsigned char ch : value) {
+		if (std::isalnum(ch) != 0) {
+			current.push_back(static_cast<char>(std::tolower(ch)));
+		} else if (!current.empty()) {
+			words.push_back(std::move(current));
+			current.clear();
+		}
+	}
+	if (!current.empty()) {
+		words.push_back(std::move(current));
+	}
+	return words;
+}
+
+float ComputeWordCoverageRatio(const std::vector<std::string> &asr_words, const std::vector<std::string> &answer_words) {
+	if (answer_words.empty()) {
+		return asr_words.empty() ? 1.0f : 0.0f;
+	}
+
+	std::unordered_map<std::string, int> answer_count;
+	for (const auto &word : answer_words) {
+		++answer_count[word];
+	}
+
+	int matched = 0;
+	for (const auto &word : asr_words) {
+		auto it = answer_count.find(word);
+		if (it == answer_count.end() || it->second <= 0) {
+			continue;
+		}
+		--(it->second);
+		++matched;
+	}
+
+	return static_cast<float>(matched) / static_cast<float>(answer_words.size());
+}
+
 int ParseTypeToken(const std::string &value) {
 	std::string text = Trim(value);
 	if (text.empty()) {
@@ -297,13 +351,9 @@ bool StepDone(sqlite3_stmt *stmt) {
 	return rc == SQLITE_DONE || rc == SQLITE_ROW;
 }
 
-constexpr int kPromptDashWidthShort = 60;
+constexpr int kPromptDashWidthShort = 120;
 constexpr int kPromptDashWidthLong = 300;
 constexpr int kPromptDashGapPx = 2;
-constexpr int16_t kQuestionBaseX = 55;
-constexpr int16_t kQuestionBaseY = 82;
-constexpr int16_t kSpeakerBaseX = 20;
-constexpr int16_t kSpeakerBaseY = 82;
 
 struct DashLineProfile {
 	int16_t black_len = 4;
@@ -405,6 +455,158 @@ int FontLineHeight(const char *font_name) {
 	return static_cast<int>(font->Header().ascent + font->Header().descent);
 }
 
+void ApplyPromptPresentation(int question_type,
+		bool visible,
+		int dash_width,
+		int dash_gap_px,
+		int max_lines,
+		int dash_black_len,
+		int dash_white_len,
+		const std::string &prompt,
+		const app_ui::Rect &cached_rect,
+		app_ui::LabelWidget *line1,
+		app_ui::LabelWidget *line2,
+		app_ui::LabelWidget *line3,
+		app_ui::Widget *dash1,
+		app_ui::Widget *dash2,
+		app_ui::Widget *dash3,
+		CustomEpdDisplay *epd) {
+	const bool show = visible;
+	const std::string prompt_text = Trim(prompt);
+
+	if (line1) {
+		line1->SetVisible(show);
+	}
+	if (line2) {
+		line2->SetVisible(false);
+		line2->SetText("");
+	}
+	if (line3) {
+		line3->SetVisible(false);
+		line3->SetText("");
+	}
+	if (dash1) {
+		dash1->SetVisible(false);
+	}
+	if (dash2) {
+		dash2->SetVisible(false);
+	}
+	if (dash3) {
+		dash3->SetVisible(false);
+	}
+
+	if (!show || !line1) {
+		return;
+	}
+
+	const app_ui::Rect base_declared_rect = (cached_rect.w > 0 && cached_rect.h > 0)
+		? cached_rect
+		: line1->DeclaredRect();
+
+	int effective_dash_width = dash_width;
+	if (question_type == 5 || question_type == 6 || question_type == 9 || question_type == 10) {
+		const int label_width = static_cast<int>(base_declared_rect.w);
+		if (label_width > 0) {
+			effective_dash_width = label_width;
+		}
+	}
+	if (effective_dash_width <= 0) {
+		line1->SetText(prompt_text);
+		return;
+	}
+
+	const bool center_text_on_dash =
+		(question_type == 1 || question_type == 2 || question_type == 3 || question_type == 7 || question_type == 8);
+
+	int16_t base_x = base_declared_rect.x;
+	if (!center_text_on_dash && base_declared_rect.w > effective_dash_width) {
+		base_x = static_cast<int16_t>(base_declared_rect.x + (base_declared_rect.w - effective_dash_width) / 2);
+	}
+
+	const DashLineProfile dash_profile = {
+		static_cast<int16_t>(dash_black_len),
+		static_cast<int16_t>(dash_white_len),
+	};
+	if (auto *dash = dynamic_cast<DashedLineWidget *>(dash1)) {
+		dash->SetProfile(dash_profile);
+	}
+	if (auto *dash = dynamic_cast<DashedLineWidget *>(dash2)) {
+		dash->SetProfile(dash_profile);
+	}
+	if (auto *dash = dynamic_cast<DashedLineWidget *>(dash3)) {
+		dash->SetProfile(dash_profile);
+	}
+
+	const char *font_name = line1->FontName();
+	const int line_height = std::max(1, FontLineHeight(font_name));
+	const app_ui::Rect line_rect = {base_x, base_declared_rect.y, static_cast<int16_t>(effective_dash_width), static_cast<int16_t>(line_height)};
+	const int full_width = static_cast<int>(epd ? epd->MeasureUtf8Width(prompt_text, font_name) : 0);
+
+	app_ui::LabelProfile line1_profile = line1->Profile();
+	line1_profile.center_text_h = center_text_on_dash;
+	line1_profile.center_text_v = false;
+	line1->SetProfile(line1_profile);
+	if (line2) {
+		app_ui::LabelProfile line2_profile = line2->Profile();
+		line2_profile.center_text_h = center_text_on_dash;
+		line2_profile.center_text_v = false;
+		line2->SetProfile(line2_profile);
+	}
+	if (line3) {
+		app_ui::LabelProfile line3_profile = line3->Profile();
+		line3_profile.center_text_h = center_text_on_dash;
+		line3_profile.center_text_v = false;
+		line3->SetProfile(line3_profile);
+	}
+
+	const int effective_max_lines = std::max(1, max_lines);
+	std::vector<std::string> lines;
+	lines.reserve(static_cast<size_t>(effective_max_lines));
+	if (prompt_text.empty()) {
+		lines.push_back("");
+	} else if (full_width <= effective_dash_width) {
+		lines.push_back(prompt_text);
+	} else {
+		size_t consumed = 0;
+		for (int line_index = 0; line_index < effective_max_lines && consumed < prompt_text.size(); ++line_index) {
+			size_t used_bytes = 0;
+			std::string piece = FitUtf8TextToWidth(prompt_text.substr(consumed), effective_dash_width, font_name, epd, &used_bytes);
+			if (piece.empty()) {
+				break;
+			}
+			lines.push_back(piece);
+			if (used_bytes == 0) {
+				break;
+			}
+			consumed += used_bytes;
+		}
+		if (lines.empty()) {
+			lines.push_back(prompt_text);
+		}
+	}
+
+	std::array<app_ui::LabelWidget *, 3> line_labels = {line1, line2, line3};
+	std::array<app_ui::Widget *, 3> dash_lines = {dash1, dash2, dash3};
+	const int16_t line_step = static_cast<int16_t>(line_height + dash_gap_px + 1 + dash_gap_px);
+
+	for (size_t i = 0; i < line_labels.size() && i < lines.size(); ++i) {
+		auto *line_label = line_labels[i];
+		if (!line_label) {
+			continue;
+		}
+		const int16_t line_y = static_cast<int16_t>(line_rect.y + static_cast<int16_t>(i) * line_step);
+		line_label->SetRectInParent({line_rect.x, line_y, static_cast<int16_t>(dash_width), static_cast<int16_t>(line_height)});
+		line_label->SetText(lines[i]);
+		line_label->SetVisible(true);
+
+		if (auto *dash = dynamic_cast<DashedLineWidget *>(dash_lines[i])) {
+			dash->SetRectInParent({line_rect.x, static_cast<int16_t>(line_y + line_height + dash_gap_px),
+				static_cast<int16_t>(effective_dash_width), 1});
+			dash->SetVisible(true);
+		}
+	}
+}
+
 }  // namespace
 
 MenuMeta WordPracticeApp::GetMenuMeta() const {
@@ -439,17 +641,28 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	image_b_ = nullptr;
 	image_c_ = nullptr;
 	image_d_ = nullptr;
+	image_write_ = nullptr;
 	label_a_ = nullptr;
 	label_b_ = nullptr;
 	label_c_ = nullptr;
 	label_d_ = nullptr;
 	label_question_line2_ = nullptr;
+	label_question_line3_ = nullptr;
 	question_dash_line1_ = nullptr;
 	question_dash_line2_ = nullptr;
+	question_dash_line3_ = nullptr;
+	label_asr_line2_ = nullptr;
+	label_asr_line3_ = nullptr;
+	asr_dash_line1_ = nullptr;
+	asr_dash_line2_ = nullptr;
+	asr_dash_line3_ = nullptr;
 	label_up_ = nullptr;
 	label_left_ = nullptr;
 	label_down_ = nullptr;
 	label_right_ = nullptr;
+	label_question_static_rect_ = {};
+	label_asr_static_rect_ = {};
+	image_public_speaker_static_rect_ = {};
 
 	current_index_ = 0;
 	current_question_type_ = 1;
@@ -466,8 +679,12 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	type4_selected_left_index_ = 0;
 	type56_words_.clear();
 	type56_selected_index_ = 0;
+	type56_grid_cols_ = 1;
 	type56_input_answer_.clear();
+	learned_words_this_round_.clear();
+	settlement_learned_word_labels_.clear();
 	recent_types_.clear();
+	next_question_type_cursor_ = 1;
 	textbook_name_ = "default";
 	current_audio_path_.clear();
 	question_prompt_profile_ = {};
@@ -537,6 +754,8 @@ void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 		wrong_count_ = 0;
 		total_answered_ = 0;
 		score_ = 0;
+		learned_words_this_round_.clear();
+		HideSettlementLearnedWordLabels();
 		awaiting_next_question_ = false;
 		if (bottom_bar_) {
 			bottom_bar_->SetText("新一轮开始");
@@ -587,6 +806,7 @@ void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 	if (total_answered_ >= pass_target_questions_) {
 		ShowSessionSummary();
 	}
+	SyncScoreLabels();
 	Render(ctx);
 }
 
@@ -655,6 +875,13 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	if (textarea_input_answer_) {
 		app_ui::TextAreaProfile profile;
 		profile.decoration_mode = app_ui::TextAreaProfile::DecorationMode::UnderlineDashed;
+		profile.max_lines = 3;
+		profile.text_offset_x = 0;
+		profile.text_offset_y = 0;
+		profile.line_gap_px = 2;
+		profile.underline_margin_x = 0;
+		profile.underline_segment = 4;
+		profile.underline_gap = 1;
 		textarea_input_answer_->SetProfile(profile);
 	}
 	dialog_select_board_ = dynamic_cast<app_ui::DialogWidget *>(root->FindById(kWidgetDialogSelectBoard));
@@ -670,14 +897,32 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	image_good_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageGood));
 	image_bad_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageBad));
 	image_public_speaker_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetPublicSpeaker));
+	if (image_public_speaker_) {
+		image_public_speaker_static_rect_ = image_public_speaker_->DeclaredRect();
+	}
 	image_a_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageA));
 	image_b_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageB));
 	image_c_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageC));
 	image_d_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageD));
+	image_write_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageWrite));
+	image_input_ = dynamic_cast<app_ui::ImageWidget *>(root->FindById(kWidgetImageInput));
+	if (label_question_) {
+		label_question_static_rect_ = label_question_->DeclaredRect();
+	}
+	if (label_asr_result_) {
+		label_asr_static_rect_ = label_asr_result_->DeclaredRect();
+	}
 
 	label_question_line2_ = nullptr;
+	label_question_line3_ = nullptr;
 	question_dash_line1_ = nullptr;
 	question_dash_line2_ = nullptr;
+	question_dash_line3_ = nullptr;
+	label_asr_line2_ = nullptr;
+	label_asr_line3_ = nullptr;
+	asr_dash_line1_ = nullptr;
+	asr_dash_line2_ = nullptr;
+	asr_dash_line3_ = nullptr;
 	if (root_) {
 		auto *line2 = dynamic_cast<app_ui::LabelWidget *>(root_->AddChild(std::make_unique<app_ui::LabelWidget>()));
 		if (line2) {
@@ -686,6 +931,14 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 			line2->SetVisible(false);
 		}
 		label_question_line2_ = line2;
+
+		auto *line3 = dynamic_cast<app_ui::LabelWidget *>(root_->AddChild(std::make_unique<app_ui::LabelWidget>()));
+		if (line3) {
+			line3->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			line3->SetFontName("wenquanyi_11pt");
+			line3->SetVisible(false);
+		}
+		label_question_line3_ = line3;
 
 		auto *dash1 = dynamic_cast<DashedLineWidget *>(root_->AddChild(std::make_unique<DashedLineWidget>()));
 		if (dash1) {
@@ -702,6 +955,54 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 			dash2->SetVisible(false);
 		}
 		question_dash_line2_ = dash2;
+
+		auto *dash3 = dynamic_cast<DashedLineWidget *>(root_->AddChild(std::make_unique<DashedLineWidget>()));
+		if (dash3) {
+			dash3->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			dash3->SetProfile({4, 1});
+			dash3->SetVisible(false);
+		}
+		question_dash_line3_ = dash3;
+
+		auto *asr_line2 = dynamic_cast<app_ui::LabelWidget *>(root_->AddChild(std::make_unique<app_ui::LabelWidget>()));
+		if (asr_line2) {
+			asr_line2->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			asr_line2->SetFontName("wenquanyi_11pt");
+			asr_line2->SetVisible(false);
+		}
+		label_asr_line2_ = asr_line2;
+
+		auto *asr_line3 = dynamic_cast<app_ui::LabelWidget *>(root_->AddChild(std::make_unique<app_ui::LabelWidget>()));
+		if (asr_line3) {
+			asr_line3->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			asr_line3->SetFontName("wenquanyi_11pt");
+			asr_line3->SetVisible(false);
+		}
+		label_asr_line3_ = asr_line3;
+
+		auto *asr_dash1 = dynamic_cast<DashedLineWidget *>(root_->AddChild(std::make_unique<DashedLineWidget>()));
+		if (asr_dash1) {
+			asr_dash1->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			asr_dash1->SetProfile({4, 1});
+			asr_dash1->SetVisible(false);
+		}
+		asr_dash_line1_ = asr_dash1;
+
+		auto *asr_dash2 = dynamic_cast<DashedLineWidget *>(root_->AddChild(std::make_unique<DashedLineWidget>()));
+		if (asr_dash2) {
+			asr_dash2->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			asr_dash2->SetProfile({4, 1});
+			asr_dash2->SetVisible(false);
+		}
+		asr_dash_line2_ = asr_dash2;
+
+		auto *asr_dash3 = dynamic_cast<DashedLineWidget *>(root_->AddChild(std::make_unique<DashedLineWidget>()));
+		if (asr_dash3) {
+			asr_dash3->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			asr_dash3->SetProfile({4, 1});
+			asr_dash3->SetVisible(false);
+		}
+		asr_dash_line3_ = asr_dash3;
 	}
 
 	label_a_ = dynamic_cast<app_ui::LabelWidget *>(root->FindById(kWidgetLabelA));
@@ -739,10 +1040,14 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	set_image(kWidgetSpeaker2, "word_practice_speaker.bin");
 	set_image(kWidgetSpeaker3, "word_practice_speaker.bin");
 	set_image(kWidgetSpeaker4, "word_practice_speaker.bin");
+	set_image(kWidgetImageWrite, "word_practice_write.bin");
+	set_image(kWidgetImageInput, "word_practice_write.bin");
 	if (image_good_) image_good_->SetText("word_practice_good.bin");
 	if (image_bad_) image_bad_->SetText("word_practice_bad.bin");
 	if (image_good_) image_good_->SetVisible(false);
 	if (image_bad_) image_bad_->SetVisible(false);
+	if (image_write_) image_write_->SetVisible(false);
+	if (image_input_) image_input_->SetVisible(false);
 
 	if (label_question_type_) label_question_type_->SetFontName("wenquanyi_11pt");
 	if (label_correct_count_) label_correct_count_->SetFontName("wenquanyi_11pt");
@@ -752,6 +1057,28 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	if (label_asr_result_) label_asr_result_->SetFontName("wenquanyi_11pt");
 	if (label_press_aread_) label_press_aread_->SetFontName("wenquanyi_11pt");
 	if (label_press_d_skip_) label_press_d_skip_->SetFontName("wenquanyi_11pt");
+	if (label_press_aread_) {
+		app_ui::LabelProfile profile = label_press_aread_->Profile();
+		profile.draw_border = true;
+		profile.draw_rounded_border = true;
+		profile.corner_radius = 12;
+		profile.center_text_h = true;
+		profile.center_text_v = true;
+		profile.focus_invert = false;
+		label_press_aread_->SetProfile(profile);
+		label_press_aread_->SetFocused(false);
+	}
+	if (label_press_d_skip_) {
+		app_ui::LabelProfile profile = label_press_d_skip_->Profile();
+		profile.draw_border = true;
+		profile.draw_rounded_border = true;
+		profile.corner_radius = 12;
+		profile.center_text_h = true;
+		profile.center_text_v = true;
+		profile.focus_invert = false;
+		label_press_d_skip_->SetProfile(profile);
+		label_press_d_skip_->SetFocused(false);
+	}
 	if (label_a_) label_a_->SetFontName("wenquanyi_11pt");
 	if (label_b_) label_b_->SetFontName("wenquanyi_11pt");
 	if (label_c_) label_c_->SetFontName("wenquanyi_11pt");
@@ -845,10 +1172,54 @@ bool WordPracticeApp::PickNextQuestion() {
 		return true;
 	}
 
+	struct StrategyEntry {
+		QuestionSelectionStrategy id;
+		const char *name;
+		bool (WordPracticeApp::*pick_fn)();
+	};
+
+	static constexpr std::array<StrategyEntry, 2> kStrategies = {{
+		{QuestionSelectionStrategy::LegacyAdaptive, "legacy_adaptive", &WordPracticeApp::PickNextQuestionByLegacyAdaptive},
+		{QuestionSelectionStrategy::TypeCycleRandom, "type_cycle_random", &WordPracticeApp::PickNextQuestionByTypeCycleRandom},
+	}};
+
+	auto find_strategy = [](QuestionSelectionStrategy id) -> const StrategyEntry * {
+		for (const auto &entry : kStrategies) {
+			if (entry.id == id) {
+				return &entry;
+			}
+		}
+		return nullptr;
+	};
+
+	const StrategyEntry *primary = find_strategy(question_selection_strategy_);
+	if (primary) {
+		ESP_LOGI(kTag, "pick question strategy=%s", primary->name);
+		if ((this->*(primary->pick_fn))()) {
+			return true;
+		}
+		ESP_LOGW(kTag, "strategy '%s' failed, fallback to other strategy", primary->name);
+	}
+
+	for (const auto &entry : kStrategies) {
+		if (primary && entry.id == primary->id) {
+			continue;
+		}
+		if ((this->*(entry.pick_fn))()) {
+			ESP_LOGI(kTag, "fallback strategy used=%s", entry.name);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool WordPracticeApp::PickNextQuestionByLegacyAdaptive() {
 	const std::string user_db = DiscoverUserDbPath();
 	sqlite3 *udb = nullptr;
 	int current_level = 1;
-	if (!user_db.empty() && sqlite3_open_v2(user_db.c_str(), &udb, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) == SQLITE_OK &&
+	if (!user_db.empty() &&
+		sqlite3_open_v2(user_db.c_str(), &udb, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) == SQLITE_OK &&
 		udb) {
 		(void)EnsureStatsTables(udb);
 		current_level = QueryCurrentLevel(udb);
@@ -876,7 +1247,6 @@ bool WordPracticeApp::PickNextQuestion() {
 
 	float best_score = -10000.0f;
 	size_t best_index = 0;
-
 	for (size_t i = 0; i < question_pool_.size(); ++i) {
 		const auto &q = question_pool_[i];
 		if (has_expected_type && q.type != expected_type) {
@@ -899,7 +1269,8 @@ bool WordPracticeApp::PickNextQuestion() {
 		}
 
 		const int64_t age_sec = std::max<int64_t>(0, NowSec() - learned.last_seen_at);
-		const float exposure_decay = (learned.last_seen_at <= 0) ? 0.7f : std::min(1.8f, static_cast<float>(age_sec) / 3600.0f * 0.2f);
+		const float exposure_decay =
+			(learned.last_seen_at <= 0) ? 0.7f : std::min(1.8f, static_cast<float>(age_sec) / 3600.0f * 0.2f);
 
 		const float score = level_bonus + weak_bonus + difficulty_bonus + type_cycle + exposure_decay + jitter(rng);
 		if (score > best_score) {
@@ -912,7 +1283,59 @@ bool WordPracticeApp::PickNextQuestion() {
 		sqlite3_close(udb);
 	}
 
-	current_index_ = best_index;
+	if (question_pool_.empty()) {
+		return false;
+	}
+
+	CommitSelectedQuestion(best_index);
+	return true;
+}
+
+bool WordPracticeApp::PickNextQuestionByTypeCycleRandom() {
+
+	int selected_type = -1;
+	for (int offset = 0; offset < 10; ++offset) {
+		const int candidate_type = ((next_question_type_cursor_ - 1 + offset) % 10) + 1;
+		bool exists = false;
+		for (const auto &q : question_pool_) {
+			if (q.type == candidate_type) {
+				exists = true;
+				break;
+			}
+		}
+		if (exists) {
+			selected_type = candidate_type;
+			break;
+		}
+	}
+
+	if (selected_type < 1) {
+		return false;
+	}
+
+	std::vector<size_t> candidates;
+	candidates.reserve(question_pool_.size());
+	for (size_t i = 0; i < question_pool_.size(); ++i) {
+		if (question_pool_[i].type == selected_type) {
+			candidates.push_back(i);
+		}
+	}
+
+	if (candidates.empty()) {
+		return false;
+	}
+
+	std::mt19937 rng(static_cast<uint32_t>(esp_random()));
+	std::uniform_int_distribution<size_t> pick(0, candidates.size() - 1);
+	const size_t picked_index = candidates[pick(rng)];
+	next_question_type_cursor_ = (selected_type % 10) + 1;
+
+	CommitSelectedQuestion(picked_index);
+	return true;
+}
+
+void WordPracticeApp::CommitSelectedQuestion(size_t index) {
+	current_index_ = index;
 	current_question_type_ = question_pool_[current_index_].type;
 	recent_types_.push_back(current_question_type_);
 	if (recent_types_.size() > 6) {
@@ -920,13 +1343,13 @@ bool WordPracticeApp::PickNextQuestion() {
 	}
 
 	PresentCurrentQuestion();
-	return true;
 }
 
 void WordPracticeApp::PresentCurrentQuestion() {
 	if (current_index_ >= question_pool_.size()) {
 		return;
 	}
+	HideSettlementLearnedWordLabels();
 	const auto &q = question_pool_[current_index_];
 	const bool is_type56 = (q.type == 5 || q.type == 6);
 
@@ -968,7 +1391,23 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	}
 	UpdateQuestionPromptPresentation(q.type, current_choice_.prompt);
 	if (label_asr_result_) {
-		label_asr_result_->SetText("");
+		if (q.type >= 7 && q.type <= 10) {
+			UpdateAsrResultPresentation(q.type, "");
+		} else {
+			label_asr_result_->SetText("");
+			label_asr_result_->SetVisible(false);
+			if (label_asr_line2_) {
+				label_asr_line2_->SetVisible(false);
+				label_asr_line2_->SetText("");
+			}
+			if (label_asr_line3_) {
+				label_asr_line3_->SetVisible(false);
+				label_asr_line3_->SetText("");
+			}
+			if (asr_dash_line1_) asr_dash_line1_->SetVisible(false);
+			if (asr_dash_line2_) asr_dash_line2_->SetVisible(false);
+			if (asr_dash_line3_) asr_dash_line3_->SetVisible(false);
+		}
 	}
 	if (q.type >= 7 && q.type <= 10) {
 		if (label_press_aread_) {
@@ -984,6 +1423,14 @@ void WordPracticeApp::PresentCurrentQuestion() {
 		if (label_press_d_skip_) {
 			label_press_d_skip_->SetText("");
 		}
+	}
+	if (image_write_) {
+		image_write_->SetText("word_practice_write.bin");
+		image_write_->SetVisible(q.type == 5 || q.type == 6);
+	}
+	if (image_input_) {
+		image_input_->SetText("word_practice_write.bin");
+		image_input_->SetVisible(q.type >= 7 && q.type <= 10);
 	}
 
 	type56_words_.clear();
@@ -1156,113 +1603,242 @@ void WordPracticeApp::ShowSessionSummary() {
 	if (!label_question_) {
 		return;
 	}
+	SyncScoreLabels();
 	const bool pass = IsSessionPassed();
-	std::string summary = pass ? "恭喜过关!" : "未过关，继续练习";
-	summary += " 分数:" + std::to_string(score_);
-	summary += " 正确:" + std::to_string(correct_count_);
-	summary += " 错误:" + std::to_string(wrong_count_);
-	UpdateQuestionPromptPresentation(current_question_type_, summary);
-	if (label_alert_) {
-		label_alert_->SetText("");
+
+	auto hide_widget = [](app_ui::Widget *widget) {
+		if (!widget) {
+			return;
+		}
+		widget->SetVisible(false);
+	};
+
+	// 结算页仅展示 public 控件内容，隐藏题型专属控件。
+	hide_widget(image_a_);
+	hide_widget(image_b_);
+	hide_widget(image_c_);
+	hide_widget(image_d_);
+	hide_widget(label_a_);
+	hide_widget(label_b_);
+	hide_widget(label_c_);
+	hide_widget(label_d_);
+	hide_widget(label_up_);
+	hide_widget(label_left_);
+	hide_widget(label_down_);
+	hide_widget(label_right_);
+	hide_widget(textarea_input_answer_);
+	hide_widget(dialog_select_board_);
+	hide_widget(image_write_);
+	hide_widget(image_input_);
+	hide_widget(label_press_aread_);
+	hide_widget(label_press_d_skip_);
+	hide_widget(label_asr_result_);
+	hide_widget(label_asr_line2_);
+	hide_widget(label_asr_line3_);
+	hide_widget(asr_dash_line1_);
+	hide_widget(asr_dash_line2_);
+	hide_widget(asr_dash_line3_);
+	if (root_) {
+		auto *speak_mic = dynamic_cast<app_ui::ImageWidget *>(root_->FindById(kWidgetSpeakMic));
+		if (speak_mic) {
+			speak_mic->SetVisible(false);
+		}
 	}
+	hide_widget(label_question_line2_);
+	hide_widget(label_question_line3_);
+	hide_widget(question_dash_line1_);
+	hide_widget(question_dash_line2_);
+	hide_widget(question_dash_line3_);
+
+	if (label_question_type_) {
+		label_question_type_->SetText("结算");
+	}
+
+	if (label_question_) {
+		const std::string summary_text =
+			(pass ? "本轮结算 恭喜过关 " : "本轮结算 未过关 ") +
+			("分数:" + std::to_string(score_) +
+			" 正确:" + std::to_string(correct_count_) +
+			" 错误:" + std::to_string(wrong_count_));
+		ApplyPromptPresentation(
+			10,
+			true,
+			label_question_static_rect_.w > 0 ? static_cast<int>(label_question_static_rect_.w) : kPromptDashWidthLong,
+			kPromptDashGapPx,
+			3,
+			4,
+			1,
+			summary_text,
+			label_question_static_rect_,
+			label_question_,
+			label_question_line2_,
+			label_question_line3_,
+			question_dash_line1_,
+			question_dash_line2_,
+			question_dash_line3_,
+			epd_);
+	}
+
+	if (image_public_speaker_) {
+		image_public_speaker_->SetText("word_practice_speaker.bin");
+		image_public_speaker_->SetVisible(true);
+	}
+
+	if (image_good_) {
+		image_good_->SetText("word_practice_good.bin");
+		image_good_->SetVisible(pass);
+	}
+	if (image_bad_) {
+		image_bad_->SetText("word_practice_bad.bin");
+		image_bad_->SetVisible(!pass);
+	}
+
+	if (label_alert_) {
+		label_alert_->SetText(pass ? "恭喜过关" : "未过关，请继续练习");
+	}
+	RenderSettlementLearnedWordLabels();
 	if (bottom_bar_) {
 		bottom_bar_->SetText(pass ? "Start继续下一轮" : "Start重开本轮");
+	}
+}
+
+void WordPracticeApp::SyncScoreLabels() {
+	if (label_correct_count_) {
+		label_correct_count_->SetText(std::to_string(correct_count_));
+	}
+	if (label_wrong_count_) {
+		label_wrong_count_->SetText(std::to_string(wrong_count_));
+	}
+}
+
+void WordPracticeApp::AddLearnedWordsFromText(const std::string &text) {
+	std::vector<std::string> words = NormalizeSentenceWordsLower(text);
+	if (words.empty()) {
+		words = SplitHintWords(text);
+	}
+	for (const auto &word : words) {
+		const std::string token = Trim(word);
+		if (token.empty()) {
+			continue;
+		}
+		const auto it = std::find(learned_words_this_round_.begin(), learned_words_this_round_.end(), token);
+		if (it == learned_words_this_round_.end()) {
+			learned_words_this_round_.push_back(token);
+		}
+	}
+}
+
+void WordPracticeApp::HideSettlementLearnedWordLabels() {
+	for (auto *label : settlement_learned_word_labels_) {
+		if (label) {
+			label->SetVisible(false);
+			label->SetText("");
+		}
+	}
+}
+
+void WordPracticeApp::RenderSettlementLearnedWordLabels() {
+	HideSettlementLearnedWordLabels();
+	if (!root_ || learned_words_this_round_.empty()) {
+		return;
+	}
+
+	const app_ui::Rect question_rect = (label_question_static_rect_.w > 0 && label_question_static_rect_.h > 0)
+		? label_question_static_rect_
+		: (label_question_ ? label_question_->DeclaredRect() : app_ui::Rect{});
+	if (question_rect.w <= 0) {
+		return;
+	}
+
+	const app_ui::Rect alert_rect = label_alert_ ? label_alert_->DeclaredRect() : app_ui::Rect{0, 264, 0, 20};
+	const int16_t start_x = question_rect.x;
+	const int16_t max_x = static_cast<int16_t>(question_rect.x + question_rect.w);
+	const int16_t max_y = static_cast<int16_t>(alert_rect.y > 0 ? alert_rect.y - 2 : 262);
+	const char *font_name = label_question_ ? label_question_->FontName() : "wenquanyi_11pt";
+	const int16_t line_height = static_cast<int16_t>(std::max(14, FontLineHeight(font_name)));
+
+	int16_t x = start_x;
+	int16_t y = static_cast<int16_t>(question_rect.y + question_rect.h + 6);
+	int used = 0;
+
+	for (const auto &word : learned_words_this_round_) {
+		if (word.empty()) {
+			continue;
+		}
+		const int16_t word_w = static_cast<int16_t>(std::max(20, static_cast<int>(epd_ ? epd_->MeasureUtf8Width(word, font_name) : static_cast<int>(word.size() * 8))));
+		if (x + word_w > max_x) {
+			x = start_x;
+			y = static_cast<int16_t>(y + line_height + 2);
+		}
+		if (y + line_height > max_y) {
+			break;
+		}
+
+		if (used >= static_cast<int>(settlement_learned_word_labels_.size())) {
+			auto *label = dynamic_cast<app_ui::LabelWidget *>(root_->AddChild(std::make_unique<app_ui::LabelWidget>()));
+			if (!label) {
+				break;
+			}
+			label->SetLayoutMode(app_ui::Widget::LayoutMode::Fixed);
+			label->SetFontName(font_name ? font_name : "wenquanyi_11pt");
+			settlement_learned_word_labels_.push_back(label);
+		}
+
+		auto *word_label = settlement_learned_word_labels_[static_cast<size_t>(used)];
+		if (word_label) {
+			word_label->SetRectInParent({x, y, word_w, line_height});
+			word_label->SetText(word);
+			word_label->SetVisible(true);
+		}
+		++used;
+		x = static_cast<int16_t>(x + word_w + 40);
 	}
 }
 
 void WordPracticeApp::UpdateQuestionPromptPresentation(int question_type, const std::string &prompt) {
 	question_prompt_profile_ = BuildQuestionPromptProfile(question_type);
 	const bool show = question_prompt_profile_.visible;
-	const std::string prompt_text = Trim(prompt);
 	if (image_public_speaker_) {
-		image_public_speaker_->SetRectInParent({kSpeakerBaseX, kSpeakerBaseY, 20, 20});
 		image_public_speaker_->SetVisible(show);
 	}
-	if (label_question_) {
-		label_question_->SetVisible(show);
-	}
-	if (label_question_line2_) {
-		label_question_line2_->SetVisible(false);
-		label_question_line2_->SetText("");
-	}
-	if (question_dash_line1_) {
-		question_dash_line1_->SetVisible(false);
-	}
-	if (question_dash_line2_) {
-		question_dash_line2_->SetVisible(false);
-	}
+	ApplyPromptPresentation(
+		question_type,
+		question_prompt_profile_.visible,
+		question_prompt_profile_.dash_width,
+		question_prompt_profile_.dash_gap_px,
+		question_prompt_profile_.max_lines,
+		question_prompt_profile_.dash_black_len,
+		question_prompt_profile_.dash_white_len,
+		prompt,
+		label_question_static_rect_,
+		label_question_,
+		label_question_line2_,
+		label_question_line3_,
+		question_dash_line1_,
+		question_dash_line2_,
+		question_dash_line3_,
+		epd_);
+}
 
-	if (!show || !label_question_) {
-		return;
-	}
-
-	int dash_width = question_prompt_profile_.dash_width;
-	if (question_type == 5 || question_type == 6 || question_type == 9 || question_type == 10) {
-		const int label_width = static_cast<int>(label_question_->RectInParent().w);
-		if (label_width > 0) {
-			dash_width = label_width;
-		}
-	}
-	if (dash_width <= 0) {
-		label_question_->SetText(prompt_text);
-		return;
-	}
-
-	const DashLineProfile dash_profile = {
-		static_cast<int16_t>(question_prompt_profile_.dash_black_len),
-		static_cast<int16_t>(question_prompt_profile_.dash_white_len),
-	};
-	if (auto *dash1 = dynamic_cast<DashedLineWidget *>(question_dash_line1_)) {
-		dash1->SetProfile(dash_profile);
-	}
-	if (auto *dash2 = dynamic_cast<DashedLineWidget *>(question_dash_line2_)) {
-		dash2->SetProfile(dash_profile);
-	}
-
-	const char *font_name = label_question_->FontName();
-	const int line_height = std::max(1, FontLineHeight(font_name));
-	const app_ui::Rect base_rect = {kQuestionBaseX, kQuestionBaseY, static_cast<int16_t>(dash_width), static_cast<int16_t>(line_height)};
-	const int full_width = static_cast<int>(epd_ ? epd_->MeasureUtf8Width(prompt_text, font_name) : 0);
-
-	size_t used_bytes = 0;
-	std::string line1;
-	std::string line2;
-	if (full_width <= dash_width) {
-		line1 = prompt_text;
-		used_bytes = prompt_text.size();
-	} else {
-		line1 = FitUtf8TextToWidth(prompt_text, dash_width, font_name, epd_, &used_bytes);
-		if (used_bytes < prompt_text.size()) {
-			line2 = FitUtf8TextToWidth(prompt_text.substr(used_bytes), dash_width, font_name, epd_, nullptr);
-		}
-	}
-
-	const int draw_line1_width = dash_width;
-	const int draw_line2_width = dash_width;
-
-	label_question_->SetRectInParent({base_rect.x, base_rect.y, static_cast<int16_t>(draw_line1_width), static_cast<int16_t>(line_height)});
-	label_question_->SetText(line1);
-
-	if (auto *dash1 = dynamic_cast<DashedLineWidget *>(question_dash_line1_)) {
-		dash1->SetRectInParent({base_rect.x, static_cast<int16_t>(base_rect.y + line_height + question_prompt_profile_.dash_gap_px),
-			static_cast<int16_t>(draw_line1_width), 1});
-		dash1->SetVisible(true);
-	}
-
-	if (!line2.empty()) {
-		const int16_t line2_y = static_cast<int16_t>(base_rect.y + line_height + question_prompt_profile_.dash_gap_px + 1 + question_prompt_profile_.dash_gap_px);
-		if (label_question_line2_) {
-			label_question_line2_->SetRectInParent({base_rect.x, line2_y, static_cast<int16_t>(draw_line2_width), static_cast<int16_t>(line_height)});
-			label_question_line2_->SetText(line2);
-			label_question_line2_->SetVisible(true);
-		}
-
-		if (auto *dash2 = dynamic_cast<DashedLineWidget *>(question_dash_line2_)) {
-			dash2->SetRectInParent({base_rect.x, static_cast<int16_t>(line2_y + line_height + question_prompt_profile_.dash_gap_px),
-				static_cast<int16_t>(draw_line2_width), 1});
-			dash2->SetVisible(true);
-		}
-	}
+void WordPracticeApp::UpdateAsrResultPresentation(int question_type, const std::string &result_text) {
+	const QuestionPromptProfile profile = BuildQuestionPromptProfile(question_type);
+	ApplyPromptPresentation(
+		question_type,
+		profile.visible,
+		profile.dash_width,
+		profile.dash_gap_px,
+		profile.max_lines,
+		profile.dash_black_len,
+		profile.dash_white_len,
+		result_text,
+		label_asr_static_rect_,
+		label_asr_result_,
+		label_asr_line2_,
+		label_asr_line3_,
+		asr_dash_line1_,
+		asr_dash_line2_,
+		asr_dash_line3_,
+		epd_);
 }
 
 WordPracticeApp::QuestionPromptProfile WordPracticeApp::BuildQuestionPromptProfile(int question_type) const {
@@ -1283,10 +1859,15 @@ WordPracticeApp::QuestionPromptProfile WordPracticeApp::BuildQuestionPromptProfi
 			break;
 		case 5:
 		case 6:
+			profile.visible = true;
+			profile.dash_width = kPromptDashWidthLong;
+			profile.max_lines = 3;
+			break;
 		case 9:
 		case 10:
 			profile.visible = true;
 			profile.dash_width = kPromptDashWidthLong;
+			profile.max_lines = 3;
 			break;
 		default:
 			profile.visible = false;
@@ -1325,6 +1906,7 @@ void WordPracticeApp::HandleAnswer(AppButton button) {
 	if (correct) {
 		++correct_count_;
 		score_ += 10;
+		AddLearnedWordsFromText(answer_text);
 		if (image_good_) {
 			image_good_->SetText("word_practice_good.bin");
 			image_good_->SetVisible(true);
@@ -1364,6 +1946,33 @@ void WordPracticeApp::HandleAnswer(AppButton button) {
 }
 
 void WordPracticeApp::RefreshType4Widgets() {
+	auto setup_type4_label = [](app_ui::LabelWidget *label, const char *left_prefix) {
+		if (!label) {
+			return;
+		}
+		app_ui::LabelProfile profile = label->Profile();
+		profile.draw_border = true;
+		profile.draw_rounded_border = true;
+		profile.corner_radius = 12;
+		profile.center_text_h = true;
+		profile.center_text_v = true;
+		profile.draw_left_prefix = (left_prefix != nullptr && left_prefix[0] != '\0');
+		profile.center_text_full_rect = profile.draw_left_prefix;
+		profile.left_prefix = profile.draw_left_prefix ? std::string(left_prefix) : std::string();
+		profile.left_prefix_gap = 4;
+		profile.text_offset_x = profile.draw_left_prefix ? 10 : 0;
+		label->SetProfile(profile);
+	};
+
+	setup_type4_label(label_up_, nullptr);
+	setup_type4_label(label_left_, nullptr);
+	setup_type4_label(label_down_, nullptr);
+	setup_type4_label(label_right_, nullptr);
+	setup_type4_label(label_a_, "A");
+	setup_type4_label(label_b_, "B");
+	setup_type4_label(label_c_, "C");
+	setup_type4_label(label_d_, "D");
+
 	auto set_text_and_focus = [](app_ui::LabelWidget *label, const std::string &text, bool focused) {
 		if (!label) {
 			return;
@@ -1391,8 +2000,7 @@ void WordPracticeApp::RefreshType4Widgets() {
 
 	for (int i = 0; i < 4; ++i) {
 		const std::string right_text = (i < static_cast<int>(type4_right_words_.size())) ? type4_right_words_[static_cast<size_t>(i)] : "";
-		const std::string option_key(1, static_cast<char>('A' + i));
-		set_text_and_focus(right_labels[static_cast<size_t>(i)], FormatOptionWithKey(option_key, right_text), right_matched[static_cast<size_t>(i)]);
+		set_text_and_focus(right_labels[static_cast<size_t>(i)], right_text, right_matched[static_cast<size_t>(i)]);
 	}
 }
 
@@ -1462,6 +2070,9 @@ void WordPracticeApp::HandleType4Action(AppButton button) {
 		if (all_matched) {
 			++correct_count_;
 			score_ += 10;
+			for (const auto &word : type4_left_words_) {
+				AddLearnedWordsFromText(word);
+			}
 			if (image_good_) {
 				image_good_->SetText("word_practice_good.bin");
 				image_good_->SetVisible(true);
@@ -1557,8 +2168,7 @@ void WordPracticeApp::HandleSpeakAction(const ButtonEvent &event) {
 	}
 
 	const AppButton button = event.id;
-
-	if (button != AppButton::A && button != AppButton::D) {
+	if (button != AppButton::D) {
 		return;
 	}
 
@@ -1567,10 +2177,73 @@ void WordPracticeApp::HandleSpeakAction(const ButtonEvent &event) {
 		answer_text = Trim(question_pool_[current_index_].answer);
 	}
 
-	const bool correct = (button == AppButton::A);
+	ESP_LOGI(kTag, "type7-10 manual skip by D");
+	++wrong_count_;
+	score_ = std::max(0, score_ - 2);
+	if (image_bad_) {
+		image_bad_->SetText("word_practice_bad.bin");
+		image_bad_->SetVisible(true);
+	}
+	if (image_good_) {
+		image_good_->SetVisible(false);
+	}
+	if (label_alert_) {
+		label_alert_->SetText("回答错误");
+	}
+	UpdateAsrResultPresentation(current_question_type_, answer_text);
+	if (bottom_bar_) {
+		bottom_bar_->SetText("按方向键或ABCD进入下一题");
+	}
+
+	++total_answered_;
+	SaveAnswerStats(question_pool_[current_index_], false);
+	if (total_answered_ < pass_target_questions_) {
+		awaiting_next_question_ = true;
+	}
+}
+
+void WordPracticeApp::OnChatMessage(const char* role, const char* content) {
+	if (!ctx_ || !ui_ready_ || !label_asr_result_ || !role || !content) {
+		return;
+	}
+	if (current_question_type_ < 7 || current_question_type_ > 10) {
+		return;
+	}
+	if (awaiting_next_question_ || current_index_ >= question_pool_.size()) {
+		return;
+	}
+	if (::strcmp(role, "user") != 0) {
+		return;
+	}
+	if (content[0] == '\0') {
+		return;
+	}
+
+	std::string answer_text = Trim(current_choice_.expected);
+	if (answer_text.empty()) {
+		answer_text = Trim(question_pool_[current_index_].answer);
+	}
+
+	bool correct = false;
+	std::string display_asr = content;
+	if (current_question_type_ == 7 || current_question_type_ == 8) {
+		display_asr = NormalizeLettersOnlyLower(content);
+		const std::string expected = NormalizeLettersOnlyLower(answer_text);
+		correct = (!display_asr.empty() && !expected.empty() && display_asr == expected);
+		ESP_LOGI(kTag, "type7-8 asr normalized='%s' expected='%s'", display_asr.c_str(), expected.c_str());
+	} else {
+		const auto asr_words = NormalizeSentenceWordsLower(content);
+		const auto expected_words = NormalizeSentenceWordsLower(answer_text);
+		const float coverage = ComputeWordCoverageRatio(asr_words, expected_words);
+		correct = coverage >= 0.8f;
+		ESP_LOGI(kTag, "type9-10 asr coverage=%.3f", static_cast<double>(coverage));
+	}
+
+	UpdateAsrResultPresentation(current_question_type_, display_asr);
 	if (correct) {
 		++correct_count_;
 		score_ += 10;
+		AddLearnedWordsFromText(answer_text);
 		if (image_good_) {
 			image_good_->SetText("word_practice_good.bin");
 			image_good_->SetVisible(true);
@@ -1584,9 +2257,12 @@ void WordPracticeApp::HandleSpeakAction(const ButtonEvent &event) {
 		if (bottom_bar_) {
 			bottom_bar_->SetText("按方向键或ABCD进入下一题");
 		}
+		++total_answered_;
+		SaveAnswerStats(question_pool_[current_index_], true);
+		if (total_answered_ < pass_target_questions_) {
+			awaiting_next_question_ = true;
+		}
 	} else {
-		++wrong_count_;
-		score_ = std::max(0, score_ - 2);
 		if (image_bad_) {
 			image_bad_->SetText("word_practice_bad.bin");
 			image_bad_->SetVisible(true);
@@ -1594,36 +2270,15 @@ void WordPracticeApp::HandleSpeakAction(const ButtonEvent &event) {
 		if (image_good_) {
 			image_good_->SetVisible(false);
 		}
+		UpdateAsrResultPresentation(current_question_type_, answer_text);
 		if (label_alert_) {
-			label_alert_->SetText("答错了，正确答案是" + answer_text);
+			label_alert_->SetText("回答错误");
 		}
 		if (bottom_bar_) {
-			bottom_bar_->SetText("按方向键或ABCD进入下一题");
+			bottom_bar_->SetText("按住Start录音，松开识别；D键跳过");
 		}
 	}
-
-	++total_answered_;
-	SaveAnswerStats(question_pool_[current_index_], correct);
-	if (total_answered_ < pass_target_questions_) {
-		awaiting_next_question_ = true;
-	}
-}
-
-void WordPracticeApp::OnChatMessage(const char* role, const char* content) {
-	if (!ctx_ || !ui_ready_ || !label_asr_result_ || !role || !content) {
-		return;
-	}
-	if (current_question_type_ < 7 || current_question_type_ > 10) {
-		return;
-	}
-	if (::strcmp(role, "user") != 0) {
-		return;
-	}
-	if (content[0] == '\0') {
-		return;
-	}
-	ESP_LOGI(kTag, "type7-10 asr text: %s", content);
-	label_asr_result_->SetText(content);
+	SyncScoreLabels();
 	Render(*ctx_);
 }
 
@@ -1636,6 +2291,57 @@ void WordPracticeApp::RefreshType56Widgets() {
 	if (dialog_select_board_) {
 		dialog_select_board_->SetVisible(show);
 		if (show) {
+			const int count = static_cast<int>(type56_words_.size());
+			int grid_rows = 1;
+			int grid_cols = 1;
+			const char *selected_font = "wenquanyi_11pt";
+			if (count > 0) {
+				const app_ui::Rect dialog_rect = dialog_select_board_->DeclaredRect();
+				const int dialog_width = std::max(1, static_cast<int>(dialog_rect.w));
+				const int max_rows = std::min(3, count);
+				bool fitted = false;
+				const std::array<const char *, 2> font_candidates = {"wenquanyi_11pt", "wenquanyi_9pt"};
+				for (const char *font_name : font_candidates) {
+					int max_word_width = 0;
+					for (const auto &word : type56_words_) {
+						const int w = static_cast<int>(epd_ ? epd_->MeasureUtf8Width(word, font_name) : static_cast<int>(word.size() * 8));
+						max_word_width = std::max(max_word_width, w);
+					}
+					const int required_cell_width = std::max(1, max_word_width + 4);
+
+					for (int rows = 1; rows <= max_rows; ++rows) {
+						const int cols = std::max(1, (count + rows - 1) / rows);
+						const int cell_width = dialog_width / cols;
+						if (cell_width >= required_cell_width) {
+							grid_rows = rows;
+							grid_cols = cols;
+							selected_font = font_name;
+							fitted = true;
+							break;
+						}
+					}
+					if (fitted) {
+						break;
+					}
+				}
+
+				if (!fitted) {
+					selected_font = "wenquanyi_9pt";
+					grid_rows = std::min(3, count);
+					grid_cols = std::max(1, (count + grid_rows - 1) / grid_rows);
+				}
+			}
+			type56_grid_cols_ = grid_cols;
+			dialog_select_board_->SetFontName(selected_font);
+
+			app_ui::DialogProfile dialog_profile = dialog_select_board_->Profile();
+			dialog_profile.mode = app_ui::DialogProfile::Mode::Grid;
+			dialog_profile.grid_rows = std::max(1, grid_rows);
+			dialog_profile.grid_cols = std::max(1, grid_cols);
+			dialog_profile.navigation_enabled = false;
+			dialog_profile.selection_highlight_enabled = true;
+			dialog_select_board_->SetProfile(dialog_profile);
+
 			if (type56_selected_index_ < 0) {
 				type56_selected_index_ = 0;
 			}
@@ -1645,6 +2351,7 @@ void WordPracticeApp::RefreshType56Widgets() {
 			dialog_select_board_->SetItems(type56_words_);
 			dialog_select_board_->SetSelectedIndex(type56_selected_index_);
 		} else {
+			type56_grid_cols_ = 1;
 			dialog_select_board_->SetItems({});
 			dialog_select_board_->SetSelectedIndex(0);
 			dialog_select_board_->SetText("");
@@ -1668,33 +2375,84 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 	}
 
 	const int count = static_cast<int>(type56_words_.size());
-	const int cols = std::max(1, (count + 1) / 2);
+	const int cols = std::max(1, type56_grid_cols_);
+	if (count > 0) {
+		if (type56_selected_index_ < 0) {
+			type56_selected_index_ = 0;
+		}
+		if (type56_selected_index_ >= count) {
+			type56_selected_index_ = count - 1;
+		}
+	}
+
+	auto row_item_count = [count, cols](int row) -> int {
+		const int start = row * cols;
+		if (start >= count) {
+			return 0;
+		}
+		return std::min(cols, count - start);
+	};
+
 	if (button == AppButton::Up && count > 0) {
-		if (type56_selected_index_ >= cols) {
-			type56_selected_index_ -= cols;
+		const int rows = std::max(1, (count + cols - 1) / cols);
+		const int row = type56_selected_index_ / cols;
+		const int col = type56_selected_index_ % cols;
+		int target_row = (row - 1 + rows) % rows;
+		for (int i = 0; i < rows; ++i) {
+			if (col < row_item_count(target_row)) {
+				type56_selected_index_ = target_row * cols + col;
+				break;
+			}
+			target_row = (target_row - 1 + rows) % rows;
 		}
 		RefreshType56Widgets();
 		return;
 	}
 	if (button == AppButton::Down && count > 0) {
-		if (type56_selected_index_ + cols < count) {
-			type56_selected_index_ += cols;
+		const int rows = std::max(1, (count + cols - 1) / cols);
+		const int row = type56_selected_index_ / cols;
+		const int col = type56_selected_index_ % cols;
+		int target_row = (row + 1) % rows;
+		for (int i = 0; i < rows; ++i) {
+			if (col < row_item_count(target_row)) {
+				type56_selected_index_ = target_row * cols + col;
+				break;
+			}
+			target_row = (target_row + 1) % rows;
 		}
 		RefreshType56Widgets();
 		return;
 	}
 	if (button == AppButton::Left && count > 0) {
-		if (type56_selected_index_ > 0) {
-			--type56_selected_index_;
-		}
+		const int row = type56_selected_index_ / cols;
+		const int row_start = row * cols;
+		const int items_in_row = row_item_count(row);
+		const int row_end = row_start + std::max(1, items_in_row) - 1;
+		type56_selected_index_ = (type56_selected_index_ > row_start) ? (type56_selected_index_ - 1) : row_end;
 		RefreshType56Widgets();
 		return;
 	}
 	if (button == AppButton::Right && count > 0) {
-		if (type56_selected_index_ + 1 < count) {
-			++type56_selected_index_;
-		}
+		const int row = type56_selected_index_ / cols;
+		const int row_start = row * cols;
+		const int items_in_row = row_item_count(row);
+		const int row_end = row_start + std::max(1, items_in_row) - 1;
+		type56_selected_index_ = (type56_selected_index_ < row_end) ? (type56_selected_index_ + 1) : row_start;
 		RefreshType56Widgets();
+		return;
+	}
+
+	if (button == AppButton::B) {
+		std::string text = Trim(type56_input_answer_);
+		if (!text.empty()) {
+			const size_t split = text.find_last_of(' ');
+			if (split == std::string::npos) {
+				type56_input_answer_.clear();
+			} else {
+				type56_input_answer_ = Trim(text.substr(0, split));
+			}
+			RefreshType56Widgets();
+		}
 		return;
 	}
 
@@ -1722,6 +2480,7 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 	if (correct) {
 		++correct_count_;
 		score_ += 10;
+		AddLearnedWordsFromText(answer_text);
 		if (image_good_) {
 			image_good_->SetText("word_practice_good.bin");
 			image_good_->SetVisible(true);
@@ -1745,8 +2504,10 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 		if (image_good_) {
 			image_good_->SetVisible(false);
 		}
+		type56_input_answer_ = expected_display;
+		RefreshType56Widgets();
 		if (label_alert_) {
-			label_alert_->SetText("答错了，正确答案是" + expected_display);
+			label_alert_->SetText("回答错误");
 		}
 		if (bottom_bar_) {
 			bottom_bar_->SetText("按方向键或ABCD进入下一题");
@@ -1822,7 +2583,7 @@ std::string WordPracticeApp::TypeInstruction(int question_type) const {
 		case 8:
 		case 9:
 		case 10:
-			return "按A开始口语词句，D跳过";
+			return "按住Start录音，松开识别，D跳过";
 		default:
 			return "按键作答";
 	}

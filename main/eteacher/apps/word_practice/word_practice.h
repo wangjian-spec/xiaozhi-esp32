@@ -62,6 +62,11 @@ private:
 		int dash_white_len = 1;
 	};
 
+	enum class QuestionSelectionStrategy {
+		LegacyAdaptive,
+		TypeCycleRandom,
+	};
+
 	bool LoadUi(AppContext &ctx);
 	bool LoadScene(AppContext &ctx, const std::string &scene_id, uint16_t scene_index);
 	void InitUiEngine();
@@ -70,6 +75,9 @@ private:
 
 	void LoadQuestionPool();
 	bool PickNextQuestion();
+	bool PickNextQuestionByLegacyAdaptive();
+	bool PickNextQuestionByTypeCycleRandom();
+	void CommitSelectedQuestion(size_t index);
 	void PresentCurrentQuestion();
 	void ShowSessionSummary();
 
@@ -80,6 +88,11 @@ private:
 	void RefreshType4Widgets();
 	void RefreshType56Widgets();
 	void UpdateQuestionPromptPresentation(int question_type, const std::string &prompt);
+	void UpdateAsrResultPresentation(int question_type, const std::string &result_text);
+	void SyncScoreLabels();
+	void AddLearnedWordsFromText(const std::string &text);
+	void HideSettlementLearnedWordLabels();
+	void RenderSettlementLearnedWordLabels();
 	QuestionPromptProfile BuildQuestionPromptProfile(int question_type) const;
 	bool IsSessionPassed() const;
 
@@ -132,19 +145,31 @@ private:
 	app_ui::ImageWidget *image_b_ = nullptr;
 	app_ui::ImageWidget *image_c_ = nullptr;
 	app_ui::ImageWidget *image_d_ = nullptr;
+	app_ui::ImageWidget *image_write_ = nullptr;
+	app_ui::ImageWidget *image_input_ = nullptr;
 
 	app_ui::LabelWidget *label_a_ = nullptr;
 	app_ui::LabelWidget *label_b_ = nullptr;
 	app_ui::LabelWidget *label_c_ = nullptr;
 	app_ui::LabelWidget *label_d_ = nullptr;
 	app_ui::LabelWidget *label_question_line2_ = nullptr;
+	app_ui::LabelWidget *label_question_line3_ = nullptr;
 	app_ui::Widget *question_dash_line1_ = nullptr;
 	app_ui::Widget *question_dash_line2_ = nullptr;
+	app_ui::Widget *question_dash_line3_ = nullptr;
+	app_ui::LabelWidget *label_asr_line2_ = nullptr;
+	app_ui::LabelWidget *label_asr_line3_ = nullptr;
+	app_ui::Widget *asr_dash_line1_ = nullptr;
+	app_ui::Widget *asr_dash_line2_ = nullptr;
+	app_ui::Widget *asr_dash_line3_ = nullptr;
 
 	app_ui::LabelWidget *label_up_ = nullptr;
 	app_ui::LabelWidget *label_left_ = nullptr;
 	app_ui::LabelWidget *label_down_ = nullptr;
 	app_ui::LabelWidget *label_right_ = nullptr;
+	app_ui::Rect label_question_static_rect_{};
+	app_ui::Rect label_asr_static_rect_{};
+	app_ui::Rect image_public_speaker_static_rect_{};
 
 	std::vector<QuestionData> question_pool_{};
 	std::vector<int> recent_types_{};
@@ -165,12 +190,17 @@ private:
 	int type4_selected_left_index_ = 0;
 	std::vector<std::string> type56_words_{};
 	int type56_selected_index_ = 0;
+	int type56_grid_cols_ = 1;
 	std::string type56_input_answer_;
+	std::vector<std::string> learned_words_this_round_{};
+	std::vector<app_ui::LabelWidget *> settlement_learned_word_labels_{};
 	QuestionPromptProfile question_prompt_profile_{};
 	std::string textbook_name_ = "default";
 	std::string current_audio_path_;
 	esp_timer_handle_t question_audio_timer_ = nullptr;
 	bool speak_recording_ = false;
+	int next_question_type_cursor_ = 1;
+	QuestionSelectionStrategy question_selection_strategy_ = QuestionSelectionStrategy::TypeCycleRandom;
 };
 
 std::unique_ptr<AppBase> MakeWordPracticeApp();

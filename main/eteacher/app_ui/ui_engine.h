@@ -80,9 +80,7 @@ public:
     void Reset();
 
     void SetPainter(Painter* painter);
-    void SetViewport(const Rect& rect);
 
-    InputQueue& Input();
     void AddDirty(const Rect& rect, DirtyReason reason);
     void MarkFocusDirty();
     void RequestFocus(uint32_t widget_id);
@@ -117,6 +115,7 @@ private:
     std::atomic_bool scheduled_{false};
     mutable std::recursive_mutex mutex_{};
     ::CustomEpdDisplay* epd_ = nullptr;
+    bool reset_requested_ = false;
 };
 
 } // namespace app_ui

@@ -42,13 +42,10 @@ void InputQueue::Clear() {
     }
 }
 
-size_t InputQueue::Size() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return queue_.size();
-}
-
 void FocusManager::Build(Widget* root) {
     focus_ids_.clear();
+    focus_index_by_id_.clear();
+    id_to_widget_.clear();
     root_ = root;
     current_index_ = -1;
     Traverse(root);
@@ -66,6 +63,8 @@ void FocusManager::Clear() {
         current->SetFocused(false);
     }
     focus_ids_.clear();
+    focus_index_by_id_.clear();
+    id_to_widget_.clear();
     current_index_ = -1;
     dirty_ = true;
     root_ = nullptr;
@@ -114,17 +113,13 @@ bool FocusManager::SetCurrentById(uint32_t id) {
     if (!root_ || id == 0) {
         return false;
     }
-    Widget* target = root_->FindById(id);
+    Widget* target = ResolveById(id);
     app_ui::debug::PrintFocusSetById(id, target);
     return SetCurrent(target);
 }
 
 Widget* FocusManager::Current() const {
     return ResolveByIndex(current_index_);
-}
-
-void FocusManager::SetWrap(bool wrap) {
-    wrap_ = wrap;
 }
 
 bool FocusManager::MoveSpatial(KeyCode key) {
@@ -188,11 +183,11 @@ bool FocusManager::SetCurrent(Widget* target) {
     Widget* cur = ResolveByIndex(current_index_);
     const uint32_t cur_id = cur ? cur->Id() : 0;
     app_ui::debug::PrintFocusSwitch(cur_id, cur, id, target);
-    auto it = std::find(focus_ids_.begin(), focus_ids_.end(), id);
-    if (it == focus_ids_.end()) {
+    auto it = focus_index_by_id_.find(id);
+    if (it == focus_index_by_id_.end()) {
         return false;
     }
-    const int next = static_cast<int>(std::distance(focus_ids_.begin(), it));
+    const int next = it->second;
     if (next == current_index_) {
         return true;
     }
@@ -222,7 +217,7 @@ Widget* FocusManager::FindSpatialTarget(Widget* current, KeyCode key) const {
     int32_t best_score = INT32_MAX;
 
     for (uint32_t candidate_id : focus_ids_) {
-        Widget* candidate = root_ ? root_->FindById(candidate_id) : nullptr;
+        Widget* candidate = ResolveById(candidate_id);
         if (!candidate || candidate == current) {
             continue;
         }
@@ -277,9 +272,13 @@ void FocusManager::Traverse(Widget* node) {
     if (!node || !node->Visible()) {
         return;
     }
+    const uint32_t id = node->Id();
+    if (id != 0) {
+        id_to_widget_[id] = node;
+    }
     if (node->Focusable() && node->Enabled()) {
-        const uint32_t id = node->Id();
         if (id != 0) {
+            focus_index_by_id_[id] = static_cast<int>(focus_ids_.size());
             focus_ids_.push_back(id);
         }
     }
@@ -288,11 +287,19 @@ void FocusManager::Traverse(Widget* node) {
     }
 }
 
+Widget* FocusManager::ResolveById(uint32_t id) const {
+    auto it = id_to_widget_.find(id);
+    if (it == id_to_widget_.end()) {
+        return nullptr;
+    }
+    return it->second;
+}
+
 Widget* FocusManager::ResolveByIndex(int index) const {
     if (!root_ || index < 0 || index >= static_cast<int>(focus_ids_.size())) {
         return nullptr;
     }
-    return root_->FindById(focus_ids_[index]);
+    return ResolveById(focus_ids_[index]);
 }
 
 void InputDispatcher::Dispatch(const InputEvent& event, Widget* root, FocusManager& focus) {
@@ -335,12 +342,16 @@ bool InputDispatcher::DispatchPath(const std::vector<Widget*>& path, const Input
     bool handled = false;
     bool stop_bubble = false;
 
-    // Capture: only Continue or StopBubble (Consume is ignored in capture).
+    // Capture: Consume immediately handles the event; StopBubble blocks bubbling but still runs target.
     for (size_t i = 0; i + 1 < path.size(); ++i) {
         const InputResult result = path[i]->OnInput(event, InputPhase::Capture);
+        if (result == InputResult::Consume) {
+            return true;
+        }
         if (result == InputResult::StopBubble) {
             handled = true;
             stop_bubble = true;
+            break;
         }
     }
 

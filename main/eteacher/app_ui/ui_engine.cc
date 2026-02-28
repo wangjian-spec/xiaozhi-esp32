@@ -54,33 +54,23 @@ void UIEngine::SetRoot(std::unique_ptr<Widget> root) {
 
 void UIEngine::Reset() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
+    reset_requested_ = true;
     focus_.Clear();
-    active_root_.reset();
     pending_root_.reset();
     cached_root_ = nullptr;
     pending_focus_id_ = 0;
     input_queue_.Clear();
+    deferred_inputs_.clear();
     dirty_.Clear();
     animation_.StopAll();
     style_.MarkDirty(true);
     need_layout_ = true;
     need_render_ = true;
+    ScheduleIfNeeded();
 }
 
 void UIEngine::SetPainter(Painter* painter) {
     painter_ = painter;
-}
-
-void UIEngine::SetViewport(const Rect& rect) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
-    viewport_ = rect;
-    dirty_.SetFullRect(viewport_);
-    MarkLayoutDirty();
-    ScheduleIfNeeded();
-}
-
-InputQueue& UIEngine::Input() {
-    return input_queue_;
 }
 
 void UIEngine::AddDirty(const Rect& rect, DirtyReason reason) {
@@ -151,7 +141,20 @@ void UIEngine::RenderInternal(::Adafruit_GFX& gfx) {
 }
 
 void UIEngine::Tick(uint32_t delta_ms) {
-    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    if (reset_requested_) {
+        active_root_.reset();
+        cached_root_ = nullptr;
+        pending_focus_id_ = 0;
+        focus_.Clear();
+        dirty_.Clear();
+        input_queue_.Clear();
+        deferred_inputs_.clear();
+        reset_requested_ = false;
+        need_layout_ = true;
+        need_render_ = true;
+    }
+
     if (!deferred_inputs_.empty()) {
         for (const auto& pending : deferred_inputs_) {
             input_queue_.Push(pending);
@@ -180,6 +183,7 @@ void UIEngine::Tick(uint32_t delta_ms) {
         dirty_.Clear();
         need_layout_ = false;
         need_render_ = false;
+        phase_ = UIPhase::Idle;
         return;
     }
 
@@ -207,10 +211,13 @@ void UIEngine::Tick(uint32_t delta_ms) {
         MarkRenderDirty();
     }
 
-    if (need_layout_) {
+    const bool do_layout = need_layout_;
+    if (do_layout) {
         phase_ = UIPhase::Layout;
+        lock.unlock();
         layout_.LayoutTree(root, viewport_);
         render_list_.Build(root);
+        lock.lock();
         need_layout_ = false;
         need_render_ = true;
     }
@@ -218,13 +225,6 @@ void UIEngine::Tick(uint32_t delta_ms) {
     focus_.RebuildIfNeeded(root);
     if (pending_focus_id_ != 0) {
         app_ui::debug::PrintApplyPendingFocus(pending_focus_id_, focus_.SetCurrentById(pending_focus_id_));
-        // Debug: check visibility of known device_setting widgets (TabView and SavedList)
-        Widget* root_check = active_root_.get();
-        if (root_check) {
-            const uint32_t kTabId = 0xA8EC2EDCu;
-            const uint32_t kSavedListId = 0x0DB3CD15u;
-            app_ui::debug::PrintDebugVisibility(root_check, kTabId, kSavedListId);
-        }
         pending_focus_id_ = 0;
     }
 

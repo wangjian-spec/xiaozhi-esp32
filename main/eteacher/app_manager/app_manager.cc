@@ -155,7 +155,9 @@ void AppManager::HandleButton(const ButtonEvent &event)
         }
         break;
     case AppButton::Start:
-        EnterCurrent();
+        if (event.action == ButtonAction::Click) {
+            EnterCurrent();
+        }
         break;
     case AppButton::Select:
     case AppButton::A:
