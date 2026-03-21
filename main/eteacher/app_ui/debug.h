@@ -10,7 +10,7 @@ namespace debug {
 
 // Control debug printing. Define `APP_UI_DEBUG` to 0 to disable debug prints
 #ifndef APP_UI_DEBUG
-#define APP_UI_DEBUG 0
+#define APP_UI_DEBUG 1
 #endif
 
 #if APP_UI_DEBUG

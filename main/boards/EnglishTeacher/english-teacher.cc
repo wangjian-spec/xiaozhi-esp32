@@ -23,7 +23,7 @@ static constexpr const char* kTag = "EnglishTeacherBoard";
 static constexpr uint16_t kBtnLongPressMs = 2000;
 static constexpr uint16_t kBtnShortPressMs = 40;
 
-static constexpr uint32_t kSharedSpiHz = 20 * 1000 * 1000;
+static constexpr uint32_t kSharedSpiHz = 40 * 1000 * 1000;
 
 EnglishTeacherBoard::EnglishTeacherBoard()
 	// 注意：active_high 默认为 false（按下=低电平）。若你硬件是“按下=高电平”，需要把这里的 false 改成 true。

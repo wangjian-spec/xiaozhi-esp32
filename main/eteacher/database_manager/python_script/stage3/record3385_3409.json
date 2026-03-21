@@ -1,0 +1,1357 @@
+{
+  "metadata": {
+    "source_file": "words_export.json",
+    "range": "3385-3409",
+    "stage": 3,
+    "generated_at": "2026-03-20",
+    "record_count": 25,
+    "notes": "Manual Copilot generation for stage-3 records; protected source fields were kept unchanged."
+  },
+  "records": [
+    {
+      "word": {
+        "id": 2590,
+        "word": "a(an)",
+        "phonetic": "/ə,eɪ(ən)/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3385,
+        "word_id": 2590,
+        "stage": 3,
+        "pos": "冠词",
+        "meaning_en": "used before a singular countable noun to mean one or any one",
+        "meaning_zh": "art.一（个、件……）",
+        "image": "",
+        "word_tag": "基础词"
+      },
+      "word_form": [],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3385,
+          "example_en": "A new plan changed our class project today.",
+          "example_zh": "一个新计划今天改变了我们的班级项目。",
+          "difficulty": 2,
+          "image": "",
+          "example_tag": "拼写",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3385,
+          "example_en": "An old map helped us find the village.",
+          "example_zh": "一张旧地图帮助我们找到了那个村庄。",
+          "difficulty": 2,
+          "image": "map_village.png",
+          "example_tag": "听力",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2591,
+        "word": "abandon",
+        "phonetic": "/əˈbændən/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3386,
+        "word_id": 2591,
+        "stage": 3,
+        "pos": "动词",
+        "meaning_en": "to leave someone or something behind completely",
+        "meaning_zh": "v.抛弃，舍弃，放弃",
+        "image": "",
+        "word_tag": "行为"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2591,
+          "form_type": "third_person_singular",
+          "form": "abandons"
+        },
+        {
+          "id": null,
+          "word_id": 2591,
+          "form_type": "past_tense",
+          "form": "abandoned"
+        },
+        {
+          "id": null,
+          "word_id": 2591,
+          "form_type": "past_participle",
+          "form": "abandoned"
+        },
+        {
+          "id": null,
+          "word_id": 2591,
+          "form_type": "present_participle",
+          "form": "abandoning"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3386,
+          "example_en": "They had to abandon the plan after sunset.",
+          "example_zh": "日落后他们不得不放弃那个计划。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "写作",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3386,
+          "example_en": "Never abandon hope during a hard exam week.",
+          "example_zh": "在艰难的考试周里永远不要放弃希望。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "励志",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2230,
+        "word": "ability",
+        "phonetic": "[əˈbɪlɪti]",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3387,
+        "word_id": 2230,
+        "stage": 3,
+        "pos": "名词",
+        "meaning_en": "the power or skill to do something well",
+        "meaning_zh": "n.能力；才能",
+        "image": "",
+        "word_tag": "能力"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2230,
+          "form_type": "plural",
+          "form": "abilities"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3387,
+          "example_en": "Her ability to solve puzzles surprised the whole class.",
+          "example_zh": "她解决谜题的能力让全班都很惊讶。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "课堂",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3387,
+          "example_en": "Practice can improve your reading ability over time.",
+          "example_zh": "练习可以随着时间提升你的阅读能力。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "学习",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 992,
+        "word": "able",
+        "phonetic": "[ˈeibl]",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3388,
+        "word_id": 992,
+        "stage": 3,
+        "pos": "形容词",
+        "meaning_en": "having the power, skill, or chance to do something",
+        "meaning_zh": "a.能够；有能力的",
+        "image": "",
+        "word_tag": "能力"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 992,
+          "form_type": "comparative",
+          "form": "abler"
+        },
+        {
+          "id": null,
+          "word_id": 992,
+          "form_type": "superlative",
+          "form": "ablest"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3388,
+          "example_en": "She is able to finish the task alone.",
+          "example_zh": "她能够独自完成这项任务。",
+          "difficulty": 3,
+          "image": "",
+          "example_tag": "写作",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3388,
+          "example_en": "We were able to catch the early train.",
+          "example_zh": "我们得以及时赶上了早班火车。",
+          "difficulty": 3,
+          "image": "early_train.png",
+          "example_tag": "听力",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2592,
+        "word": "abnormal",
+        "phonetic": "/æbˈnɔːm(ə)l/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3389,
+        "word_id": 2592,
+        "stage": 3,
+        "pos": "形容词",
+        "meaning_en": "different from what is usual or normal",
+        "meaning_zh": "a.反常的，变态的",
+        "image": "",
+        "word_tag": "状态"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2592,
+          "form_type": "comparative",
+          "form": "more abnormal"
+        },
+        {
+          "id": null,
+          "word_id": 2592,
+          "form_type": "superlative",
+          "form": "most abnormal"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3389,
+          "example_en": "The doctor noticed an abnormal sound in his chest.",
+          "example_zh": "医生注意到他胸腔里有异常的声音。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "医学",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3389,
+          "example_en": "Such abnormal weather worried the farmers all week.",
+          "example_zh": "这种反常的天气让农民担心了一整周。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2593,
+        "word": "aboard",
+        "phonetic": "/əˈbɔːd/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3390,
+        "word_id": 2593,
+        "stage": 3,
+        "pos": "介词, 副词",
+        "meaning_en": "on or onto a ship, plane, train, or bus",
+        "meaning_zh": "prep.上（船，飞机，火车，汽车等）",
+        "image": "aboard_train.png",
+        "word_tag": "交通"
+      },
+      "word_form": [],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3390,
+          "example_en": "All passengers got aboard before the train moved.",
+          "example_zh": "在火车开动前，所有乘客都上了车。",
+          "difficulty": 4,
+          "image": "boarding_train.png",
+          "example_tag": "听力",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3390,
+          "example_en": "We climbed aboard and waved at our friends.",
+          "example_zh": "我们登上去后向朋友们挥手。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "口语",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2594,
+        "word": "abolish",
+        "phonetic": "/əˈbɔlɪʃ/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3391,
+        "word_id": 2594,
+        "stage": 3,
+        "pos": "动词",
+        "meaning_en": "to officially end a law, system, or practice",
+        "meaning_zh": "v.废除，废止",
+        "image": "",
+        "word_tag": "法律"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2594,
+          "form_type": "third_person_singular",
+          "form": "abolishes"
+        },
+        {
+          "id": null,
+          "word_id": 2594,
+          "form_type": "past_tense",
+          "form": "abolished"
+        },
+        {
+          "id": null,
+          "word_id": 2594,
+          "form_type": "past_participle",
+          "form": "abolished"
+        },
+        {
+          "id": null,
+          "word_id": 2594,
+          "form_type": "present_participle",
+          "form": "abolishing"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3391,
+          "example_en": "People voted to abolish the unfair school rule.",
+          "example_zh": "人们投票废除了那条不公平的校规。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3391,
+          "example_en": "The law was abolished after a long debate.",
+          "example_zh": "那项法律经过长时间辩论后被废除了。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "写作",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2595,
+        "word": "abortion",
+        "phonetic": "/əˈbɔːʃ(ə)n/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3392,
+        "word_id": 2595,
+        "stage": 3,
+        "pos": "名词",
+        "meaning_en": "the deliberate ending of a pregnancy",
+        "meaning_zh": "v.人工流产，堕胎",
+        "image": "",
+        "word_tag": "医学"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2595,
+          "form_type": "plural",
+          "form": "abortions"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3392,
+          "example_en": "The article discussed abortion and public health carefully.",
+          "example_zh": "那篇文章谨慎地讨论了堕胎与公共健康。",
+          "difficulty": 8,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3392,
+          "example_en": "They debated abortion in the ethics class today.",
+          "example_zh": "他们今天在伦理课上讨论了堕胎问题。",
+          "difficulty": 8,
+          "image": "",
+          "example_tag": "课堂",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 1104,
+        "word": "about",
+        "phonetic": "[ə'baʊt]",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3393,
+        "word_id": 1104,
+        "stage": 3,
+        "pos": "副词, 介词",
+        "meaning_en": "on the subject of; around or in many places",
+        "meaning_zh": "ad.大约；到处；四处prep.关于；在各处；四处",
+        "image": "",
+        "word_tag": "关系"
+      },
+      "word_form": [],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3393,
+          "example_en": "We talked about science during the lunch break.",
+          "example_zh": "午休时我们谈论了科学。",
+          "difficulty": 2,
+          "image": "",
+          "example_tag": "口语",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3393,
+          "example_en": "The kids ran about the yard after rain.",
+          "example_zh": "雨后孩子们在院子里到处跑。",
+          "difficulty": 3,
+          "image": "kids_yard.png",
+          "example_tag": "游戏",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2522,
+        "word": "above",
+        "phonetic": "[ə'bʌv]",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3394,
+        "word_id": 2522,
+        "stage": 3,
+        "pos": "介词, 形容词, 副词",
+        "meaning_en": "higher than something else; in the place mentioned before",
+        "meaning_zh": "prep.在……上面a.上面的ad.在……之上",
+        "image": "",
+        "word_tag": "方位"
+      },
+      "word_form": [],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3394,
+          "example_en": "A bright lamp hung above the small table.",
+          "example_zh": "一盏明亮的灯悬挂在小桌子上方。",
+          "difficulty": 3,
+          "image": "lamp_above_table.png",
+          "example_tag": "看图",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3394,
+          "example_en": "The text above gives the key answer.",
+          "example_zh": "上面的文字给出了关键答案。",
+          "difficulty": 3,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2106,
+        "word": "abroad",
+        "phonetic": "[ə'brɔ:d/]",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3395,
+        "word_id": 2106,
+        "stage": 3,
+        "pos": "副词",
+        "meaning_en": "in or to a foreign country",
+        "meaning_zh": "ad.到（在）国外",
+        "image": "study_abroad.png",
+        "word_tag": "留学"
+      },
+      "word_form": [],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3395,
+          "example_en": "She hopes to study abroad after high school.",
+          "example_zh": "她希望高中毕业后去国外学习。",
+          "difficulty": 4,
+          "image": "student_abroad.png",
+          "example_tag": "写作",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3395,
+          "example_en": "My uncle worked abroad for three years.",
+          "example_zh": "我叔叔在国外工作了三年。",
+          "difficulty": 3,
+          "image": "",
+          "example_tag": "听力",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2596,
+        "word": "abrupt",
+        "phonetic": "/əˈbrʌpt/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3396,
+        "word_id": 2596,
+        "stage": 3,
+        "pos": "形容词",
+        "meaning_en": "sudden and unexpected, often in an unfriendly way",
+        "meaning_zh": "a.突然的，意外的，粗鲁",
+        "image": "",
+        "word_tag": "状态"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2596,
+          "form_type": "comparative",
+          "form": "more abrupt"
+        },
+        {
+          "id": null,
+          "word_id": 2596,
+          "form_type": "superlative",
+          "form": "most abrupt"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3396,
+          "example_en": "His abrupt answer ended the friendly talk.",
+          "example_zh": "他突然又生硬的回答结束了友好的谈话。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "口语",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3396,
+          "example_en": "The car made an abrupt stop near school.",
+          "example_zh": "那辆车在学校附近突然停下。",
+          "difficulty": 4,
+          "image": "car_stop.png",
+          "example_tag": "听力",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2597,
+        "word": "absence",
+        "phonetic": "/ˈæbsəns/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3397,
+        "word_id": 2597,
+        "stage": 3,
+        "pos": "名词",
+        "meaning_en": "the fact of not being in a place where you are expected",
+        "meaning_zh": "n.不在，缺席",
+        "image": "",
+        "word_tag": "校园"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2597,
+          "form_type": "plural",
+          "form": "absences"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3397,
+          "example_en": "Her absence from class worried the teacher.",
+          "example_zh": "她缺课让老师很担心。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "校园",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3397,
+          "example_en": "The room felt strange in his absence.",
+          "example_zh": "他不在时，这个房间显得很奇怪。",
+          "difficulty": 5,
+          "image": "empty_room.png",
+          "example_tag": "阅读",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2306,
+        "word": "absent",
+        "phonetic": "[ˈæbsənt]",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3398,
+        "word_id": 2306,
+        "stage": 3,
+        "pos": "形容词",
+        "meaning_en": "not in the place where someone should be",
+        "meaning_zh": "a.缺席，不在",
+        "image": "",
+        "word_tag": "校园"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2306,
+          "form_type": "comparative",
+          "form": "more absent"
+        },
+        {
+          "id": null,
+          "word_id": 2306,
+          "form_type": "superlative",
+          "form": "most absent"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3398,
+          "example_en": "Two students were absent from the meeting today.",
+          "example_zh": "今天有两名学生缺席了会议。",
+          "difficulty": 3,
+          "image": "",
+          "example_tag": "校园",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3398,
+          "example_en": "The manager was absent during the morning call.",
+          "example_zh": "经理在上午通话时不在场。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "商务",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2598,
+        "word": "absolute",
+        "phonetic": "/ˈæbsəluːt/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3399,
+        "word_id": 2598,
+        "stage": 3,
+        "pos": "形容词",
+        "meaning_en": "complete and total, with no limit or doubt",
+        "meaning_zh": "a.完全，全部，绝对的",
+        "image": "",
+        "word_tag": "程度"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2598,
+          "form_type": "comparative",
+          "form": "more absolute"
+        },
+        {
+          "id": null,
+          "word_id": 2598,
+          "form_type": "superlative",
+          "form": "most absolute"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3399,
+          "example_en": "We need absolute silence during the final test.",
+          "example_zh": "期末考试期间我们需要绝对安静。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "校园",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3399,
+          "example_en": "His answer showed absolute trust in science.",
+          "example_zh": "他的回答表现出对科学的绝对信任。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "写作",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2599,
+        "word": "absorb",
+        "phonetic": "/əbˈsɔːb/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3400,
+        "word_id": 2599,
+        "stage": 3,
+        "pos": "动词",
+        "meaning_en": "to take in liquid, heat, or information fully",
+        "meaning_zh": "v.吸收，使全神贯注",
+        "image": "",
+        "word_tag": "科学"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2599,
+          "form_type": "third_person_singular",
+          "form": "absorbs"
+        },
+        {
+          "id": null,
+          "word_id": 2599,
+          "form_type": "past_tense",
+          "form": "absorbed"
+        },
+        {
+          "id": null,
+          "word_id": 2599,
+          "form_type": "past_participle",
+          "form": "absorbed"
+        },
+        {
+          "id": null,
+          "word_id": 2599,
+          "form_type": "present_participle",
+          "form": "absorbing"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3400,
+          "example_en": "Dry soil can absorb water very quickly.",
+          "example_zh": "干燥的土壤可以很快吸收水分。",
+          "difficulty": 4,
+          "image": "soil_absorb_water.png",
+          "example_tag": "科学",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3400,
+          "example_en": "The book absorbed her for the whole evening.",
+          "example_zh": "那本书让她整个晚上都全神贯注。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2600,
+        "word": "abstract",
+        "phonetic": "/ˈæbstrækt/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3401,
+        "word_id": 2600,
+        "stage": 3,
+        "pos": "形容词, 名词",
+        "meaning_en": "based on ideas rather than real things; an abstract work or summary",
+        "meaning_zh": "a./n.抽象的（作品）",
+        "image": "abstract_painting.png",
+        "word_tag": "艺术"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2600,
+          "form_type": "plural",
+          "form": "abstracts"
+        },
+        {
+          "id": null,
+          "word_id": 2600,
+          "form_type": "comparative",
+          "form": "more abstract"
+        },
+        {
+          "id": null,
+          "word_id": 2600,
+          "form_type": "superlative",
+          "form": "most abstract"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3401,
+          "example_en": "The painting looked abstract but deeply moving.",
+          "example_zh": "那幅画看起来很抽象，但非常动人。",
+          "difficulty": 5,
+          "image": "abstract_painting_scene.png",
+          "example_tag": "艺术",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3401,
+          "example_en": "Abstract ideas are hard for young children.",
+          "example_zh": "抽象的概念对年幼的孩子来说很难。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "课堂",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2601,
+        "word": "absurd",
+        "phonetic": "/əbˈsɜːd/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3402,
+        "word_id": 2601,
+        "stage": 3,
+        "pos": "形容词",
+        "meaning_en": "very silly or unreasonable",
+        "meaning_zh": "a.荒谬的，怪诞不经的",
+        "image": "",
+        "word_tag": "评价"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2601,
+          "form_type": "comparative",
+          "form": "more absurd"
+        },
+        {
+          "id": null,
+          "word_id": 2601,
+          "form_type": "superlative",
+          "form": "most absurd"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3402,
+          "example_en": "It sounds absurd to swim in winter at dawn.",
+          "example_zh": "冬天黎明去游泳听起来很荒谬。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "口语",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3402,
+          "example_en": "His absurd excuse made everyone laugh softly.",
+          "example_zh": "他荒谬的借口让大家都轻声笑了。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "对话",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2602,
+        "word": "abundant",
+        "phonetic": "/əˈbʌndənt/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3403,
+        "word_id": 2602,
+        "stage": 3,
+        "pos": "形容词",
+        "meaning_en": "existing in large amounts; more than enough",
+        "meaning_zh": "a.大量,丰盛的,充裕的",
+        "image": "abundant_harvest.png",
+        "word_tag": "资源"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2602,
+          "form_type": "comparative",
+          "form": "more abundant"
+        },
+        {
+          "id": null,
+          "word_id": 2602,
+          "form_type": "superlative",
+          "form": "most abundant"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3403,
+          "example_en": "This region has abundant rain in summer.",
+          "example_zh": "这个地区夏天雨水充沛。",
+          "difficulty": 4,
+          "image": "summer_rain.png",
+          "example_tag": "地理",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3403,
+          "example_en": "The farm offered abundant fruit for the market.",
+          "example_zh": "农场为市场提供了大量水果。",
+          "difficulty": 4,
+          "image": "farm_fruit.png",
+          "example_tag": "看图",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2603,
+        "word": "abuse",
+        "phonetic": "/əˈbjuːz/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3404,
+        "word_id": 2603,
+        "stage": 3,
+        "pos": "动词, 名词",
+        "meaning_en": "to use something badly or treat someone cruelly; rude or harmful words",
+        "meaning_zh": "v.（酗酒）滥用,虐待,恶语",
+        "image": "",
+        "word_tag": "社会"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2603,
+          "form_type": "third_person_singular",
+          "form": "abuses"
+        },
+        {
+          "id": null,
+          "word_id": 2603,
+          "form_type": "past_tense",
+          "form": "abused"
+        },
+        {
+          "id": null,
+          "word_id": 2603,
+          "form_type": "past_participle",
+          "form": "abused"
+        },
+        {
+          "id": null,
+          "word_id": 2603,
+          "form_type": "present_participle",
+          "form": "abusing"
+        },
+        {
+          "id": null,
+          "word_id": 2603,
+          "form_type": "plural",
+          "form": "abuses"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3404,
+          "example_en": "Some players abuse the rules to win.",
+          "example_zh": "有些选手滥用规则来获胜。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "辩论",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3404,
+          "example_en": "He faced abuse online after the match.",
+          "example_zh": "比赛后他在网上遭受了辱骂。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2604,
+        "word": "academic",
+        "phonetic": "/ækəˈdemɪk/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3405,
+        "word_id": 2604,
+        "stage": 3,
+        "pos": "形容词, 名词",
+        "meaning_en": "related to study or teaching; a person working in education",
+        "meaning_zh": "a./n.学术的，教学的",
+        "image": "",
+        "word_tag": "教育"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2604,
+          "form_type": "plural",
+          "form": "academics"
+        },
+        {
+          "id": null,
+          "word_id": 2604,
+          "form_type": "comparative",
+          "form": "more academic"
+        },
+        {
+          "id": null,
+          "word_id": 2604,
+          "form_type": "superlative",
+          "form": "most academic"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3405,
+          "example_en": "She won an academic prize for her research.",
+          "example_zh": "她因研究获得了一项学术奖。",
+          "difficulty": 5,
+          "image": "academic_prize.png",
+          "example_tag": "校园",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3405,
+          "example_en": "The conference invited many academic experts this year.",
+          "example_zh": "这次会议今年邀请了许多学术专家。",
+          "difficulty": 5,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2605,
+        "word": "academy",
+        "phonetic": "/əˈkædəmɪ/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3406,
+        "word_id": 2605,
+        "stage": 3,
+        "pos": "名词",
+        "meaning_en": "a school or organization for special training or study",
+        "meaning_zh": "n.专科学院,（美）私立学校",
+        "image": "academy_building.png",
+        "word_tag": "教育"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2605,
+          "form_type": "plural",
+          "form": "academies"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3406,
+          "example_en": "He entered a music academy at sixteen.",
+          "example_zh": "他十六岁时进入了一所音乐学院。",
+          "difficulty": 4,
+          "image": "music_academy.png",
+          "example_tag": "校园",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3406,
+          "example_en": "Our town opened a new sports academy.",
+          "example_zh": "我们镇上开办了一所新的体育学院。",
+          "difficulty": 4,
+          "image": "sports_academy.png",
+          "example_tag": "新闻",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2606,
+        "word": "accelerate",
+        "phonetic": "/əkˈseləreɪt/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3407,
+        "word_id": 2606,
+        "stage": 3,
+        "pos": "动词",
+        "meaning_en": "to make something happen faster or move faster",
+        "meaning_zh": "v.（使）加速，加快",
+        "image": "",
+        "word_tag": "发展"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2606,
+          "form_type": "third_person_singular",
+          "form": "accelerates"
+        },
+        {
+          "id": null,
+          "word_id": 2606,
+          "form_type": "past_tense",
+          "form": "accelerated"
+        },
+        {
+          "id": null,
+          "word_id": 2606,
+          "form_type": "past_participle",
+          "form": "accelerated"
+        },
+        {
+          "id": null,
+          "word_id": 2606,
+          "form_type": "present_participle",
+          "form": "accelerating"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3407,
+          "example_en": "New policies may accelerate local economic growth.",
+          "example_zh": "新政策可能会加快当地经济增长。",
+          "difficulty": 6,
+          "image": "",
+          "example_tag": "阅读",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3407,
+          "example_en": "The driver accelerated when the light turned green.",
+          "example_zh": "当灯变绿时，司机加快了速度。",
+          "difficulty": 4,
+          "image": "traffic_light_green.png",
+          "example_tag": "听力",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 2607,
+        "word": "accent",
+        "phonetic": "/ˈæksənt/",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3408,
+        "word_id": 2607,
+        "stage": 3,
+        "pos": "名词",
+        "meaning_en": "the special way people pronounce words in a place or group",
+        "meaning_zh": "n.口音，音调",
+        "image": "",
+        "word_tag": "语言"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 2607,
+          "form_type": "plural",
+          "form": "accents"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3408,
+          "example_en": "Her soft accent showed she came from abroad.",
+          "example_zh": "她柔和的口音表明她来自国外。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "听力",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3408,
+          "example_en": "The actor changed his accent for the role.",
+          "example_zh": "那位演员为了角色改变了自己的口音。",
+          "difficulty": 4,
+          "image": "",
+          "example_tag": "表演",
+          "audio_path": null
+        }
+      ]
+    },
+    {
+      "word": {
+        "id": 1725,
+        "word": "accept",
+        "phonetic": "[əkˈsept]",
+        "word_type": "单词"
+      },
+      "word_meaning": {
+        "id": 3409,
+        "word_id": 1725,
+        "stage": 3,
+        "pos": "动词",
+        "meaning_en": "to receive or agree to take something offered",
+        "meaning_zh": "vt.接受",
+        "image": "",
+        "word_tag": "交流"
+      },
+      "word_form": [
+        {
+          "id": null,
+          "word_id": 1725,
+          "form_type": "third_person_singular",
+          "form": "accepts"
+        },
+        {
+          "id": null,
+          "word_id": 1725,
+          "form_type": "past_tense",
+          "form": "accepted"
+        },
+        {
+          "id": null,
+          "word_id": 1725,
+          "form_type": "past_participle",
+          "form": "accepted"
+        },
+        {
+          "id": null,
+          "word_id": 1725,
+          "form_type": "present_participle",
+          "form": "accepting"
+        }
+      ],
+      "word_example": [
+        {
+          "id": null,
+          "meaning_id": 3409,
+          "example_en": "Please accept my thanks for your kind help.",
+          "example_zh": "请接受我对你热心帮助的感谢。",
+          "difficulty": 3,
+          "image": "",
+          "example_tag": "口语",
+          "audio_path": null
+        },
+        {
+          "id": null,
+          "meaning_id": 3409,
+          "example_en": "Most students accepted the new library rules.",
+          "example_zh": "大多数学生接受了新的图书馆规定。",
+          "difficulty": 3,
+          "image": "",
+          "example_tag": "校园",
+          "audio_path": null
+        }
+      ]
+    }
+  ]
+}

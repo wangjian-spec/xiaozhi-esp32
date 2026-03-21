@@ -14,9 +14,9 @@ constexpr uint32_t kQueueLength = 3;
 // - Partial: 0.3s
 // - Fast:    1.5s
 // - Full:    3.0s
-constexpr int64_t kPartialMinIntervalUs = 300000;
-constexpr int64_t kFastMinIntervalUs = 1500000;
-constexpr int64_t kFullMinIntervalUs = 3000000;
+constexpr int64_t kPartialMinIntervalUs = 0;
+constexpr int64_t kFastMinIntervalUs = 0;
+constexpr int64_t kFullMinIntervalUs = 0;
 
 constexpr uint32_t kTaskStack = 4096;
 constexpr UBaseType_t kTaskPrio = 1;
@@ -62,8 +62,11 @@ void EpdManager::Init(CustomEpdDisplay* epd) {
 	}
 
 	inited_ = true;
-	ESP_LOGI(TAG, "Initialized (queue=%u, partial_force_fast_every_n=%u)", (unsigned)kQueueLength,
-			 (unsigned)partial_force_fast_every_n_);
+	ESP_LOGI(TAG,
+		 "Initialized (queue=%u, partial_force_fast_every_n=%u, partial_clear_before_draw=%u)",
+		 (unsigned)kQueueLength,
+		 (unsigned)partial_force_fast_every_n_,
+		 GetPartialClearBeforeDraw() ? 1u : 0u);
 }
 
 void EpdManager::SetPartialForceFastEveryN(uint32_t n) {
@@ -77,7 +80,9 @@ bool EpdManager::Schedule(TaskType type,
 					  Epd::DrawCallback cb,
 					  void* ctx,
 					  void (*ctx_deleter)(void*),
-					  Rect rect) {
+					  Rect rect,
+					  RefreshDoneCallback done_cb,
+					  void* done_ctx) {
 	if (!inited_ || queue_ == nullptr || epd_ == nullptr) {
 		if (ctx_deleter && ctx) {
 			ctx_deleter(ctx);
@@ -91,7 +96,7 @@ bool EpdManager::Schedule(TaskType type,
 		return false;
 	}
 
-	TaskItem item{type, rect, cb, ctx, ctx_deleter};
+	TaskItem item{type, rect, cb, ctx, ctx_deleter, done_cb, done_ctx};
 
 	// Reject input when queue already holds the maximum number of tasks.
 	if (uxQueueMessagesWaiting(queue_) >= kQueueLength) {
@@ -168,6 +173,7 @@ void EpdManager::Run() {
 
 		// Execute
 		bool ok = false;
+		const int64_t refresh_start_us = esp_timer_get_time();
 		{
 			DisplayLockGuard guard(epd_);
 			auto& gfx = epd_->Driver();
@@ -186,7 +192,9 @@ void EpdManager::Run() {
 					gfx.setPartialWindow(rect.x, rect.y, rect.w, rect.h);
 					gfx.firstPage();
 					do {
-						gfx.fillRect(rect.x, rect.y, rect.w, rect.h, GxEPD_WHITE);
+						if (GetPartialClearBeforeDraw()) {
+							gfx.fillRect(rect.x, rect.y, rect.w, rect.h, GxEPD_WHITE);
+						}
 						item.cb(gfx, item.ctx);
 					} while (gfx.nextPage());
 					ok = true;
@@ -230,6 +238,7 @@ void EpdManager::Run() {
 		}
 
 		now = esp_timer_get_time();
+		const int64_t refresh_end_us = now;
 		switch (effective) {
 		case TaskType::kPartial:
 			last_partial_us_ = now;
@@ -246,6 +255,10 @@ void EpdManager::Run() {
 			#if APP_UI_DEBUG
 			ESP_LOGW(TAG, "Refresh failed (type=%u)", (unsigned)effective);
 			#endif
+		}
+
+		if (item.done_cb) {
+			item.done_cb(item.type, effective, refresh_start_us, refresh_end_us, ok, item.done_ctx);
 		}
 
 		if (item.ctx_deleter && item.ctx) {

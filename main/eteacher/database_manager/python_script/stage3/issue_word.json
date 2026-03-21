@@ -1,0 +1,375 @@
+{
+  "metadata": {
+    "source_file": "words_export.json",
+    "generated_at": "2026-03-20",
+    "checked_ranges": [
+      "3385-3409",
+      "3410-3459",
+      "3460-3509",
+      "3510-3559",
+      "3560-3609"
+    ]
+  },
+  "issues": [
+    {
+      "record_index": 3392,
+      "word_id": 2595,
+      "word_meaning_id": 3392,
+      "word": "abortion",
+      "phonetic": "/əˈbɔːʃ(ə)n/",
+      "meaning_zh": "v.人工流产，堕胎",
+      "issue_type": "meaning_zh_mismatch",
+      "reason": "The headword is a noun, but the Chinese meaning is marked as a verb with 'v.'."
+    },
+    {
+      "record_index": 3395,
+      "word_id": 2106,
+      "word_meaning_id": 3395,
+      "word": "abroad",
+      "phonetic": "[ə'brɔ:d/]",
+      "meaning_zh": "ad.到（在）国外",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription uses mismatched bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3411,
+      "word_id": 2609,
+      "word_meaning_id": 3411,
+      "word": "accessible",
+      "phonetic": "/əkˈsesɪb(ə)l/",
+      "meaning_zh": "a.可到达的，可接受的，易相处的）",
+      "issue_type": "meaning_zh_punctuation_issue",
+      "reason": "The Chinese meaning contains an unmatched closing parenthesis and should be reviewed."
+    },
+    {
+      "record_index": 3416,
+      "word_id": 2613,
+      "word_meaning_id": 3416,
+      "word": "accordingto",
+      "phonetic": "/əˈkɔːdɪŋtʊ/",
+      "meaning_zh": "ad.按照，根据",
+      "issue_type": "word_format_issue",
+      "reason": "The headword appears to be missing a space and likely should be 'according to'."
+    },
+    {
+      "record_index": 3421,
+      "word_id": 2618,
+      "word_meaning_id": 3421,
+      "word": "accuse",
+      "phonetic": "/əˈkjuːz/",
+      "meaning_zh": "v.正确无误的,精确的",
+      "issue_type": "meaning_zh_mismatch",
+      "reason": "The Chinese meaning corresponds to 'accurate', not 'accuse'."
+    },
+    {
+      "record_index": 3424,
+      "word_id": 2048,
+      "word_meaning_id": 3424,
+      "word": "achieve",
+      "phonetic": "[ə'tʃi:v/]",
+      "meaning_zh": "vt.达到，取得",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3425,
+      "word_id": 2039,
+      "word_meaning_id": 3425,
+      "word": "achievement",
+      "phonetic": "[ə'tʃi:vmənt/]",
+      "meaning_zh": "n.成就,成绩,功绩",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3441,
+      "word_id": 2629,
+      "word_meaning_id": 3441,
+      "word": "ad",
+      "phonetic": "/æd/",
+      "meaning_zh": "(缩)“＝”advertisementn.广告",
+      "issue_type": "meaning_zh_format_issue",
+      "reason": "The Chinese meaning is concatenated and formatting around the abbreviation explanation is corrupted."
+    },
+    {
+      "record_index": 3469,
+      "word_id": 2650,
+      "word_meaning_id": 3469,
+      "word": "aeroplane",
+      "phonetic": "/`erə,pleɪn/",
+      "meaning_zh": "n.(英)飞机",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription contains a malformed leading symbol and should be reviewed."
+    },
+    {
+      "record_index": 3475,
+      "word_id": 1312,
+      "word_meaning_id": 3475,
+      "word": "Africa",
+      "phonetic": "['æfrɪkə]",
+      "meaning_zh": "*n.非洲",
+      "issue_type": "meaning_zh_format_issue",
+      "reason": "The Chinese meaning contains an unexpected leading asterisk and should be reviewed."
+    },
+    {
+      "record_index": 3481,
+      "word_id": 1955,
+      "word_meaning_id": 3481,
+      "word": "against",
+      "phonetic": "[ə'genst/]",
+      "meaning_zh": "prep.对着，反对",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3503,
+      "word_id": 1944,
+      "word_meaning_id": 3503,
+      "word": "alarm",
+      "phonetic": "[ə'lɑ:(r)m/]",
+      "meaning_zh": "n.警报",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3510,
+      "word_id": 114,
+      "word_meaning_id": 3510,
+      "word": "all",
+      "phonetic": "[ɔ:l]",
+      "meaning_zh": "ad.全部地a.全（部）;所有的;总;整pron.全部;全体人员",
+      "issue_type": "meaning_zh_format_issue",
+      "reason": "The Chinese meaning concatenates multiple parts of speech without proper separators and should be reviewed."
+    },
+    {
+      "record_index": 3511,
+      "word_id": 2675,
+      "word_meaning_id": 3511,
+      "word": "allergic",
+      "phonetic": "/ˈəˈlɜːdʒɪk/",
+      "meaning_zh": "a.过敏的，厌恶",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription appears to contain a duplicated stress mark and should be reviewed."
+    },
+    {
+      "record_index": 3514,
+      "word_id": 1900,
+      "word_meaning_id": 3514,
+      "word": "allow",
+      "phonetic": "[ə'laʊ/]",
+      "meaning_zh": "vt.允许，准许",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3516,
+      "word_id": 1524,
+      "word_meaning_id": 3516,
+      "word": "almost",
+      "phonetic": "['ɔːlməʊst]",
+      "meaning_zh": "ad.几乎，差不多",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription formatting is inconsistent and should be reviewed."
+    },
+    {
+      "record_index": 3517,
+      "word_id": 1846,
+      "word_meaning_id": 3517,
+      "word": "alone",
+      "phonetic": "[ə'ləʊn/]",
+      "meaning_zh": "a.单独的，孤独的",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3523,
+      "word_id": 1231,
+      "word_meaning_id": 3523,
+      "word": "also",
+      "phonetic": "['ɔːlsəʊ]",
+      "meaning_zh": "ad.也",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription formatting is inconsistent and should be reviewed."
+    },
+    {
+      "record_index": 3530,
+      "word_id": 1051,
+      "word_meaning_id": 3530,
+      "word": "am",
+      "phonetic": "[æm]",
+      "meaning_zh": "v.be的人称形式之一",
+      "issue_type": "meaning_zh_format_issue",
+      "reason": "The Chinese meaning contains an abnormal control-like character and should be reviewed."
+    },
+    {
+      "record_index": 3531,
+      "word_id": 2685,
+      "word_meaning_id": 3531,
+      "word": "ａ.m.",
+      "phonetic": "//",
+      "meaning_zh": "n.午前，上午",
+      "issue_type": "phonetic_missing_issue",
+      "reason": "The phonetic field contains only placeholder slashes and should be reviewed."
+    },
+    {
+      "record_index": 3532,
+      "word_id": 2686,
+      "word_meaning_id": 3532,
+      "word": "A.M.",
+      "phonetic": "//",
+      "meaning_zh": "n.午前，上午",
+      "issue_type": "phonetic_missing_issue",
+      "reason": "The phonetic field contains only placeholder slashes and should be reviewed."
+    },
+    {
+      "record_index": 3533,
+      "word_id": 2687,
+      "word_meaning_id": 3533,
+      "word": "ａ.m./A.M.",
+      "phonetic": "//",
+      "meaning_zh": "n.午前，上午",
+      "issue_type": "phonetic_and_meaning_format_issue",
+      "reason": "The phonetic field is missing and the Chinese meaning contains an abnormal control-like character."
+    },
+    {
+      "record_index": 3536,
+      "word_id": 2035,
+      "word_meaning_id": 3536,
+      "word": "amazing",
+      "phonetic": "[ə'meɪzɪŋ/]",
+      "meaning_zh": "a.惊奇,惊叹的;震惊的",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3542,
+      "word_id": 2695,
+      "word_meaning_id": 3542,
+      "word": "America",
+      "phonetic": "/əˈmerɪkə/",
+      "meaning_zh": "*n.美国；美洲",
+      "issue_type": "meaning_zh_format_issue",
+      "reason": "The Chinese meaning contains an unexpected leading asterisk and should be reviewed."
+    },
+    {
+      "record_index": 3544,
+      "word_id": 2198,
+      "word_meaning_id": 3544,
+      "word": "among",
+      "phonetic": "[ə'mʌŋ/]",
+      "meaning_zh": "prep.在…中间；在（三个以上）之间",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3548,
+      "word_id": 2132,
+      "word_meaning_id": 3548,
+      "word": "amusement",
+      "phonetic": "[ə'mju:zmənt/]",
+      "meaning_zh": "n.娱乐",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3552,
+      "word_id": 2701,
+      "word_meaning_id": 3552,
+      "word": "Anchor",
+      "phonetic": "/'æŋkə/",
+      "meaning_zh": "n.锚，抛锚",
+      "issue_type": "word_or_phonetic_issue",
+      "reason": "The headword is unexpectedly capitalized and the phonetic transcription formatting is unusual; review both fields."
+    },
+    {
+      "record_index": 3553,
+      "word_id": 2036,
+      "word_meaning_id": 3553,
+      "word": "ancient",
+      "phonetic": "['eɪnʃənt/]",
+      "meaning_zh": "a.古代的，古老的",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    },
+    {
+      "record_index": 3570,
+      "word_id": 2711,
+      "word_meaning_id": 3570,
+      "word": "theAntarctic",
+      "phonetic": "[ænˈtɑːktɪk]",
+      "meaning_zh": "南极",
+      "issue_type": "word_format_issue",
+      "reason": "The headword appears to be missing a space and likely should be 'the Antarctic'."
+    },
+    {
+      "record_index": 3575,
+      "word_id": 1339,
+      "word_meaning_id": 3575,
+      "word": "any",
+      "phonetic": "[eni]",
+      "meaning_zh": "pron.（无论）哪一个；哪些任何的",
+      "issue_type": "meaning_zh_format_issue",
+      "reason": "The Chinese meaning is merged awkwardly and should be reviewed for proper segmentation."
+    },
+    {
+      "record_index": 3580,
+      "word_id": 2717,
+      "word_meaning_id": 3580,
+      "word": "anywa",
+      "phonetic": "[ˈenɪweɪ]",
+      "meaning_zh": "yad.不管怎样",
+      "issue_type": "word_and_meaning_issue",
+      "reason": "The headword likely should be 'anyway', and the Chinese meaning has an invalid part-of-speech prefix 'yad.'."
+    },
+    {
+      "record_index": 3582,
+      "word_id": 1959,
+      "word_meaning_id": 3582,
+      "word": "apart",
+      "phonetic": "[ə'pɑ:(r)t/]",
+      "meaning_zh": "ad,/a.相隔，相距，除外",
+      "issue_type": "phonetic_and_meaning_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation, and the part-of-speech formatting in Chinese is malformed."
+    },
+    {
+      "record_index": 3587,
+      "word_id": 2721,
+      "word_meaning_id": 3587,
+      "word": "appeal",
+      "phonetic": "[əˈpiːl]",
+      "meaning_zh": "v.上诉，申诉，吸引力",
+      "issue_type": "meaning_zh_pos_issue",
+      "reason": "The Chinese meaning mixes verb and noun senses without clear part-of-speech separation."
+    },
+    {
+      "record_index": 3592,
+      "word_id": 2725,
+      "word_meaning_id": 3592,
+      "word": "applaud",
+      "phonetic": "[əˈplɔːd]",
+      "meaning_zh": "v./n.鼓掌,赞许,赞赏",
+      "issue_type": "meaning_zh_pos_issue",
+      "reason": "The Chinese meaning mixes verb and noun senses without clear part-of-speech separation."
+    },
+    {
+      "record_index": 3601,
+      "word_id": 2733,
+      "word_meaning_id": 3601,
+      "word": "approach",
+      "phonetic": "[əˈprəʊtʃ]",
+      "meaning_zh": "n./v.靠近，接近，建议，要求",
+      "issue_type": "meaning_zh_pos_issue",
+      "reason": "The Chinese meaning combines noun and verb senses with several glosses and should be reviewed for clearer separation."
+    },
+    {
+      "record_index": 3609,
+      "word_id": 2741,
+      "word_meaning_id": 3609,
+      "word": "architecture",
+      "phonetic": "[ˈɑːkɪtektʃə(r)/]",
+      "meaning_zh": "n.建筑学，建筑设计，风格",
+      "issue_type": "phonetic_format_issue",
+      "reason": "The phonetic transcription mixes bracket and slash notation and should be reviewed."
+    }
+  ]
+}

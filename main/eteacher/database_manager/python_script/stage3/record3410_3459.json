@@ -1,0 +1,574 @@
+{
+  "metadata": {
+    "source_file": "words_export.json",
+    "range": "3410-3459",
+    "stage": 3,
+    "generated_at": "2026-03-20",
+    "record_count": 50,
+    "notes": "Manual Copilot generation for stage-3 records; protected source fields were kept unchanged."
+  },
+  "records": [
+    {
+      "word": {"id": 2608, "word": "access", "phonetic": "/ˈækses/", "word_type": "单词"},
+      "word_meaning": {"id": 3410, "word_id": 2608, "stage": 3, "pos": "名词, 动词", "meaning_en": "a way to enter or reach a place, or the right to use something", "meaning_zh": "n./v.通道,入径,存取(计算机文件)", "image": "access_path.png", "word_tag": "通行"},
+      "word_form": [
+        {"id": null, "word_id": 2608, "form_type": "third_person_singular", "form": "accesses"},
+        {"id": null, "word_id": 2608, "form_type": "past_tense", "form": "accessed"},
+        {"id": null, "word_id": 2608, "form_type": "past_participle", "form": "accessed"},
+        {"id": null, "word_id": 2608, "form_type": "present_participle", "form": "accessing"},
+        {"id": null, "word_id": 2608, "form_type": "plural", "form": "accesses"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3410, "example_en": "Students need access to books after class.", "example_zh": "学生课后需要使用书籍的机会。", "difficulty": 4, "image": "library_access.png", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3410, "example_en": "You can access the file with one click.", "example_zh": "你可以点击一次访问这个文件。", "difficulty": 4, "image": "computer_file.png", "example_tag": "计算机", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2609, "word": "accessible", "phonetic": "/əkˈsesɪb(ə)l/", "word_type": "单词"},
+      "word_meaning": {"id": 3411, "word_id": 2609, "stage": 3, "pos": "形容词", "meaning_en": "easy to reach, use, or understand", "meaning_zh": "a.可到达的，可接受的，易相处的）", "image": "", "word_tag": "特征"},
+      "word_form": [
+        {"id": null, "word_id": 2609, "form_type": "comparative", "form": "more accessible"},
+        {"id": null, "word_id": 2609, "form_type": "superlative", "form": "most accessible"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3411, "example_en": "The new museum is accessible by subway.", "example_zh": "新博物馆乘地铁就能到达。", "difficulty": 4, "image": "museum_subway.png", "example_tag": "出行", "audio_path": null},
+        {"id": null, "meaning_id": 3411, "example_en": "Her explanation made physics more accessible.", "example_zh": "她的解释让物理更容易理解。", "difficulty": 5, "image": "", "example_tag": "课堂", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 1805, "word": "accident", "phonetic": "['æksɪdənt]", "word_type": "单词"},
+      "word_meaning": {"id": 3412, "word_id": 1805, "stage": 3, "pos": "名词", "meaning_en": "an unexpected event, often causing damage or injury", "meaning_zh": "n.事故，意外的事", "image": "traffic_accident.png", "word_tag": "事件"},
+      "word_form": [{"id": null, "word_id": 1805, "form_type": "plural", "form": "accidents"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3412, "example_en": "A small accident blocked the road this morning.", "example_zh": "今早一起小事故堵住了道路。", "difficulty": 4, "image": "road_block.png", "example_tag": "听力", "audio_path": null},
+        {"id": null, "meaning_id": 3412, "example_en": "He broke the cup by accident yesterday.", "example_zh": "昨天他不小心打碎了杯子。", "difficulty": 3, "image": "broken_cup.png", "example_tag": "口语", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2610, "word": "accommodation", "phonetic": "/əkɔməˈdeɪʃ(ə)n/", "word_type": "单词"},
+      "word_meaning": {"id": 3413, "word_id": 2610, "stage": 3, "pos": "名词", "meaning_en": "a place to live or stay, especially for a short time", "meaning_zh": "n.住宿，膳宿", "image": "hotel_room.png", "word_tag": "住宿"},
+      "word_form": [{"id": null, "word_id": 2610, "form_type": "plural", "form": "accommodations"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3413, "example_en": "We booked cheap accommodation near the station.", "example_zh": "我们在车站附近预订了便宜的住处。", "difficulty": 5, "image": "station_hotel.png", "example_tag": "旅行", "audio_path": null},
+        {"id": null, "meaning_id": 3413, "example_en": "The school offers accommodation for new teachers.", "example_zh": "学校为新老师提供住宿。", "difficulty": 5, "image": "", "example_tag": "校园", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2611, "word": "accompany", "phonetic": "/əˈkʌmpənɪ/", "word_type": "单词"},
+      "word_meaning": {"id": 3414, "word_id": 2611, "stage": 3, "pos": "动词", "meaning_en": "to go somewhere with someone or happen together with something", "meaning_zh": "v.陪同，陪伴，与…同时发生", "image": "", "word_tag": "陪伴"},
+      "word_form": [
+        {"id": null, "word_id": 2611, "form_type": "third_person_singular", "form": "accompanies"},
+        {"id": null, "word_id": 2611, "form_type": "past_tense", "form": "accompanied"},
+        {"id": null, "word_id": 2611, "form_type": "past_participle", "form": "accompanied"},
+        {"id": null, "word_id": 2611, "form_type": "present_participle", "form": "accompanying"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3414, "example_en": "Can you accompany me to the hospital tomorrow?", "example_zh": "你明天能陪我去医院吗？", "difficulty": 4, "image": "hospital_visit.png", "example_tag": "口语", "audio_path": null},
+        {"id": null, "meaning_id": 3414, "example_en": "Rain often accompanied the strong autumn wind.", "example_zh": "秋天的大风常常伴随着降雨。", "difficulty": 5, "image": "autumn_rain.png", "example_tag": "阅读", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2612, "word": "accomplish", "phonetic": "/əˈkʌmplɪʃ/", "word_type": "单词"},
+      "word_meaning": {"id": 3415, "word_id": 2612, "stage": 3, "pos": "动词", "meaning_en": "to succeed in doing or finishing something", "meaning_zh": "v.完成", "image": "", "word_tag": "成就"},
+      "word_form": [
+        {"id": null, "word_id": 2612, "form_type": "third_person_singular", "form": "accomplishes"},
+        {"id": null, "word_id": 2612, "form_type": "past_tense", "form": "accomplished"},
+        {"id": null, "word_id": 2612, "form_type": "past_participle", "form": "accomplished"},
+        {"id": null, "word_id": 2612, "form_type": "present_participle", "form": "accomplishing"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3415, "example_en": "We accomplished the project before the final bell.", "example_zh": "我们在最后一声铃响前完成了项目。", "difficulty": 4, "image": "school_project.png", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3415, "example_en": "She accomplished her goal through daily practice.", "example_zh": "她通过每天练习实现了目标。", "difficulty": 4, "image": "", "example_tag": "励志", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2613, "word": "accordingto", "phonetic": "/əˈkɔːdɪŋtʊ/", "word_type": "词组"},
+      "word_meaning": {"id": 3416, "word_id": 2613, "stage": 3, "pos": "介词", "meaning_en": "as stated by or in agreement with", "meaning_zh": "ad.按照，根据", "image": "", "word_tag": "关系"},
+      "word_form": [],
+      "word_example": [
+        {"id": null, "meaning_id": 3416, "example_en": "According to the map, the lake is north.", "example_zh": "根据地图，湖在北边。", "difficulty": 4, "image": "map_lake.png", "example_tag": "阅读", "audio_path": null},
+        {"id": null, "meaning_id": 3416, "example_en": "According to her note, the meeting changed.", "example_zh": "根据她的便条，会议改期了。", "difficulty": 4, "image": "", "example_tag": "听力", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2614, "word": "account", "phonetic": "/əˈkaʊnt/", "word_type": "单词"},
+      "word_meaning": {"id": 3417, "word_id": 2614, "stage": 3, "pos": "名词", "meaning_en": "a record of money or a description of an event", "meaning_zh": "n.账目;描述", "image": "", "word_tag": "金融"},
+      "word_form": [{"id": null, "word_id": 2614, "form_type": "plural", "form": "accounts"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3417, "example_en": "His account of the fire sounded very clear.", "example_zh": "他对火灾的描述听起来很清楚。", "difficulty": 5, "image": "", "example_tag": "阅读", "audio_path": null},
+        {"id": null, "meaning_id": 3417, "example_en": "I checked my bank account after lunch.", "example_zh": "午饭后我查看了我的银行账户。", "difficulty": 4, "image": "bank_account.png", "example_tag": "生活", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2615, "word": "accountant", "phonetic": "/əˈkaʊnt(ə)nt/", "word_type": "单词"},
+      "word_meaning": {"id": 3418, "word_id": 2615, "stage": 3, "pos": "名词", "meaning_en": "a person whose job is to keep or check financial records", "meaning_zh": "n.会计，会计师", "image": "accountant_office.png", "word_tag": "职业"},
+      "word_form": [{"id": null, "word_id": 2615, "form_type": "plural", "form": "accountants"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3418, "example_en": "My aunt works as an accountant downtown.", "example_zh": "我姑妈在市中心当会计。", "difficulty": 4, "image": "office_worker.png", "example_tag": "职业", "audio_path": null},
+        {"id": null, "meaning_id": 3418, "example_en": "The accountant checked every bill with care.", "example_zh": "会计仔细核对了每一张账单。", "difficulty": 4, "image": "bills_check.png", "example_tag": "商务", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2616, "word": "accumulate", "phonetic": "/əˈkjuːmjʊleɪt/", "word_type": "单词"},
+      "word_meaning": {"id": 3419, "word_id": 2616, "stage": 3, "pos": "动词", "meaning_en": "to collect or grow in number over time", "meaning_zh": "v.积累，积聚", "image": "", "word_tag": "变化"},
+      "word_form": [
+        {"id": null, "word_id": 2616, "form_type": "third_person_singular", "form": "accumulates"},
+        {"id": null, "word_id": 2616, "form_type": "past_tense", "form": "accumulated"},
+        {"id": null, "word_id": 2616, "form_type": "past_participle", "form": "accumulated"},
+        {"id": null, "word_id": 2616, "form_type": "present_participle", "form": "accumulating"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3419, "example_en": "Dust can accumulate under the bed quickly.", "example_zh": "灰尘会很快积聚在床底下。", "difficulty": 4, "image": "dust_under_bed.png", "example_tag": "生活", "audio_path": null},
+        {"id": null, "meaning_id": 3419, "example_en": "She accumulated experience through volunteer work.", "example_zh": "她通过志愿工作积累了经验。", "difficulty": 5, "image": "", "example_tag": "写作", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2617, "word": "accuracy", "phonetic": "/ˈækjʊrəsɪ/", "word_type": "单词"},
+      "word_meaning": {"id": 3420, "word_id": 2617, "stage": 3, "pos": "名词", "meaning_en": "the quality of being correct and exact", "meaning_zh": "n.准确，精确", "image": "", "word_tag": "品质"},
+      "word_form": [{"id": null, "word_id": 2617, "form_type": "plural", "form": "accuracies"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3420, "example_en": "Speed matters less than accuracy in this test.", "example_zh": "在这次测试中，准确性比速度更重要。", "difficulty": 5, "image": "test_paper.png", "example_tag": "考试", "audio_path": null},
+        {"id": null, "meaning_id": 3420, "example_en": "The report gained praise for its accuracy.", "example_zh": "这份报告因其准确性而受到称赞。", "difficulty": 5, "image": "", "example_tag": "写作", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2618, "word": "accuse", "phonetic": "/əˈkjuːz/", "word_type": "单词"},
+      "word_meaning": {"id": 3421, "word_id": 2618, "stage": 3, "pos": "动词", "meaning_en": "to say that someone has done something wrong", "meaning_zh": "v.正确无误的,精确的", "image": "", "word_tag": "法律"},
+      "word_form": [
+        {"id": null, "word_id": 2618, "form_type": "third_person_singular", "form": "accuses"},
+        {"id": null, "word_id": 2618, "form_type": "past_tense", "form": "accused"},
+        {"id": null, "word_id": 2618, "form_type": "past_participle", "form": "accused"},
+        {"id": null, "word_id": 2618, "form_type": "present_participle", "form": "accusing"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3421, "example_en": "They accused him of breaking the school gate.", "example_zh": "他们指责他弄坏了校门。", "difficulty": 5, "image": "", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3421, "example_en": "Never accuse others without clear evidence first.", "example_zh": "没有明确证据前不要指责别人。", "difficulty": 5, "image": "", "example_tag": "辩论", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2619, "word": "accustomed", "phonetic": "/əˈkʌstəmd/", "word_type": "单词"},
+      "word_meaning": {"id": 3422, "word_id": 2619, "stage": 3, "pos": "形容词", "meaning_en": "familiar with something because it is usual", "meaning_zh": "a.习惯于,惯常的", "image": "", "word_tag": "状态"},
+      "word_form": [],
+      "word_example": [
+        {"id": null, "meaning_id": 3422, "example_en": "She is accustomed to early morning exercise.", "example_zh": "她习惯了清晨锻炼。", "difficulty": 4, "image": "morning_exercise.png", "example_tag": "生活", "audio_path": null},
+        {"id": null, "meaning_id": 3422, "example_en": "We soon became accustomed to the cold wind.", "example_zh": "我们很快就习惯了冷风。", "difficulty": 4, "image": "", "example_tag": "阅读", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2620, "word": "ache", "phonetic": "/eɪk/", "word_type": "单词"},
+      "word_meaning": {"id": 3423, "word_id": 2620, "stage": 3, "pos": "动词, 名词", "meaning_en": "to feel a continuous pain, or a continuous pain itself", "meaning_zh": "vi.&n.痛，疼痛", "image": "", "word_tag": "身体"},
+      "word_form": [
+        {"id": null, "word_id": 2620, "form_type": "third_person_singular", "form": "aches"},
+        {"id": null, "word_id": 2620, "form_type": "past_tense", "form": "ached"},
+        {"id": null, "word_id": 2620, "form_type": "past_participle", "form": "ached"},
+        {"id": null, "word_id": 2620, "form_type": "present_participle", "form": "aching"},
+        {"id": null, "word_id": 2620, "form_type": "plural", "form": "aches"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3423, "example_en": "My legs ache after the long mountain walk.", "example_zh": "长时间爬山后，我的腿很疼。", "difficulty": 4, "image": "mountain_walk.png", "example_tag": "生活", "audio_path": null},
+        {"id": null, "meaning_id": 3423, "example_en": "A dull ache stayed in his shoulder.", "example_zh": "他肩膀上一直有一种隐隐的痛。", "difficulty": 5, "image": "shoulder_pain.png", "example_tag": "医学", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2048, "word": "achieve", "phonetic": "[ə'tʃi:v/]", "word_type": "单词"},
+      "word_meaning": {"id": 3424, "word_id": 2048, "stage": 3, "pos": "动词", "meaning_en": "to reach or gain something through effort", "meaning_zh": "vt.达到，取得", "image": "", "word_tag": "成就"},
+      "word_form": [
+        {"id": null, "word_id": 2048, "form_type": "third_person_singular", "form": "achieves"},
+        {"id": null, "word_id": 2048, "form_type": "past_tense", "form": "achieved"},
+        {"id": null, "word_id": 2048, "form_type": "past_participle", "form": "achieved"},
+        {"id": null, "word_id": 2048, "form_type": "present_participle", "form": "achieving"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3424, "example_en": "Hard work helps students achieve their dreams.", "example_zh": "努力学习帮助学生实现梦想。", "difficulty": 4, "image": "", "example_tag": "励志", "audio_path": null},
+        {"id": null, "meaning_id": 3424, "example_en": "Our team achieved first place in debate.", "example_zh": "我们队在辩论赛中获得了第一名。", "difficulty": 4, "image": "debate_award.png", "example_tag": "比赛", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2039, "word": "achievement", "phonetic": "[ə'tʃi:vmənt/]", "word_type": "单词"},
+      "word_meaning": {"id": 3425, "word_id": 2039, "stage": 3, "pos": "名词", "meaning_en": "something important that has been done successfully", "meaning_zh": "n.成就,成绩,功绩", "image": "award_medal.png", "word_tag": "成就"},
+      "word_form": [{"id": null, "word_id": 2039, "form_type": "plural", "form": "achievements"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3425, "example_en": "Winning the prize was her greatest achievement.", "example_zh": "赢得这个奖项是她最大的成就。", "difficulty": 4, "image": "gold_medal.png", "example_tag": "比赛", "audio_path": null},
+        {"id": null, "meaning_id": 3425, "example_en": "The scientist listed every achievement in order.", "example_zh": "这位科学家按顺序列出了每一项成就。", "difficulty": 5, "image": "", "example_tag": "阅读", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2621, "word": "acid", "phonetic": "/ˈæsɪd/", "word_type": "单词"},
+      "word_meaning": {"id": 3426, "word_id": 2621, "stage": 3, "pos": "形容词, 名词", "meaning_en": "a substance with a sharp chemical quality, or having that quality", "meaning_zh": "a.酸的", "image": "chemistry_acid.png", "word_tag": "化学"},
+      "word_form": [{"id": null, "word_id": 2621, "form_type": "plural", "form": "acids"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3426, "example_en": "Lemon juice has an acid taste.", "example_zh": "柠檬汁有酸味。", "difficulty": 4, "image": "lemon_juice.png", "example_tag": "科学", "audio_path": null},
+        {"id": null, "meaning_id": 3426, "example_en": "The lab stored acid in a safe bottle.", "example_zh": "实验室把酸存放在安全的瓶子里。", "difficulty": 5, "image": "lab_bottle.png", "example_tag": "实验", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2622, "word": "acknowledge", "phonetic": "/əkˈnɔlɪdʒ/", "word_type": "单词"},
+      "word_meaning": {"id": 3427, "word_id": 2622, "stage": 3, "pos": "动词", "meaning_en": "to admit or accept that something is true or exists", "meaning_zh": "v.承认", "image": "", "word_tag": "交流"},
+      "word_form": [
+        {"id": null, "word_id": 2622, "form_type": "third_person_singular", "form": "acknowledges"},
+        {"id": null, "word_id": 2622, "form_type": "past_tense", "form": "acknowledged"},
+        {"id": null, "word_id": 2622, "form_type": "past_participle", "form": "acknowledged"},
+        {"id": null, "word_id": 2622, "form_type": "present_participle", "form": "acknowledging"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3427, "example_en": "He acknowledged his mistake before the class.", "example_zh": "他在全班面前承认了错误。", "difficulty": 5, "image": "", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3427, "example_en": "Scientists acknowledge the risks of climate change.", "example_zh": "科学家承认气候变化的风险。", "difficulty": 6, "image": "", "example_tag": "阅读", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2623, "word": "acquaintance", "phonetic": "/əˈkweɪntəns/", "word_type": "单词"},
+      "word_meaning": {"id": 3428, "word_id": 2623, "stage": 3, "pos": "名词", "meaning_en": "someone you know a little, or knowledge of something", "meaning_zh": "n.熟人，(与某人)认识", "image": "", "word_tag": "社交"},
+      "word_form": [{"id": null, "word_id": 2623, "form_type": "plural", "form": "acquaintances"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3428, "example_en": "He is just an acquaintance from summer camp.", "example_zh": "他只是夏令营里认识的一个熟人。", "difficulty": 6, "image": "summer_camp.png", "example_tag": "社交", "audio_path": null},
+        {"id": null, "meaning_id": 3428, "example_en": "My acquaintance with French is still limited.", "example_zh": "我对法语的了解仍然有限。", "difficulty": 6, "image": "", "example_tag": "学习", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2624, "word": "acquire", "phonetic": "/əˈkwaɪə(r)/", "word_type": "单词"},
+      "word_meaning": {"id": 3429, "word_id": 2624, "stage": 3, "pos": "动词", "meaning_en": "to get or learn something through effort or experience", "meaning_zh": "v.获得，得到", "image": "", "word_tag": "获取"},
+      "word_form": [
+        {"id": null, "word_id": 2624, "form_type": "third_person_singular", "form": "acquires"},
+        {"id": null, "word_id": 2624, "form_type": "past_tense", "form": "acquired"},
+        {"id": null, "word_id": 2624, "form_type": "past_participle", "form": "acquired"},
+        {"id": null, "word_id": 2624, "form_type": "present_participle", "form": "acquiring"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3429, "example_en": "Children acquire language through daily practice.", "example_zh": "孩子们通过日常练习习得语言。", "difficulty": 6, "image": "", "example_tag": "学习", "audio_path": null},
+        {"id": null, "meaning_id": 3429, "example_en": "The museum acquired a rare ancient coin.", "example_zh": "博物馆得到了一枚稀有古币。", "difficulty": 6, "image": "ancient_coin.png", "example_tag": "历史", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2625, "word": "acquisition", "phonetic": "/ækwɪˈzɪʃ(ə)n/", "word_type": "单词"},
+      "word_meaning": {"id": 3430, "word_id": 2625, "stage": 3, "pos": "名词", "meaning_en": "the act of getting something or something that has been obtained", "meaning_zh": "n.获得，得到", "image": "", "word_tag": "获取"},
+      "word_form": [{"id": null, "word_id": 2625, "form_type": "plural", "form": "acquisitions"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3430, "example_en": "The library celebrated its latest book acquisition.", "example_zh": "图书馆为最新购入的图书举行了庆祝。", "difficulty": 6, "image": "new_books.png", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3430, "example_en": "Language acquisition needs time and patience.", "example_zh": "语言习得需要时间和耐心。", "difficulty": 6, "image": "", "example_tag": "学习", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2626, "word": "acre", "phonetic": "/ˈeɪkə(r)/", "word_type": "单词"},
+      "word_meaning": {"id": 3431, "word_id": 2626, "stage": 3, "pos": "名词", "meaning_en": "a unit for measuring land area", "meaning_zh": "n.英亩", "image": "field_measure.png", "word_tag": "土地"},
+      "word_form": [{"id": null, "word_id": 2626, "form_type": "plural", "form": "acres"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3431, "example_en": "The farm covers fifty acres of rich land.", "example_zh": "这个农场占地五十英亩肥沃土地。", "difficulty": 5, "image": "large_farm.png", "example_tag": "地理", "audio_path": null},
+        {"id": null, "meaning_id": 3431, "example_en": "They planted trees across several acres nearby.", "example_zh": "他们在附近几英亩地上种了树。", "difficulty": 5, "image": "tree_planting.png", "example_tag": "环保", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 1366, "word": "across", "phonetic": "[ə'krɔːs]", "word_type": "单词"},
+      "word_meaning": {"id": 3432, "word_id": 1366, "stage": 3, "pos": "介词, 副词", "meaning_en": "from one side to the other side of something", "meaning_zh": "prep.横过，穿过", "image": "bridge_river.png", "word_tag": "方位"},
+      "word_form": [],
+      "word_example": [
+        {"id": null, "meaning_id": 3432, "example_en": "They ran across the bridge before sunset.", "example_zh": "他们在日落前跑过了那座桥。", "difficulty": 3, "image": "bridge_run.png", "example_tag": "听力", "audio_path": null},
+        {"id": null, "meaning_id": 3432, "example_en": "A smile spread across her tired face.", "example_zh": "一丝微笑浮现在她疲惫的脸上。", "difficulty": 4, "image": "smile_face.png", "example_tag": "写作", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2, "word": "act", "phonetic": "[ækt]", "word_type": "单词"},
+      "word_meaning": {"id": 3433, "word_id": 2, "stage": 3, "pos": "名词, 动词", "meaning_en": "a law or action; to perform or behave in a certain way", "meaning_zh": "n.法令，条例v.（戏）表演，扮演（角色），演出（戏）；行动，做事", "image": "stage_actor.png", "word_tag": "行为"},
+      "word_form": [
+        {"id": null, "word_id": 2, "form_type": "third_person_singular", "form": "acts"},
+        {"id": null, "word_id": 2, "form_type": "past_tense", "form": "acted"},
+        {"id": null, "word_id": 2, "form_type": "past_participle", "form": "acted"},
+        {"id": null, "word_id": 2, "form_type": "present_participle", "form": "acting"},
+        {"id": null, "word_id": 2, "form_type": "plural", "form": "acts"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3433, "example_en": "He can act well in the school play.", "example_zh": "他能在校园剧中表演得很好。", "difficulty": 3, "image": "school_play.png", "example_tag": "表演", "audio_path": null},
+        {"id": null, "meaning_id": 3433, "example_en": "We must act fast before the storm arrives.", "example_zh": "在暴风雨到来前我们必须迅速行动。", "difficulty": 3, "image": "storm_clouds.png", "example_tag": "听力", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 1606, "word": "action", "phonetic": "[ˈækʃ(ə)n]", "word_type": "单词"},
+      "word_meaning": {"id": 3434, "word_id": 1606, "stage": 3, "pos": "名词", "meaning_en": "something done to deal with a problem or achieve a result", "meaning_zh": "n.行动", "image": "", "word_tag": "行为"},
+      "word_form": [{"id": null, "word_id": 1606, "form_type": "plural", "form": "actions"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3434, "example_en": "Quick action saved the child from danger.", "example_zh": "迅速行动让那个孩子脱离了危险。", "difficulty": 4, "image": "rescue_scene.png", "example_tag": "阅读", "audio_path": null},
+        {"id": null, "meaning_id": 3434, "example_en": "Your action today changed the whole result.", "example_zh": "你今天的行动改变了整个结果。", "difficulty": 4, "image": "", "example_tag": "写作", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2232, "word": "active", "phonetic": "['æktɪv]", "word_type": "单词"},
+      "word_meaning": {"id": 3435, "word_id": 2232, "stage": 3, "pos": "形容词", "meaning_en": "busy, energetic, and involved in many things", "meaning_zh": "a.积极的，主动的", "image": "sports_student.png", "word_tag": "性格"},
+      "word_form": [
+        {"id": null, "word_id": 2232, "form_type": "comparative", "form": "more active"},
+        {"id": null, "word_id": 2232, "form_type": "superlative", "form": "most active"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3435, "example_en": "She stays active in every class discussion.", "example_zh": "她在每次课堂讨论中都很积极。", "difficulty": 4, "image": "class_discussion.png", "example_tag": "课堂", "audio_path": null},
+        {"id": null, "meaning_id": 3435, "example_en": "An active mind asks many useful questions.", "example_zh": "活跃的头脑会提出许多有用的问题。", "difficulty": 4, "image": "", "example_tag": "学习", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 1487, "word": "activity", "phonetic": "[æk'tɪvɪti]", "word_type": "单词"},
+      "word_meaning": {"id": 3436, "word_id": 1487, "stage": 3, "pos": "名词", "meaning_en": "something that people do for work, study, or fun", "meaning_zh": "n.活动", "image": "school_activity.png", "word_tag": "校园"},
+      "word_form": [{"id": null, "word_id": 1487, "form_type": "plural", "form": "activities"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3436, "example_en": "The club planned a weekend activity outdoors.", "example_zh": "社团计划了一个周末户外活动。", "difficulty": 3, "image": "outdoor_club.png", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3436, "example_en": "Reading is my favorite evening activity now.", "example_zh": "阅读是我现在最喜欢的晚间活动。", "difficulty": 3, "image": "reading_evening.png", "example_tag": "生活", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 1387, "word": "actor", "phonetic": "[ˈæktə]", "word_type": "单词"},
+      "word_meaning": {"id": 3437, "word_id": 1387, "stage": 3, "pos": "名词", "meaning_en": "a man who performs in plays, films, or television", "meaning_zh": "n.男演员", "image": "male_actor.png", "word_tag": "职业"},
+      "word_form": [{"id": null, "word_id": 1387, "form_type": "plural", "form": "actors"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3437, "example_en": "That young actor won praise for his role.", "example_zh": "那位年轻男演员因角色而受到称赞。", "difficulty": 3, "image": "stage_role.png", "example_tag": "表演", "audio_path": null},
+        {"id": null, "meaning_id": 3437, "example_en": "The actor greeted fans after the show.", "example_zh": "演出结束后，这位男演员向粉丝问好。", "difficulty": 3, "image": "fans_show.png", "example_tag": "听力", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 1388, "word": "actress", "phonetic": "[ˈæktrɪs]", "word_type": "单词"},
+      "word_meaning": {"id": 3438, "word_id": 1388, "stage": 3, "pos": "名词", "meaning_en": "a woman who performs in plays, films, or television", "meaning_zh": "n.女演员", "image": "female_actor.png", "word_tag": "职业"},
+      "word_form": [{"id": null, "word_id": 1388, "form_type": "plural", "form": "actresses"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3438, "example_en": "The actress smiled before the camera began.", "example_zh": "这位女演员在开拍前微笑了。", "difficulty": 3, "image": "camera_scene.png", "example_tag": "表演", "audio_path": null},
+        {"id": null, "meaning_id": 3438, "example_en": "Every actress needs patience during long rehearsals.", "example_zh": "每位女演员在长时间排练中都需要耐心。", "difficulty": 4, "image": "rehearsal_stage.png", "example_tag": "阅读", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2627, "word": "actual", "phonetic": "/ˈæktʃʊəl/", "word_type": "单词"},
+      "word_meaning": {"id": 3439, "word_id": 2627, "stage": 3, "pos": "形容词", "meaning_en": "real and true, not imagined or guessed", "meaning_zh": "a.实际的；现实的", "image": "", "word_tag": "性质"},
+      "word_form": [
+        {"id": null, "word_id": 2627, "form_type": "comparative", "form": "more actual"},
+        {"id": null, "word_id": 2627, "form_type": "superlative", "form": "most actual"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3439, "example_en": "The actual cost was lower than expected.", "example_zh": "实际费用比预想的更低。", "difficulty": 4, "image": "cost_chart.png", "example_tag": "商务", "audio_path": null},
+        {"id": null, "meaning_id": 3439, "example_en": "Please tell me the actual reason now.", "example_zh": "请现在告诉我真正的原因。", "difficulty": 3, "image": "", "example_tag": "口语", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2628, "word": "acute", "phonetic": "/ə'kjuːt/", "word_type": "单词"},
+      "word_meaning": {"id": 3440, "word_id": 2628, "stage": 3, "pos": "形容词", "meaning_en": "very serious or sharp; severe and needing quick attention", "meaning_zh": "a.十分严重的,（病）急性的", "image": "", "word_tag": "医学"},
+      "word_form": [
+        {"id": null, "word_id": 2628, "form_type": "comparative", "form": "more acute"},
+        {"id": null, "word_id": 2628, "form_type": "superlative", "form": "most acute"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3440, "example_en": "The patient felt acute pain after running.", "example_zh": "跑步后病人感到剧烈疼痛。", "difficulty": 6, "image": "hospital_pain.png", "example_tag": "医学", "audio_path": null},
+        {"id": null, "meaning_id": 3440, "example_en": "The town faces an acute water shortage.", "example_zh": "这个城镇正面临严重缺水。", "difficulty": 6, "image": "water_shortage.png", "example_tag": "新闻", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2629, "word": "ad", "phonetic": "/æd/", "word_type": "缩写"},
+      "word_meaning": {"id": 3441, "word_id": 2629, "stage": 3, "pos": "名词", "meaning_en": "a short form of advertisement", "meaning_zh": "(缩)“＝”advertisementn.广告", "image": "phone_ad.png", "word_tag": "媒体"},
+      "word_form": [{"id": null, "word_id": 2629, "form_type": "plural", "form": "ads"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3441, "example_en": "I skipped the ad before the video began.", "example_zh": "我在视频开始前跳过了广告。", "difficulty": 3, "image": "video_ad.png", "example_tag": "媒体", "audio_path": null},
+        {"id": null, "meaning_id": 3441, "example_en": "That ad used bright colors and loud music.", "example_zh": "那个广告用了鲜艳的颜色和响亮的音乐。", "difficulty": 3, "image": "bright_ad.png", "example_tag": "听力", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2630, "word": "adapt", "phonetic": "/əˈdæpt/", "word_type": "单词"},
+      "word_meaning": {"id": 3442, "word_id": 2630, "stage": 3, "pos": "动词", "meaning_en": "to change something or change yourself to fit new conditions", "meaning_zh": "v.使适应，适合，改编", "image": "", "word_tag": "变化"},
+      "word_form": [
+        {"id": null, "word_id": 2630, "form_type": "third_person_singular", "form": "adapts"},
+        {"id": null, "word_id": 2630, "form_type": "past_tense", "form": "adapted"},
+        {"id": null, "word_id": 2630, "form_type": "past_participle", "form": "adapted"},
+        {"id": null, "word_id": 2630, "form_type": "present_participle", "form": "adapting"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3442, "example_en": "Animals adapt to cold weather in different ways.", "example_zh": "动物以不同方式适应寒冷天气。", "difficulty": 5, "image": "winter_animals.png", "example_tag": "科学", "audio_path": null},
+        {"id": null, "meaning_id": 3442, "example_en": "The director adapted the novel for film.", "example_zh": "导演把这部小说改编成了电影。", "difficulty": 5, "image": "novel_film.png", "example_tag": "艺术", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2631, "word": "adaptation", "phonetic": "/ədæpˈteɪʃ(ə)n/", "word_type": "单词"},
+      "word_meaning": {"id": 3443, "word_id": 2631, "stage": 3, "pos": "名词", "meaning_en": "a change made to fit new conditions or a work changed for a new form", "meaning_zh": "n.适应，改编本", "image": "book_to_film.png", "word_tag": "变化"},
+      "word_form": [{"id": null, "word_id": 2631, "form_type": "plural", "form": "adaptations"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3443, "example_en": "The film adaptation kept the novel's ending.", "example_zh": "这部电影改编版保留了小说的结局。", "difficulty": 5, "image": "film_novel.png", "example_tag": "艺术", "audio_path": null},
+        {"id": null, "meaning_id": 3443, "example_en": "Human adaptation to heat takes several days.", "example_zh": "人对高温的适应需要几天时间。", "difficulty": 6, "image": "", "example_tag": "科学", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 1701, "word": "add", "phonetic": "[æd]", "word_type": "单词"},
+      "word_meaning": {"id": 3444, "word_id": 1701, "stage": 3, "pos": "动词", "meaning_en": "to put something together with something else", "meaning_zh": "vt.添加，增加", "image": "", "word_tag": "动作"},
+      "word_form": [
+        {"id": null, "word_id": 1701, "form_type": "third_person_singular", "form": "adds"},
+        {"id": null, "word_id": 1701, "form_type": "past_tense", "form": "added"},
+        {"id": null, "word_id": 1701, "form_type": "past_participle", "form": "added"},
+        {"id": null, "word_id": 1701, "form_type": "present_participle", "form": "adding"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3444, "example_en": "Please add some salt to the soup.", "example_zh": "请往汤里加一些盐。", "difficulty": 2, "image": "soup_salt.png", "example_tag": "生活", "audio_path": null},
+        {"id": null, "meaning_id": 3444, "example_en": "The teacher added one useful point later.", "example_zh": "老师后来又补充了一条有用的观点。", "difficulty": 3, "image": "", "example_tag": "课堂", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2632, "word": "addicted", "phonetic": "/əˈdɪktɪd/", "word_type": "单词"},
+      "word_meaning": {"id": 3445, "word_id": 2632, "stage": 3, "pos": "形容词", "meaning_en": "unable to stop doing or using something because you like it too much", "meaning_zh": "a.上瘾，成瘾，入迷", "image": "", "word_tag": "状态"},
+      "word_form": [],
+      "word_example": [
+        {"id": null, "meaning_id": 3445, "example_en": "Some teens become addicted to online games.", "example_zh": "一些青少年会沉迷于网络游戏。", "difficulty": 5, "image": "gaming_screen.png", "example_tag": "阅读", "audio_path": null},
+        {"id": null, "meaning_id": 3445, "example_en": "He was addicted to collecting old stamps.", "example_zh": "他痴迷于收集旧邮票。", "difficulty": 4, "image": "stamp_collection.png", "example_tag": "兴趣", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2633, "word": "addition", "phonetic": "/əˈdɪʃ(ə)n/", "word_type": "单词"},
+      "word_meaning": {"id": 3446, "word_id": 2633, "stage": 3, "pos": "名词", "meaning_en": "something added, or the process of adding in mathematics", "meaning_zh": "n.增加;（算数用语）加", "image": "math_addition.png", "word_tag": "数学"},
+      "word_form": [{"id": null, "word_id": 2633, "form_type": "plural", "form": "additions"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3446, "example_en": "The garden needs no further addition this year.", "example_zh": "这个花园今年不需要再增加什么了。", "difficulty": 5, "image": "garden_flowers.png", "example_tag": "生活", "audio_path": null},
+        {"id": null, "meaning_id": 3446, "example_en": "Our math lesson focused on simple addition.", "example_zh": "我们的数学课重点讲了简单加法。", "difficulty": 3, "image": "math_class.png", "example_tag": "课堂", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2284, "word": "address", "phonetic": "[ə'dres]", "word_type": "单词"},
+      "word_meaning": {"id": 3447, "word_id": 2284, "stage": 3, "pos": "名词, 动词", "meaning_en": "the details of where someone lives, or to speak to or deal with something", "meaning_zh": "n.地址", "image": "mail_address.png", "word_tag": "信息"},
+      "word_form": [
+        {"id": null, "word_id": 2284, "form_type": "third_person_singular", "form": "addresses"},
+        {"id": null, "word_id": 2284, "form_type": "past_tense", "form": "addressed"},
+        {"id": null, "word_id": 2284, "form_type": "past_participle", "form": "addressed"},
+        {"id": null, "word_id": 2284, "form_type": "present_participle", "form": "addressing"},
+        {"id": null, "word_id": 2284, "form_type": "plural", "form": "addresses"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3447, "example_en": "Please write your address on this form.", "example_zh": "请把你的地址写在这张表上。", "difficulty": 3, "image": "form_address.png", "example_tag": "拼写", "audio_path": null},
+        {"id": null, "meaning_id": 3447, "example_en": "The speaker addressed the crowd with confidence.", "example_zh": "演讲者自信地向人群发表讲话。", "difficulty": 5, "image": "public_speech.png", "example_tag": "演讲", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2634, "word": "adequate", "phonetic": "/ˈædɪkwət/", "word_type": "单词"},
+      "word_meaning": {"id": 3448, "word_id": 2634, "stage": 3, "pos": "形容词", "meaning_en": "enough in quantity or quality for a purpose", "meaning_zh": "a.合适的，合乎需要的", "image": "", "word_tag": "程度"},
+      "word_form": [
+        {"id": null, "word_id": 2634, "form_type": "comparative", "form": "more adequate"},
+        {"id": null, "word_id": 2634, "form_type": "superlative", "form": "most adequate"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3448, "example_en": "We have adequate food for the whole trip.", "example_zh": "我们有足够的食物供整趟旅行使用。", "difficulty": 5, "image": "trip_food.png", "example_tag": "旅行", "audio_path": null},
+        {"id": null, "meaning_id": 3448, "example_en": "The room offers adequate space for study.", "example_zh": "这个房间有足够的学习空间。", "difficulty": 5, "image": "study_room.png", "example_tag": "生活", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2635, "word": "adjust", "phonetic": "/əˈdʒʌst/", "word_type": "单词"},
+      "word_meaning": {"id": 3449, "word_id": 2635, "stage": 3, "pos": "动词", "meaning_en": "to change something slightly to make it better or fit", "meaning_zh": "v.调整,调节,适应,习惯", "image": "", "word_tag": "变化"},
+      "word_form": [
+        {"id": null, "word_id": 2635, "form_type": "third_person_singular", "form": "adjusts"},
+        {"id": null, "word_id": 2635, "form_type": "past_tense", "form": "adjusted"},
+        {"id": null, "word_id": 2635, "form_type": "past_participle", "form": "adjusted"},
+        {"id": null, "word_id": 2635, "form_type": "present_participle", "form": "adjusting"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3449, "example_en": "You should adjust the seat before driving.", "example_zh": "开车前你应该调整座椅。", "difficulty": 4, "image": "car_seat.png", "example_tag": "生活", "audio_path": null},
+        {"id": null, "meaning_id": 3449, "example_en": "It took weeks to adjust to dorm life.", "example_zh": "花了几周时间才适应宿舍生活。", "difficulty": 5, "image": "dorm_room.png", "example_tag": "校园", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2636, "word": "adjustment", "phonetic": "/əˈdʒʌstmənt/", "word_type": "单词"},
+      "word_meaning": {"id": 3450, "word_id": 2636, "stage": 3, "pos": "名词", "meaning_en": "a small change made to improve something or the process of becoming used to something", "meaning_zh": "n.调整，适应", "image": "", "word_tag": "变化"},
+      "word_form": [{"id": null, "word_id": 2636, "form_type": "plural", "form": "adjustments"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3450, "example_en": "A small adjustment improved the machine quickly.", "example_zh": "一个小调整很快改善了机器性能。", "difficulty": 5, "image": "machine_control.png", "example_tag": "科技", "audio_path": null},
+        {"id": null, "meaning_id": 3450, "example_en": "His adjustment to city life was smooth.", "example_zh": "他对城市生活的适应很顺利。", "difficulty": 5, "image": "city_life.png", "example_tag": "阅读", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2637, "word": "administration", "phonetic": "/ədmɪnɪˈstreɪʃ(ə)n/", "word_type": "单词"},
+      "word_meaning": {"id": 3451, "word_id": 2637, "stage": 3, "pos": "名词", "meaning_en": "the management of an organization or the people who manage it", "meaning_zh": "n.管理,行政部门", "image": "office_management.png", "word_tag": "管理"},
+      "word_form": [{"id": null, "word_id": 2637, "form_type": "plural", "form": "administrations"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3451, "example_en": "The school administration approved the new club.", "example_zh": "学校行政部门批准了这个新社团。", "difficulty": 6, "image": "school_office.png", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3451, "example_en": "Good administration keeps the hospital running well.", "example_zh": "良好的管理让医院运转顺畅。", "difficulty": 6, "image": "hospital_admin.png", "example_tag": "阅读", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2638, "word": "admirable", "phonetic": "/ˈædmərəb(ə)l/", "word_type": "单词"},
+      "word_meaning": {"id": 3452, "word_id": 2638, "stage": 3, "pos": "形容词", "meaning_en": "deserving respect and praise", "meaning_zh": "a.值得赞赏的,可钦佩的", "image": "", "word_tag": "评价"},
+      "word_form": [
+        {"id": null, "word_id": 2638, "form_type": "comparative", "form": "more admirable"},
+        {"id": null, "word_id": 2638, "form_type": "superlative", "form": "most admirable"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3452, "example_en": "Her admirable courage inspired the whole team.", "example_zh": "她令人钦佩的勇气鼓舞了整个团队。", "difficulty": 5, "image": "", "example_tag": "励志", "audio_path": null},
+        {"id": null, "meaning_id": 3452, "example_en": "That doctor showed admirable patience with children.", "example_zh": "那位医生对孩子表现出令人敬佩的耐心。", "difficulty": 5, "image": "doctor_children.png", "example_tag": "职业", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2248, "word": "admire", "phonetic": "[ədˈmaɪə]", "word_type": "单词"},
+      "word_meaning": {"id": 3453, "word_id": 2248, "stage": 3, "pos": "动词", "meaning_en": "to respect or like someone or something very much", "meaning_zh": "v.钦佩；羡慕", "image": "", "word_tag": "情感"},
+      "word_form": [
+        {"id": null, "word_id": 2248, "form_type": "third_person_singular", "form": "admires"},
+        {"id": null, "word_id": 2248, "form_type": "past_tense", "form": "admired"},
+        {"id": null, "word_id": 2248, "form_type": "past_participle", "form": "admired"},
+        {"id": null, "word_id": 2248, "form_type": "present_participle", "form": "admiring"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3453, "example_en": "Many students admire her calm leadership style.", "example_zh": "许多学生钦佩她冷静的领导风格。", "difficulty": 4, "image": "student_leader.png", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3453, "example_en": "I admire the mountain view at dawn.", "example_zh": "我很欣赏黎明时的山景。", "difficulty": 4, "image": "mountain_dawn.png", "example_tag": "看图", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2639, "word": "admission", "phonetic": "/ədˈmɪʃ(ə)n/", "word_type": "单词"},
+      "word_meaning": {"id": 3454, "word_id": 2639, "stage": 3, "pos": "名词", "meaning_en": "permission to enter a place or be accepted into an organization", "meaning_zh": "n.准入,接纳", "image": "school_gate.png", "word_tag": "教育"},
+      "word_form": [{"id": null, "word_id": 2639, "form_type": "plural", "form": "admissions"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3454, "example_en": "Her admission to college made the family proud.", "example_zh": "她被大学录取让全家都很骄傲。", "difficulty": 5, "image": "college_letter.png", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3454, "example_en": "Admission is free for children on Sundays.", "example_zh": "周日儿童可免费入场。", "difficulty": 4, "image": "museum_ticket.png", "example_tag": "生活", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2640, "word": "admit", "phonetic": "/ədˈmɪt/", "word_type": "单词"},
+      "word_meaning": {"id": 3455, "word_id": 2640, "stage": 3, "pos": "动词", "meaning_en": "to allow someone to enter, or to say something is true", "meaning_zh": "vt.承认，准许（入场，入学，入会）", "image": "", "word_tag": "交流"},
+      "word_form": [
+        {"id": null, "word_id": 2640, "form_type": "third_person_singular", "form": "admits"},
+        {"id": null, "word_id": 2640, "form_type": "past_tense", "form": "admitted"},
+        {"id": null, "word_id": 2640, "form_type": "past_participle", "form": "admitted"},
+        {"id": null, "word_id": 2640, "form_type": "present_participle", "form": "admitting"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3455, "example_en": "He admitted taking the wrong notebook home.", "example_zh": "他承认把错误的笔记本带回了家。", "difficulty": 5, "image": "", "example_tag": "校园", "audio_path": null},
+        {"id": null, "meaning_id": 3455, "example_en": "The guard admitted us after checking tickets.", "example_zh": "门卫检查票后让我们进入了。", "difficulty": 5, "image": "ticket_check.png", "example_tag": "听力", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2641, "word": "adolescence", "phonetic": "/ædəʊ'lesns/", "word_type": "单词"},
+      "word_meaning": {"id": 3456, "word_id": 2641, "stage": 3, "pos": "名词", "meaning_en": "the period of life when a person is developing into an adult", "meaning_zh": "n.青春，青春期", "image": "", "word_tag": "成长"},
+      "word_form": [],
+      "word_example": [
+        {"id": null, "meaning_id": 3456, "example_en": "Adolescence often brings rapid emotional change.", "example_zh": "青春期常常带来迅速的情绪变化。", "difficulty": 6, "image": "teen_growth.png", "example_tag": "阅读", "audio_path": null},
+        {"id": null, "meaning_id": 3456, "example_en": "Many habits form during adolescence and remain.", "example_zh": "许多习惯在青春期形成并保留下来。", "difficulty": 6, "image": "", "example_tag": "写作", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2642, "word": "adolescent", "phonetic": "/ædəˈlesənt/", "word_type": "单词"},
+      "word_meaning": {"id": 3457, "word_id": 2642, "stage": 3, "pos": "名词, 形容词", "meaning_en": "a young person developing into an adult; relating to that age", "meaning_zh": "n.青少年", "image": "teen_student.png", "word_tag": "人群"},
+      "word_form": [{"id": null, "word_id": 2642, "form_type": "plural", "form": "adolescents"}],
+      "word_example": [
+        {"id": null, "meaning_id": 3457, "example_en": "Every adolescent needs guidance and respect.", "example_zh": "每个青少年都需要引导和尊重。", "difficulty": 5, "image": "teen_group.png", "example_tag": "成长", "audio_path": null},
+        {"id": null, "meaning_id": 3457, "example_en": "Adolescent health deserves more public attention.", "example_zh": "青少年健康值得更多公众关注。", "difficulty": 6, "image": "", "example_tag": "新闻", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2643, "word": "adopt", "phonetic": "/əˈdɔpt/", "word_type": "单词"},
+      "word_meaning": {"id": 3458, "word_id": 2643, "stage": 3, "pos": "动词", "meaning_en": "to take something as your own, or choose to use a method or idea", "meaning_zh": "v.收养，领养", "image": "adopt_pet.png", "word_tag": "家庭"},
+      "word_form": [
+        {"id": null, "word_id": 2643, "form_type": "third_person_singular", "form": "adopts"},
+        {"id": null, "word_id": 2643, "form_type": "past_tense", "form": "adopted"},
+        {"id": null, "word_id": 2643, "form_type": "past_participle", "form": "adopted"},
+        {"id": null, "word_id": 2643, "form_type": "present_participle", "form": "adopting"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3458, "example_en": "They decided to adopt a homeless dog.", "example_zh": "他们决定收养一只流浪狗。", "difficulty": 4, "image": "homeless_dog.png", "example_tag": "生活", "audio_path": null},
+        {"id": null, "meaning_id": 3458, "example_en": "Our class adopted a new study method.", "example_zh": "我们班采用了一种新的学习方法。", "difficulty": 5, "image": "", "example_tag": "学习", "audio_path": null}
+      ]
+    },
+    {
+      "word": {"id": 2644, "word": "adore", "phonetic": "/əˈdɔː(r)/", "word_type": "单词"},
+      "word_meaning": {"id": 3459, "word_id": 2644, "stage": 3, "pos": "动词", "meaning_en": "to love someone or something very much", "meaning_zh": "v.热爱，爱慕某人", "image": "", "word_tag": "情感"},
+      "word_form": [
+        {"id": null, "word_id": 2644, "form_type": "third_person_singular", "form": "adores"},
+        {"id": null, "word_id": 2644, "form_type": "past_tense", "form": "adored"},
+        {"id": null, "word_id": 2644, "form_type": "past_participle", "form": "adored"},
+        {"id": null, "word_id": 2644, "form_type": "present_participle", "form": "adoring"}
+      ],
+      "word_example": [
+        {"id": null, "meaning_id": 3459, "example_en": "She adores classical music on rainy nights.", "example_zh": "她在雨夜非常喜欢古典音乐。", "difficulty": 4, "image": "rain_music.png", "example_tag": "听力", "audio_path": null},
+        {"id": null, "meaning_id": 3459, "example_en": "The little boy adored his brave sister.", "example_zh": "那个小男孩非常爱慕他勇敢的姐姐。", "difficulty": 4, "image": "siblings.png", "example_tag": "情感", "audio_path": null}
+      ]
+    }
+  ]
+}

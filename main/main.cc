@@ -26,7 +26,7 @@
 #include "eteacher/apps/dictionary/dictionary.h"
 #include "eteacher/apps/words_book/words_book.h"
 #include "eteacher/apps/daily_reading/daily_reading.h"
-#include "eteacher/apps/mission_game/mission_game.h"
+#include "eteacher/apps/word_snake/word_snake.h"
 #include "eteacher/apps/txt_reader/txt_reader.h"
 #include "eteacher/apps/words_game/words_game.h"
 
@@ -61,7 +61,7 @@ extern "C" void app_main(void)
 
     app_mgr.Register(MakeTxtReaderApp());
     app_mgr.Register(MakeDeviceSettingApp());
-    app_mgr.Register(MakeMissionGameApp());
+    app_mgr.Register(MakeWordSnakeApp());
     app_mgr.Register(MakeWordsGameApp());
     app_mgr.Register(MakeDictionaryApp());
     app_mgr.Register(MakeWordsBookApp());

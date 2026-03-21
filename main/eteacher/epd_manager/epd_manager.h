@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <stdint.h>
 
 #include <freertos/FreeRTOS.h>
@@ -15,6 +16,13 @@ public:
 		kFast = 1,
 		kFull = 2,
 	};
+
+	using RefreshDoneCallback = void (*)(TaskType requested,
+							 TaskType effective,
+							 int64_t start_us,
+							 int64_t end_us,
+							 bool ok,
+							 void* user_ctx);
 
 	struct Rect {
 		int16_t x;
@@ -35,6 +43,8 @@ public:
 	// Optional tuning
 	void SetPartialForceFastEveryN(uint32_t n);
 	uint32_t GetPartialForceFastEveryN() const { return partial_force_fast_every_n_; }
+	void SetPartialClearBeforeDraw(bool enabled) { partial_clear_before_draw_.store(enabled); }
+	bool GetPartialClearBeforeDraw() const { return partial_clear_before_draw_.load(); }
 
 	// Schedule a refresh task.
 	// - For kPartial: rect is used (partial window)
@@ -46,7 +56,9 @@ public:
 			  Epd::DrawCallback cb,
 			  void* ctx = nullptr,
 			  void (*ctx_deleter)(void*) = nullptr,
-			  Rect rect = Rect());
+			  Rect rect = Rect(),
+			  RefreshDoneCallback done_cb = nullptr,
+			  void* done_ctx = nullptr);
 
 private:
 	EpdManager() = default;
@@ -59,6 +71,8 @@ private:
 		Epd::DrawCallback cb;
 		void* ctx;
 		void (*ctx_deleter)(void*);
+		RefreshDoneCallback done_cb;
+		void* done_ctx;
 	};
 
 	static void TaskEntry(void* arg);
@@ -77,6 +91,7 @@ private:
 	int64_t last_partial_us_ = 0;
 	int64_t last_fast_us_ = 0;
 	int64_t last_full_us_ = 0;
+	std::atomic<bool> partial_clear_before_draw_{true};
 
 	bool inited_ = false;
 };

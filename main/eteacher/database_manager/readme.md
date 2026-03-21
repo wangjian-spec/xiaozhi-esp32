@@ -31,21 +31,64 @@
 
 ### 2.1 静态词典库 `words.db`
 
-#### `word_dictionary`
+#### `word`
 
 ```sql
-CREATE TABLE word_dictionary (
+word — 单词主表，该表为完整单词库，将各阶段和各教材的单词全部加入该表中，word_type，1：单词，2：词组，3：缩写，等等；
+CREATE TABLE word (
     id INTEGER PRIMARY KEY,
-    word TEXT NOT NULL,
+    word TEXT NOT NULL UNIQUE,
     phonetic TEXT,
-    meaning_zh TEXT,
-    meaning_en TEXT,
-    tags TEXT,
-    forms TEXT,
-    example1 TEXT,
-    example2 TEXT,
-    example3 TEXT
+    word_type TEXT
 );
+
+
+word_meaning — 不同学习阶段的释义表，word_tag用于对单词进行分类，如动物，物品，词组，动词，职业，听力，缩写，人名等；pos 为词性，image 用于表达该单词是否有图片
+CREATE TABLE word_meaning (
+    id INTEGER PRIMARY KEY,
+    word_id INTEGER NOT NULL,
+    stage INTEGER,
+    pos TEXT,
+    meaning_en TEXT，
+    meaning_zh TEXT，
+  image TEXT,
+    word_tag TEXT
+);
+
+
+word_form - 词形表
+CREATE TABLE word_form (
+    id INTEGER PRIMARY KEY,
+    word_id INTEGER,
+    form_type TEXT,
+    form TEXT
+);
+
+word_example — 不同学习阶段的例句表，不同难度，example_tag用于对例句进行分类，如听力，动画等；
+CREATE TABLE word_example (
+    id INTEGER PRIMARY KEY,
+    meaning_id  INTEGER,
+    example_en TEXT,
+    example_zh TEXT,
+    difficulty INTEGER,
+  image TEXT,  
+    example_tag TEXT，
+    audio_path  TEXT
+);
+
+
+    阶段定义
+    1 小学
+    2 初中
+    3 高中
+    4 CET4
+    5 CET6
+    6 考研
+    7 专四
+    8 专八
+    9 托福
+    10 雅思
+    11 GRE
 ```
 
 ### 2.2 静态题库 `question.db`
@@ -55,19 +98,16 @@ CREATE TABLE word_dictionary (
 ```sql
 CREATE TABLE question_bank (
     id INTEGER PRIMARY KEY,
-    question_type TEXT,
-    stage TEXT,
+    question_type INTEGER,
+    stage INTEGER,
     difficulty INTEGER,
-    content_json TEXT,
-    answer TEXT,
-    audio_path TEXT,
-    image_path TEXT
+    content_json TEXT
 );
 ```
 
   `DatabaseCreate.py` 生成规则（`question_bank`）：
 
-  - `question_type`：随机生成 `1~10`（以文本形式写入）
+  - `question_type`：随机生成 `1~10`数字
   - `audio_path`：每条记录都写入有效路径（非空）
   - `image_path`：每条记录都写入有效路径（非空）
 
@@ -107,7 +147,7 @@ CREATE TABLE user_device_bindings (
 CREATE TABLE vocab_items (
   id              INTEGER PRIMARY KEY,
   user_id         INTEGER,
-  entry_id        INTEGER,
+  word_id         INTEGER,
   added_at        INTEGER,
   source          TEXT,
   is_favorite     INTEGER DEFAULT 0,
@@ -183,7 +223,7 @@ CREATE TABLE ai_detected_errors (
   user_id         INTEGER,
   session_id      INTEGER,
   message_id      INTEGER,
-  entry_id        INTEGER,
+  word_id         INTEGER,
   error_type      TEXT,
   severity        INTEGER,
   created_at      INTEGER
@@ -246,6 +286,35 @@ CREATE TABLE sync_state (
   last_row_id     INTEGER
 );
 ```
+
+需要创建的索引如下：
+| 表名             | 建议创建索引的字段    | 索引名示例                 | 说明          |
+| -------------- | ------------ | --------------------- | ----------- |
+| `word`         | `word`       | `idx_word_word`       | 按单词快速查找单词信息 |
+| `word_meaning` | `word_id`    | `idx_meaning_word`    | 根据单词 ID 查释义 |
+| `word_meaning` | `stage`      | `idx_meaning_stage`   | 按学习阶段快速筛选   |
+| `word_form`    | `word_id`    | `idx_form_word`       | 查单词的词形变化    |
+| `word_example` | `meaning_id` | `idx_example_meaning` | 根据释义 ID 查例句 |
+
+
+| 表名              | 建议创建索引的字段       | 索引名示例                     | 说明        |
+| --------------- | --------------- | ------------------------- | --------- |
+| `question_bank` | `stage`         | `idx_question_stage`      | 按阶段快速筛选题目 |
+| `question_bank` | `difficulty`    | `idx_question_difficulty` | 按难度筛选题目   |
+| `question_bank` | `question_type` | `idx_question_type`       | 按题型筛选     |
+
+| 表名                     | 建议创建索引的字段                       | 索引名示例                        | 说明               |
+| ---------------------- | ------------------------------- | ---------------------------- | ---------------- |
+| `vocab_items`          | `user_id`                       | `idx_vocab_user`             | 查询某个用户的生词本       |
+| `vocab_items`          | `word_id`                       | `idx_vocab_word`             | 查询单词在某用户生词本情况    |
+| `vocab_learning_state` | `(user_id, vocab_id)`           | 主键                           | 已经是联合主键，不需要额外索引  |
+| `vocab_review_log`     | `user_id`                       | `idx_review_user`            | 查询用户复习记录         |
+| `vocab_review_log`     | `vocab_id`                      | `idx_review_vocab`           | 查询单词复习记录         |
+| `tasks`                | `(user_id, is_deleted, due_at)` | `idx_tasks_user_deleted_due` | 按用户、未删除任务、到期时间筛选 |
+| `tasks`                | `(is_deleted, is_completed)`    | `idx_tasks_deleted_done`     | 筛选完成/删除状态任务      |
+| `learning_stats_daily` | `(user_id, date)`               | 主键                           | 已经是联合主键，不需要额外索引  |
+| `game_rewards_log`     | `user_id`                       | `idx_game_reward_user`       | 查询用户奖励记录         |
+
 
 > `tasks` 与 `vocab_items` 是当前 App（`calendar_schedule` / `dictionary` / `words_book`）最核心依赖表。
 

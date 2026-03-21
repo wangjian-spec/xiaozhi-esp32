@@ -1,0 +1,1197 @@
+{
+  "metadata": {
+    "source_file": "words_export.json",
+    "checked_range": {
+      "start_meaning_id": 1080,
+      "end_meaning_id": 1979
+    },
+    "issue_count": 148,
+    "generated_at": "2026-03-20"
+  },
+  "issues": [
+    {
+      "meaning_id": 1082,
+      "word_id": 1045,
+      "word": "Good morning !",
+      "phonetic": null,
+      "meaning_zh": "早上好！",
+      "issues": ["word 含有不规范的空格加标点写法", "固定问候表达缺少音标"]
+    },
+    {
+      "meaning_id": 1086,
+      "word_id": 1048,
+      "word": "Good afternoon !",
+      "phonetic": null,
+      "meaning_zh": "下午好！",
+      "issues": ["word 含有不规范的空格加标点写法", "固定问候表达缺少音标"]
+    },
+    {
+      "meaning_id": 1088,
+      "word_id": 1049,
+      "word": "Good evening !",
+      "phonetic": null,
+      "meaning_zh": "晚上好！",
+      "issues": ["word 含有不规范的空格加标点写法", "固定问候表达缺少音标"]
+    },
+    {
+      "meaning_id": 1092,
+      "word_id": 1050,
+      "word": "How are you ?",
+      "phonetic": null,
+      "meaning_zh": "你好吗？",
+      "issues": ["word 含有不规范的空格加标点写法", "固定句型缺少音标"]
+    },
+    {
+      "meaning_id": 1100,
+      "word_id": 1055,
+      "word": "BBC",
+      "phonetic": null,
+      "meaning_zh": "英国广播公司",
+      "issues": ["常见缩写词条缺少音标"]
+    },
+    {
+      "meaning_id": 1119,
+      "word_id": 1058,
+      "word": "please.",
+      "phonetic": null,
+      "meaning_zh": "int.(用于客气地请求或吩咐)请",
+      "issues": ["word 混入句末标点，不是标准词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1120,
+      "word_id": 1059,
+      "word": "NBA",
+      "phonetic": null,
+      "meaning_zh": "(美国)全国篮球协会",
+      "issues": ["常见缩写词条缺少音标"]
+    },
+    {
+      "meaning_id": 1121,
+      "word_id": 1060,
+      "word": "P＝parking",
+      "phonetic": null,
+      "meaning_zh": "停车场;停车位",
+      "issues": ["word 采用说明式写法，不是标准词条形式", "使用全角等号，格式不统一", "缺少音标"]
+    },
+    {
+      "meaning_id": 1122,
+      "word_id": 1061,
+      "word": "kg=kilogram",
+      "phonetic": null,
+      "meaning_zh": "千克;公斤",
+      "issues": ["word 采用说明式写法，不是标准词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1123,
+      "word_id": 1062,
+      "word": "color (=colour)",
+      "phonetic": null,
+      "meaning_zh": "n.颜色",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1141,
+      "word_id": 1070,
+      "word": "UFO",
+      "phonetic": null,
+      "meaning_zh": "不明飞行物",
+      "issues": ["常见缩写词条缺少音标"]
+    },
+    {
+      "meaning_id": 1167,
+      "word_id": 100,
+      "word": "nine",
+      "phonetic": "[naɪn]",
+      "meaning_zh": "num九",
+      "issues": ["meaning_zh 缺少正常标点分隔，格式不完整"]
+    },
+    {
+      "meaning_id": 1183,
+      "word_id": 76,
+      "word": "mother",
+      "phonetic": "[ˈmʌðə]",
+      "meaning_zh": "adj.母亲;妈妈",
+      "issues": ["meaning_zh 词性疑似错误，mother 此处应为名词而不是 adj."]
+    },
+    {
+      "meaning_id": 1189,
+      "word_id": 1087,
+      "word": "grandparent",
+      "phonetic": "[ /ˈɡrændˌpeərənt]",
+      "meaning_zh": "n.祖父(母);外祖父(母)",
+      "issues": ["phonetic 含异常空白和斜杠格式", "音标整体格式不规范"]
+    },
+    {
+      "meaning_id": 1199,
+      "word_id": 1091,
+      "word": "Have a good day !",
+      "phonetic": null,
+      "meaning_zh": "(表示祝愿)过得愉快！",
+      "issues": ["word 含有不规范的空格加标点写法", "固定表达缺少音标"]
+    },
+    {
+      "meaning_id": 1200,
+      "word_id": 1092,
+      "word": "bye (=goodbye)",
+      "phonetic": null,
+      "meaning_zh": "int.再见",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1204,
+      "word_id": 1095,
+      "word": "mom (=mum)",
+      "phonetic": null,
+      "meaning_zh": "n.妈妈",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1229,
+      "word_id": 1103,
+      "word": "excuse me.",
+      "phonetic": null,
+      "meaning_zh": "劳驾;请原谅",
+      "issues": ["word 混入句末标点，不是标准词条形式", "固定表达缺少音标"]
+    },
+    {
+      "meaning_id": 1233,
+      "word_id": 1105,
+      "word": "What about…?",
+      "phonetic": null,
+      "meaning_zh": "(询问消息或提出建议)……怎么样？……好吗？",
+      "issues": ["word 使用省略号和问号的说明式写法，不是纯标准词条形式", "固定句型缺少音标"]
+    },
+    {
+      "meaning_id": 1236,
+      "word_id": 1106,
+      "word": "thank you for…",
+      "phonetic": null,
+      "meaning_zh": "为……而感谢",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定短语缺少音标"]
+    },
+    {
+      "meaning_id": 1239,
+      "word_id": 1108,
+      "word": "You're welcome.",
+      "phonetic": null,
+      "meaning_zh": "别客气。",
+      "issues": ["word 混入句末标点，不是标准词条形式", "固定表达缺少音标"]
+    },
+    {
+      "meaning_id": 1256,
+      "word_id": 1116,
+      "word": "e-mail (=email)",
+      "phonetic": null,
+      "meaning_zh": "n.电子邮件",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1307,
+      "word_id": 1142,
+      "word": "let's=let us",
+      "phonetic": null,
+      "meaning_zh": "让我们(一起)",
+      "issues": ["word 采用说明式等号写法，不是纯标准词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1310,
+      "word_id": 240,
+      "word": "late",
+      "phonetic": "[leit]",
+      "meaning_zh": "adj.迟到",
+      "issues": ["meaning_zh 表达不完整，通常应为“迟到的”或对应副词义"]
+    },
+    {
+      "meaning_id": 1317,
+      "word_id": 1146,
+      "word": "boring",
+      "phonetic": "['bɔːrɪŋ]",
+      "meaning_zh": "adj.没聊的;令人厌倦的",
+      "issues": ["meaning_zh 存在明显错字，“没聊的”应为“无聊的”"]
+    },
+    {
+      "meaning_id": 1322,
+      "word_id": 1150,
+      "word": "TV (=television)",
+      "phonetic": null,
+      "meaning_zh": "n.电视;电视机",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1350,
+      "word_id": 1162,
+      "word": "How about…?",
+      "phonetic": null,
+      "meaning_zh": "(提出建议)……怎么样？",
+      "issues": ["word 使用省略号和问号的说明式写法，不是纯标准词条形式", "固定句型缺少音标"]
+    },
+    {
+      "meaning_id": 1351,
+      "word_id": 1163,
+      "word": "burger (=hamburger)",
+      "phonetic": null,
+      "meaning_zh": "n.汉堡包",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1375,
+      "word_id": 1171,
+      "word": "How much…?",
+      "phonetic": null,
+      "meaning_zh": "(购物时)……多少钱？",
+      "issues": ["word 使用省略号和问号的说明式写法，不是纯标准词条形式", "固定句型缺少音标"]
+    },
+    {
+      "meaning_id": 1388,
+      "word_id": 1177,
+      "word": "woman (pl.women)",
+      "phonetic": null,
+      "meaning_zh": "n.女子",
+      "issues": ["word 含复数括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1389,
+      "word_id": 1178,
+      "word": "Can I help you?",
+      "phonetic": null,
+      "meaning_zh": "我能帮您吗？",
+      "issues": ["固定句型缺少音标"]
+    },
+    {
+      "meaning_id": 1394,
+      "word_id": 1181,
+      "word": "Here you are.",
+      "phonetic": null,
+      "meaning_zh": "给你。",
+      "issues": ["word 混入句末标点，不是标准词条形式", "固定表达缺少音标"]
+    },
+    {
+      "meaning_id": 1399,
+      "word_id": 1182,
+      "word": "fifteen",
+      "phonetic": "['fɪf'tiːn]",
+      "meaning_zh": "num.十五",
+      "issues": ["phonetic 重音标记格式异常"]
+    },
+    {
+      "meaning_id": 1414,
+      "word_id": 818,
+      "word": "when",
+      "phonetic": "[hwen]",
+      "meaning_zh": "adv.(疑问副词)什么时候",
+      "issues": ["phonetic 疑似拼写异常，和常见音标形式不符"]
+    },
+    {
+      "meaning_id": 1429,
+      "word_id": 1194,
+      "word": "Happy birthday !",
+      "phonetic": null,
+      "meaning_zh": "生日快乐！",
+      "issues": ["word 含有不规范的空格加标点写法", "固定表达缺少音标"]
+    },
+    {
+      "meaning_id": 1431,
+      "word_id": 1195,
+      "word": "How old…?",
+      "phonetic": null,
+      "meaning_zh": "...多大年纪？...几岁了？",
+      "issues": ["word 使用省略号和问号的说明式写法，不是纯标准词条形式", "固定句型缺少音标"]
+    },
+    {
+      "meaning_id": 1433,
+      "word_id": 1196,
+      "word": "See you !",
+      "phonetic": null,
+      "meaning_zh": "再见！",
+      "issues": ["word 含有不规范的空格加标点写法", "固定表达缺少音标"]
+    },
+    {
+      "meaning_id": 1452,
+      "word_id": 1207,
+      "word": "Have a good time !",
+      "phonetic": null,
+      "meaning_zh": "(表示祝愿)过得愉快！",
+      "issues": ["word 含有不规范的空格加标点写法", "固定表达缺少音标"]
+    },
+    {
+      "meaning_id": 1454,
+      "word_id": 1209,
+      "word": "favorite (=favourite)",
+      "phonetic": null,
+      "meaning_zh": "adj.＆ n.特别喜爱的(人或事物)",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1457,
+      "word_id": 1210,
+      "word": "P.E. =physical education",
+      "phonetic": null,
+      "meaning_zh": "n.体育",
+      "issues": ["word 采用说明式等号写法，不是纯标准词条形式", "等号前后格式不统一", "缺少音标"]
+    },
+    {
+      "meaning_id": 1463,
+      "word_id": 1213,
+      "word": "why",
+      "phonetic": "[hwaɪ]",
+      "meaning_zh": "adv.为什么",
+      "issues": ["phonetic 疑似拼写异常，和常见音标形式不符"]
+    },
+    {
+      "meaning_id": 1474,
+      "word_id": 1216,
+      "word": "A.M.(=a.m.)",
+      "phonetic": null,
+      "meaning_zh": "上午",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1475,
+      "word_id": 1217,
+      "word": "P.M.(=p.m.)",
+      "phonetic": null,
+      "meaning_zh": "下午;午后",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1478,
+      "word_id": 1219,
+      "word": "from…to…",
+      "phonetic": null,
+      "meaning_zh": "从……到……",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定短语缺少音标"]
+    },
+    {
+      "meaning_id": 1494,
+      "word_id": 1225,
+      "word": "be good at…",
+      "phonetic": null,
+      "meaning_zh": "擅长于…",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1501,
+      "word_id": 1226,
+      "word": "talk to…",
+      "phonetic": null,
+      "meaning_zh": "跟……说",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1509,
+      "word_id": 1231,
+      "word": "also",
+      "phonetic": "['ɔːlsəʊ]",
+      "meaning_zh": "adv.也;而且",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1510,
+      "word_id": 1232,
+      "word": "people",
+      "phonetic": "['piːpl]",
+      "meaning_zh": "n.人;人们",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1512,
+      "word_id": 1233,
+      "word": "be good with…",
+      "phonetic": null,
+      "meaning_zh": "善于应付……的;对……有办法",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1516,
+      "word_id": 1235,
+      "word": "help (sb) with sth",
+      "phonetic": null,
+      "meaning_zh": "在某方面帮助(某人)",
+      "issues": ["word 使用括号和缩略说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1517,
+      "word_id": 1236,
+      "word": "center (=centre)",
+      "phonetic": null,
+      "meaning_zh": "n.中心;中央",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1523,
+      "word_id": 1239,
+      "word": "get up",
+      "phonetic": "['getʌp]",
+      "meaning_zh": "起床;站起",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1527,
+      "word_id": 1241,
+      "word": "tooth (pl. teeth)",
+      "phonetic": null,
+      "meaning_zh": "n.牙齿",
+      "issues": ["word 含复数括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1534,
+      "word_id": 1245,
+      "word": "early",
+      "phonetic": "['ɜːli]",
+      "meaning_zh": "adv.&adj.早(的)",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1542,
+      "word_id": 1248,
+      "word": "funny",
+      "phonetic": "['fʌni]",
+      "meaning_zh": "adj.奇怪的;滑稽好笑的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1543,
+      "word_id": 1249,
+      "word": "exercise",
+      "phonetic": "['eksəsaɪz]",
+      "meaning_zh": "v.&n.锻炼;练习",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1551,
+      "word_id": 1255,
+      "word": "do (one's) homework",
+      "phonetic": null,
+      "meaning_zh": "做作业",
+      "issues": ["word 使用所有格括注说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1557,
+      "word_id": 1258,
+      "word": "either",
+      "phonetic": "['iːðə]",
+      "meaning_zh": "adv.或者;也(用在否定词组后)",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1558,
+      "word_id": 1259,
+      "word": "either…or…",
+      "phonetic": null,
+      "meaning_zh": "要么…要么…;或者…或者…",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定结构缺少音标"]
+    },
+    {
+      "meaning_id": 1563,
+      "word_id": 1261,
+      "word": "life (pl. lives)",
+      "phonetic": null,
+      "meaning_zh": "n.生活;生命",
+      "issues": ["word 含复数括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1566,
+      "word_id": 1262,
+      "word": "subway",
+      "phonetic": "['sʌbweɪ]",
+      "meaning_zh": "n.地铁",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1578,
+      "word_id": 1271,
+      "word": "kilometer (=kilometre)",
+      "phonetic": null,
+      "meaning_zh": "n.千米;公里",
+      "issues": ["word 含括注说明，不是纯词条形式", "缺少音标"]
+    },
+    {
+      "meaning_id": 1594,
+      "word_id": 1276,
+      "word": "between…and…",
+      "phonetic": null,
+      "meaning_zh": "在……和……之间",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1597,
+      "word_id": 1278,
+      "word": "ropeway",
+      "phonetic": null,
+      "meaning_zh": "n.索道",
+      "issues": ["单词词条缺少音标"]
+    },
+    {
+      "meaning_id": 1601,
+      "word_id": 1281,
+      "word": "villager",
+      "phonetic": "['vɪlɪdʒə]",
+      "meaning_zh": "n.村民",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1603,
+      "word_id": 1282,
+      "word": "dream",
+      "phonetic": "[driːm]",
+      "meaning_zh": "n,&v.梦想;睡梦;做梦",
+      "issues": ["meaning_zh 词性连接格式异常，通常应为 n.&v. 或 n.＆v."]
+    },
+    {
+      "meaning_id": 1605,
+      "word_id": 1284,
+      "word": "come ture",
+      "phonetic": null,
+      "meaning_zh": "实现;成为现实",
+      "issues": ["word 疑似拼写错误，常见表达应为 come true", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1608,
+      "word_id": 1285,
+      "word": "(be) on time",
+      "phonetic": null,
+      "meaning_zh": "准时",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1609,
+      "word_id": 1286,
+      "word": "hallway",
+      "phonetic": "['hɔːlweɪ]",
+      "meaning_zh": "n.走廊;过道",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1613,
+      "word_id": 1288,
+      "word": "listen to…",
+      "phonetic": null,
+      "meaning_zh": "听……",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1624,
+      "word_id": 1292,
+      "word": "practice",
+      "phonetic": "['præktɪs]",
+      "meaning_zh": "v.&n.练习",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1628,
+      "word_id": 1295,
+      "word": "make (one's) bed",
+      "phonetic": null,
+      "meaning_zh": "铺床",
+      "issues": ["word 使用所有格括注说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1635,
+      "word_id": 1297,
+      "word": "terrible",
+      "phonetic": "['terəbl]",
+      "meaning_zh": "adj.非常讨厌的;可怕的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1638,
+      "word_id": 1299,
+      "word": "be strict (with sb)",
+      "phonetic": null,
+      "meaning_zh": "(对某人)要求严格",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1653,
+      "word_id": 1304,
+      "word": "animal",
+      "phonetic": "['ænɪməl]",
+      "meaning_zh": "n.动物",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1655,
+      "word_id": 1306,
+      "word": "lazy",
+      "phonetic": "['leɪzi]",
+      "meaning_zh": "adj.懒散的;懒惰的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1657,
+      "word_id": 1308,
+      "word": "beautiful",
+      "phonetic": "['bjuːtəfəl]",
+      "meaning_zh": "adj.美丽的;美好的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1658,
+      "word_id": 1309,
+      "word": "scary",
+      "phonetic": "['skeəri]",
+      "meaning_zh": "adj.吓人的;恐怖的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1663,
+      "word_id": 1312,
+      "word": "Africa",
+      "phonetic": "['æfrɪkə]",
+      "meaning_zh": "n.非洲",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1679,
+      "word_id": 1319,
+      "word": "be in (great) danger",
+      "phonetic": null,
+      "meaning_zh": "处于(极大)危险之中",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1682,
+      "word_id": 1320,
+      "word": "cut down",
+      "phonetic": "['kʌtdaʊn]",
+      "meaning_zh": "砍倒",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1685,
+      "word_id": 1321,
+      "word": "ivory",
+      "phonetic": "‘aivәri",
+      "meaning_zh": "n.象牙",
+      "issues": ["phonetic 含异常字符或引号，音标格式明显异常"]
+    },
+    {
+      "meaning_id": 1687,
+      "word_id": 1322,
+      "word": "(be) made of",
+      "phonetic": null,
+      "meaning_zh": "由……制成的",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1688,
+      "word_id": 1323,
+      "word": "newspaper",
+      "phonetic": "['njuːzˌpeɪpə]",
+      "meaning_zh": "n.报纸",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1709,
+      "word_id": 1334,
+      "word": "study",
+      "phonetic": "['stʌdi]",
+      "meaning_zh": "v.&n.学习;研究",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1715,
+      "word_id": 1339,
+      "word": "any",
+      "phonetic": "['eni]",
+      "meaning_zh": "adj.&pron.任何的;任一的;任何;任一",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1716,
+      "word_id": 873,
+      "word": "other",
+      "phonetic": "[ˈʌðə(r]",
+      "meaning_zh": "adj.&pron.另外的;其他的;另外的人(或物)",
+      "issues": ["phonetic 括号不完整，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1718,
+      "word_id": 1340,
+      "word": "child (pl. children)",
+      "phonetic": null,
+      "meaning_zh": "n.儿童",
+      "issues": ["word 含括号中的词形说明，不是纯标准词条形式", "词条缺少音标"]
+    },
+    {
+      "meaning_id": 1729,
+      "word_id": 1345,
+      "word": "weather",
+      "phonetic": "['weðə]",
+      "meaning_zh": "n.天气",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1733,
+      "word_id": 1346,
+      "word": "message",
+      "phonetic": "['mesɪdʒ]",
+      "meaning_zh": "n.信息;消息",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1738,
+      "word_id": 1350,
+      "word": "call (sb) back",
+      "phonetic": null,
+      "meaning_zh": "(给某人)回电话",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1752,
+      "word_id": 1354,
+      "word": "on (a) vacation",
+      "phonetic": null,
+      "meaning_zh": "度假",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1756,
+      "word_id": 1356,
+      "word": "country",
+      "phonetic": "['kʌntri]",
+      "meaning_zh": "n.国;国家",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1760,
+      "word_id": 1358,
+      "word": "Russian",
+      "phonetic": "['rʌʃən]",
+      "meaning_zh": "adj.&n.俄罗斯的;俄罗斯人;俄语",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1761,
+      "word_id": 1359,
+      "word": "snowman",
+      "phonetic": "['snəʊˌmæn]",
+      "meaning_zh": "n.雪人",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1773,
+      "word_id": 1364,
+      "word": "pay",
+      "phonetic": "[peɪd]",
+      "meaning_zh": "v.&n.付费",
+      "issues": ["phonetic 疑似误写为过去式读音，和原词 pay 不匹配"]
+    },
+    {
+      "meaning_id": 1785,
+      "word_id": 1371,
+      "word": "go along (the street)",
+      "phonetic": null,
+      "meaning_zh": "沿着(这条街)走",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1789,
+      "word_id": 1372,
+      "word": "turn right / left",
+      "phonetic": null,
+      "meaning_zh": "向右/左转",
+      "issues": ["word 使用斜杠合并多个词条，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1796,
+      "word_id": 1375,
+      "word": "often",
+      "phonetic": "['ɔːfən]",
+      "meaning_zh": "adv.时常;常常",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1798,
+      "word_id": 1376,
+      "word": "sunshine",
+      "phonetic": "['sʌnʃaɪn]",
+      "meaning_zh": "n.阳光",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1804,
+      "word_id": 1380,
+      "word": "curly",
+      "phonetic": "['kɜːli]",
+      "meaning_zh": "adj.卷曲的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1809,
+      "word_id": 1383,
+      "word": "(be) of medium height",
+      "phonetic": null,
+      "meaning_zh": "中等身高",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1813,
+      "word_id": 1384,
+      "word": "(be) of medium build",
+      "phonetic": null,
+      "meaning_zh": "中等身材",
+      "issues": ["word 使用括号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1818,
+      "word_id": 589,
+      "word": "glasses",
+      "phonetic": "[ˈglɑ:sɪz]",
+      "meaning_zh": "n.(pl.)眼睛",
+      "issues": ["meaning_zh 疑似错误，glasses 此处应为眼镜而非眼睛"]
+    },
+    {
+      "meaning_id": 1819,
+      "word_id": 1385,
+      "word": "later",
+      "phonetic": "['leɪtə]",
+      "meaning_zh": "adv.以后",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1823,
+      "word_id": 1389,
+      "word": "person",
+      "phonetic": "['pɜːsn]",
+      "meaning_zh": "n.人",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1831,
+      "word_id": 1391,
+      "word": "artist",
+      "phonetic": "['ɑːtɪst]",
+      "meaning_zh": "n.艺术家",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1838,
+      "word_id": 1395,
+      "word": "differently",
+      "phonetic": "['dɪfərəntli]",
+      "meaning_zh": "adv.不同地",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1842,
+      "word_id": 1398,
+      "word": "real",
+      "phonetic": "['riːəl]",
+      "meaning_zh": "adj.真正的;真实的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1847,
+      "word_id": 1402,
+      "word": "cabbage",
+      "phonetic": "['kæbɪdʒ]",
+      "meaning_zh": "n.卷心菜;洋白菜",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1854,
+      "word_id": 1404,
+      "word": "order",
+      "phonetic": "['ɔːdə]",
+      "meaning_zh": "n.&v.点菜;命令",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1855,
+      "word_id": 1405,
+      "word": "take one's order",
+      "phonetic": null,
+      "meaning_zh": "点菜",
+      "issues": ["word 使用 one's 占位说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1858,
+      "word_id": 1408,
+      "word": "one (large) bowl of…",
+      "phonetic": null,
+      "meaning_zh": "一(大)碗...",
+      "issues": ["word 使用括号与省略号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1859,
+      "word_id": 1409,
+      "word": "tofu",
+      "phonetic": "['təʊfuː]",
+      "meaning_zh": "n.豆腐",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1871,
+      "word_id": 1413,
+      "word": "candle",
+      "phonetic": "['kændl]",
+      "meaning_zh": "n.蜡烛",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1880,
+      "word_id": 1419,
+      "word": "lucky",
+      "phonetic": "['lʌki]",
+      "meaning_zh": "adj.幸运的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1885,
+      "word_id": 1423,
+      "word": "bring good luck to…",
+      "phonetic": null,
+      "meaning_zh": "给……带来好运",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1891,
+      "word_id": 1427,
+      "word": "feed (fed)",
+      "phonetic": null,
+      "meaning_zh": "v.喂养;饲养",
+      "issues": ["word 含括号中的词形说明，不是纯标准词条形式", "词条缺少音标"]
+    },
+    {
+      "meaning_id": 1895,
+      "word_id": 1429,
+      "word": "quite a lot (of…)",
+      "phonetic": null,
+      "meaning_zh": "许多",
+      "issues": ["word 使用括号与省略号说明，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1896,
+      "word_id": 1430,
+      "word": "anything",
+      "phonetic": "['enɪˌθɪŋ]",
+      "meaning_zh": "pron.(常用于否定句或疑问句)任何东西;任何事物",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1897,
+      "word_id": 1431,
+      "word": "grow (grew)",
+      "phonetic": null,
+      "meaning_zh": "v.种植;生长;发育",
+      "issues": ["word 含括号中的词形说明，不是纯标准词条形式", "词条缺少音标"]
+    },
+    {
+      "meaning_id": 1900,
+      "word_id": 1433,
+      "word": "excellent",
+      "phonetic": "['eksələnt]",
+      "meaning_zh": "adj.极好的;优秀的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1905,
+      "word_id": 1435,
+      "word": "worry",
+      "phonetic": "['wʌri]",
+      "meaning_zh": "v.&n.担心;担忧",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1906,
+      "word_id": 1436,
+      "word": "luckily",
+      "phonetic": "['lʌkɪli]",
+      "meaning_zh": "adv.幸运地;好运地",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1911,
+      "word_id": 1438,
+      "word": "painting",
+      "phonetic": "['peɪntɪŋ]",
+      "meaning_zh": "n.油画;绘画",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1923,
+      "word_id": 1444,
+      "word": "interested",
+      "phonetic": "['ɪntərɪstɪd]",
+      "meaning_zh": "adj.感兴趣的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1926,
+      "word_id": 1447,
+      "word": "hear (heard)",
+      "phonetic": null,
+      "meaning_zh": "v.听到;听见",
+      "issues": ["word 含括号中的词形说明，不是纯标准词条形式", "词条缺少音标"]
+    },
+    {
+      "meaning_id": 1933,
+      "word_id": 1451,
+      "word": "natural",
+      "phonetic": "['nætʃərəl]",
+      "meaning_zh": "adj.自然的",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1935,
+      "word_id": 1452,
+      "word": "visitor",
+      "phonetic": "['vɪzɪtə]",
+      "meaning_zh": "n.游客;访问者",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1938,
+      "word_id": 1453,
+      "word": "stay up late",
+      "phonetic": null,
+      "meaning_zh": "深夜不留睡;熬夜",
+      "issues": ["meaning_zh 疑似存在明显错字或误录，深夜不留睡 这一表达不自然", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1941,
+      "word_id": 1455,
+      "word": "mouse (pl. mice)",
+      "phonetic": null,
+      "meaning_zh": "老鼠;耗子",
+      "issues": ["word 含括号中的词形说明，不是纯标准词条形式", "词条缺少音标"]
+    },
+    {
+      "meaning_id": 1942,
+      "word_id": 1456,
+      "word": "baby",
+      "phonetic": "['beɪbi]",
+      "meaning_zh": "adj.&n.幼小的;婴儿",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1944,
+      "word_id": 1457,
+      "word": "shout at…",
+      "phonetic": null,
+      "meaning_zh": "冲……大声叫嚷",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1946,
+      "word_id": 1459,
+      "word": "language",
+      "phonetic": "['læŋgwɪdʒ]",
+      "meaning_zh": "n.语言",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1947,
+      "word_id": 1460,
+      "word": "fly (flew)",
+      "phonetic": null,
+      "meaning_zh": "v.飞",
+      "issues": ["word 含括号中的词形说明，不是纯标准词条形式", "词条缺少音标"]
+    },
+    {
+      "meaning_id": 1949,
+      "word_id": 1461,
+      "word": "fiy a kite",
+      "phonetic": null,
+      "meaning_zh": "放风筝",
+      "issues": ["word 疑似拼写错误，常见表达应为 fly a kite", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1953,
+      "word_id": 1464,
+      "word": "India",
+      "phonetic": "['ɪndɪə]",
+      "meaning_zh": "n.印度",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1955,
+      "word_id": 1466,
+      "word": "put up",
+      "phonetic": "['pʊtʌp]",
+      "meaning_zh": "搭起;举起",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1960,
+      "word_id": 1469,
+      "word": "scared",
+      "phonetic": "[ /skeəd]",
+      "meaning_zh": "adj.惊慌的;吓坏了的",
+      "issues": ["phonetic 含异常空白或斜杠，音标格式明显异常"]
+    },
+    {
+      "meaning_id": 1962,
+      "word_id": 1470,
+      "word": "shout to…",
+      "phonetic": null,
+      "meaning_zh": "对……大声喊叫",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1966,
+      "word_id": 1472,
+      "word": "wake (woke)",
+      "phonetic": null,
+      "meaning_zh": "v.弄醒;醒",
+      "issues": ["word 含括号中的词形说明，不是纯标准词条形式", "词条缺少音标"]
+    },
+    {
+      "meaning_id": 1967,
+      "word_id": 1473,
+      "word": "wake…up",
+      "phonetic": null,
+      "meaning_zh": "把……弄醒",
+      "issues": ["word 使用省略号的说明式写法，不是纯标准词条形式", "固定搭配缺少音标"]
+    },
+    {
+      "meaning_id": 1968,
+      "word_id": 1474,
+      "word": "into",
+      "phonetic": "['ɪntuː]",
+      "meaning_zh": "prep.到……里面;进入",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1971,
+      "word_id": 1475,
+      "word": "anyone",
+      "phonetic": "['enɪwʌn]",
+      "meaning_zh": "pron.任何人",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1972,
+      "word_id": 1476,
+      "word": "anywhere",
+      "phonetic": "['enɪhweə]",
+      "meaning_zh": "adv.任何地方",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1977,
+      "word_id": 1478,
+      "word": "something",
+      "phonetic": "['sʌmθɪŋ]",
+      "meaning_zh": "pron.某事;某物",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1978,
+      "word_id": 1479,
+      "word": "nothing",
+      "phonetic": "['nʌθɪŋ]",
+      "meaning_zh": "pron.没有什么;没有一件东西",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    },
+    {
+      "meaning_id": 1979,
+      "word_id": 1480,
+      "word": "everyone",
+      "phonetic": "['evrɪwʌn]",
+      "meaning_zh": "pron.每人;人人;所有人",
+      "issues": ["phonetic 含异常引号，音标格式不规范"]
+    }
+  ]
+}
