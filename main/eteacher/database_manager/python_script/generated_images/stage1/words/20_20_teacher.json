@@ -1,0 +1,28 @@
+{
+  "word": "teacher",
+  "word_id": 20,
+  "meaning_id": 20,
+  "generation_type": "word_meaning",
+  "example": null,
+  "prompt": "分辨率1280*1280\n适合墨水屏显示\n适合儿童，小学教学用途\n简单的黑白卡通插画\n使用粗黑线条勾勒轮廓\n细节尽量少，画面简洁\n纯白背景，黑色绘图\n高对比度（黑白分明）\n不要阴影\n不要光影效果\n不要灰度（只有纯黑和纯白）\n图片中不能出现任何文字\n构图居中\n主题明确、突出\n含义直观，一眼能理解\n不要抽象表达\n手绘风格\n简笔画风格\n卡通风格\n不要写实风格\n不要三维效果\n不要水印\n不要标志（logo）\n不要字母或单词\n\n一位老师站在黑板前微笑授课，教室环境清楚，适合儿童词汇卡。",
+  "request_payload": {
+    "model": "glm-image",
+    "prompt": "分辨率1280*1280\n适合墨水屏显示\n适合儿童，小学教学用途\n简单的黑白卡通插画\n使用粗黑线条勾勒轮廓\n细节尽量少，画面简洁\n纯白背景，黑色绘图\n高对比度（黑白分明）\n不要阴影\n不要光影效果\n不要灰度（只有纯黑和纯白）\n图片中不能出现任何文字\n构图居中\n主题明确、突出\n含义直观，一眼能理解\n不要抽象表达\n手绘风格\n简笔画风格\n卡通风格\n不要写实风格\n不要三维效果\n不要水印\n不要标志（logo）\n不要字母或单词\n\n一位老师站在黑板前微笑授课，教室环境清楚，适合儿童词汇卡。",
+    "size": "1280x1280"
+  },
+  "response_payload": {
+    "created": 1774598904,
+    "data": [
+      {
+        "url": "https://maas-watermark-prod-new.cn-wlcb.ufileos.com/20260327160824065d6fd9143a40e4_watermark.png?UCloudPublicKey=TOKEN_6df395df-5d8c-4f69-90f8-a4fe46088958&Signature=2hRkqZkO5NEe%2FOluB6cmKZD2DpE%3D&Expires=1775203750"
+      }
+    ],
+    "id": "20260327160824065d6fd9143a40e4",
+    "request_id": "20260327160824065d6fd9143a40e4"
+  },
+  "output_files": {
+    "png": "C:\\Users\\wj\\xiaozhi-esp32\\main\\eteacher\\database_manager\\python_script\\generated_images\\stage1\\words\\20_20_teacher.png",
+    "eink_png": "C:\\Users\\wj\\xiaozhi-esp32\\main\\eteacher\\database_manager\\python_script\\generated_images\\stage1\\words\\20_20_teacher_eink.png",
+    "bin": "C:\\Users\\wj\\xiaozhi-esp32\\main\\eteacher\\database_manager\\python_script\\generated_images\\stage1\\words\\20_20_teacher.bin"
+  }
+}

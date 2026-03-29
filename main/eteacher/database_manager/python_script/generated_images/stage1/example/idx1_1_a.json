@@ -1,0 +1,34 @@
+{
+  "word": "a",
+  "word_id": 1,
+  "meaning_id": 1,
+  "generation_type": "word_example",
+  "example": {
+    "example_id": null,
+    "meaning_id": 1,
+    "example_en": "This is a bag.",
+    "example_zh": "这是一个书包。",
+    "example_tag": "认读"
+  },
+  "prompt": "分辨率1280*1280\n适合墨水屏显示\n适合儿童，小学教学用途\n简单的黑白卡通插画\n使用粗黑线条勾勒轮廓\n细节尽量少，画面简洁\n纯白背景，黑色绘图\n高对比度（黑白分明）\n不要阴影\n不要光影效果\n不要灰度（只有纯黑和纯白）\n图片中不能出现任何文字\n构图居中\n主题明确、突出\n含义直观，一眼能理解\n不要抽象表达\n手绘风格\n简笔画风格\n卡通风格\n不要写实风格\n不要三维效果\n不要水印\n不要标志（logo）\n不要字母或单词\n\n教室里一张桌子上放着一个书包，旁边没有别的物品，突出单个物体。",
+  "request_payload": {
+    "model": "glm-image",
+    "prompt": "分辨率1280*1280\n适合墨水屏显示\n适合儿童，小学教学用途\n简单的黑白卡通插画\n使用粗黑线条勾勒轮廓\n细节尽量少，画面简洁\n纯白背景，黑色绘图\n高对比度（黑白分明）\n不要阴影\n不要光影效果\n不要灰度（只有纯黑和纯白）\n图片中不能出现任何文字\n构图居中\n主题明确、突出\n含义直观，一眼能理解\n不要抽象表达\n手绘风格\n简笔画风格\n卡通风格\n不要写实风格\n不要三维效果\n不要水印\n不要标志（logo）\n不要字母或单词\n\n教室里一张桌子上放着一个书包，旁边没有别的物品，突出单个物体。",
+    "size": "1280x1280"
+  },
+  "response_payload": {
+    "created": 1774598279,
+    "data": [
+      {
+        "url": "https://maas-watermark-prod-new.cn-wlcb.ufileos.com/20260327155759a14c6415fa064acf_watermark.png?UCloudPublicKey=TOKEN_6df395df-5d8c-4f69-90f8-a4fe46088958&Signature=%2BX7qTBF%2BPFwnWBtQirvBiSVzS%2BA%3D&Expires=1775203143"
+      }
+    ],
+    "id": "20260327155759a14c6415fa064acf",
+    "request_id": "20260327155759a14c6415fa064acf"
+  },
+  "output_files": {
+    "png": "C:\\Users\\wj\\xiaozhi-esp32\\main\\eteacher\\database_manager\\python_script\\generated_images\\stage1\\example\\idx1_1_a.png",
+    "eink_png": "C:\\Users\\wj\\xiaozhi-esp32\\main\\eteacher\\database_manager\\python_script\\generated_images\\stage1\\example\\idx1_1_a_eink.png",
+    "bin": "C:\\Users\\wj\\xiaozhi-esp32\\main\\eteacher\\database_manager\\python_script\\generated_images\\stage1\\example\\idx1_1_a.bin"
+  }
+}
