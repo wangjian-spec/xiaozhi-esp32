@@ -64,11 +64,12 @@ EXACT_WORD_HEADERS = (
 	"word",
 	"phonetic",
 	"word_type",
+	"image",
 	"stage",
 	"pos",
 	"meaning_en",
 	"meaning_zh",
-	"image",
+	"source",
 	"word_tag",
 	"form_type",
 	"form",
@@ -806,13 +807,14 @@ class DatabaseService:
 
 		phonetic = _to_text(record.get("phonetic"))
 		word_type = _to_text(record.get("word_type"))
+		image = _to_text(record.get("image"))
 
-		cursor = conn.execute("SELECT id, phonetic, word_type FROM word WHERE word = ?", (word,))
+		cursor = conn.execute("SELECT id, phonetic, word_type, image FROM word WHERE word = ?", (word,))
 		row = cursor.fetchone()
 		if row is None:
 			conn.execute(
-				"INSERT INTO word (word, phonetic, word_type) VALUES (?, ?, ?)",
-				(word, phonetic or None, word_type or None),
+				"INSERT INTO word (word, phonetic, word_type, image) VALUES (?, ?, ?, ?)",
+				(word, phonetic or None, word_type or None, image or None),
 			)
 			return 1, 0, 0
 
@@ -824,6 +826,9 @@ class DatabaseService:
 		if word_type and not _to_text(row[2]):
 			updates.append("word_type = ?")
 			params.append(word_type)
+		if image and not _to_text(row[3]):
+			updates.append("image = ?")
+			params.append(image)
 
 		if not updates:
 			return 0, 0, 1
@@ -847,7 +852,7 @@ class DatabaseService:
 		word_id = self._ensure_word_id(conn, record)
 		stage = _parse_stage(record.get("stage"), fallback_stage)
 		pos = _to_text(record.get("pos"))
-		image = _to_text(record.get("image"))
+		source = _to_text(record.get("source"))
 		word_tag = _to_text(record.get("word_tag"))
 
 		exists = conn.execute(
@@ -858,11 +863,11 @@ class DatabaseService:
 			  AND COALESCE(pos, '') = COALESCE(?, '')
 			  AND COALESCE(meaning_en, '') = COALESCE(?, '')
 			  AND COALESCE(meaning_zh, '') = COALESCE(?, '')
-			  AND COALESCE(image, '') = COALESCE(?, '')
+			  AND COALESCE(source, '') = COALESCE(?, '')
 			  AND COALESCE(word_tag, '') = COALESCE(?, '')
 			LIMIT 1
 			""",
-			(word_id, stage, pos, meaning_en, meaning_zh, image, word_tag),
+			(word_id, stage, pos, meaning_en, meaning_zh, source, word_tag),
 		).fetchone()
 		if exists:
 			return 0, 1
@@ -870,10 +875,10 @@ class DatabaseService:
 		conn.execute(
 			"""
 			INSERT INTO word_meaning (
-				word_id, stage, pos, meaning_en, meaning_zh, image, word_tag
+				word_id, stage, pos, meaning_en, meaning_zh, source, word_tag
 			) VALUES (?, ?, ?, ?, ?, ?, ?)
 			""",
-			(word_id, stage, pos or None, meaning_en or None, meaning_zh or None, image or None, word_tag or None),
+			(word_id, stage, pos or None, meaning_en or None, meaning_zh or None, source or None, word_tag or None),
 		)
 		return 1, 0
 
@@ -1459,7 +1464,8 @@ class DatabaseService:
 					id INTEGER PRIMARY KEY,
 					word TEXT NOT NULL UNIQUE,
 					phonetic TEXT,
-					word_type TEXT
+					word_type TEXT,
+					image TEXT
 				);
 
 				CREATE TABLE IF NOT EXISTS word_meaning (
@@ -1469,7 +1475,7 @@ class DatabaseService:
 					pos TEXT,
 					meaning_en TEXT,
 					meaning_zh TEXT,
-					image TEXT,
+					source TEXT,
 					word_tag TEXT,
 					FOREIGN KEY(word_id) REFERENCES word(id)
 				);
@@ -1502,15 +1508,29 @@ class DatabaseService:
 				"""
 			)
 			conn.commit()
+			self._migrate_word_schema(conn)
 			self._migrate_word_meaning_schema(conn)
 			self._migrate_word_example_schema(conn)
 
-	def _migrate_word_meaning_schema(self, conn: sqlite3.Connection) -> None:
-		columns = [row[1] for row in conn.execute("PRAGMA table_info(word_meaning)").fetchall()]
-		if "image" in columns and "source" not in columns:
+	def _migrate_word_schema(self, conn: sqlite3.Connection) -> None:
+		columns = [row[1] for row in conn.execute("PRAGMA table_info(word)").fetchall()]
+		if "image" in columns:
 			return
 
-		image_select = "image" if "image" in columns else "source"
+		conn.execute("ALTER TABLE word ADD COLUMN image TEXT")
+		conn.commit()
+
+	def _migrate_word_meaning_schema(self, conn: sqlite3.Connection) -> None:
+		columns = [row[1] for row in conn.execute("PRAGMA table_info(word_meaning)").fetchall()]
+		if "source" in columns and "image" not in columns:
+			return
+
+		if "source" in columns and "image" in columns:
+			source_select = "COALESCE(source, image)"
+		elif "source" in columns:
+			source_select = "source"
+		else:
+			source_select = "image"
 		conn.executescript(
 			f"""
 			CREATE TABLE word_meaning_new (
@@ -1520,16 +1540,16 @@ class DatabaseService:
 				pos TEXT,
 				meaning_en TEXT,
 				meaning_zh TEXT,
-				image TEXT,
+				source TEXT,
 				word_tag TEXT,
 				FOREIGN KEY(word_id) REFERENCES word(id)
 			);
 
 			INSERT INTO word_meaning_new (
-				id, word_id, stage, pos, meaning_en, meaning_zh, image, word_tag
+				id, word_id, stage, pos, meaning_en, meaning_zh, source, word_tag
 			)
 			SELECT
-				id, word_id, stage, pos, meaning_en, meaning_zh, {image_select}, word_tag
+				id, word_id, stage, pos, meaning_en, meaning_zh, {source_select}, word_tag
 			FROM word_meaning;
 
 			DROP TABLE word_meaning;
@@ -1994,7 +2014,7 @@ class DatabaseCreateApp(QMainWindow):
 		button_grid = QGridLayout()
 		buttons = (
 			("导入 word\n(word/phonetic/word_type)", "word", 0, 0),
-			("导入 word_meaning\n(stage/pos/meaning/image/tag)", "word_meaning", 0, 1),
+			("导入 word_meaning\n(stage/pos/meaning/source/tag)", "word_meaning", 0, 1),
 			("导入 word_form\n(form_type/form)", "word_form", 1, 0),
 			("导入 word_example\n(example/difficulty/image/audio)", "word_example", 1, 1),
 		)

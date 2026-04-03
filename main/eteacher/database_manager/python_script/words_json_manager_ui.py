@@ -77,6 +77,50 @@ class SchemaTable:
 
 
 class WordsJsonService:
+    def _normalize_schema_table(self, table_name: str, table_data: dict[str, Any]) -> dict[str, Any]:
+        normalized = deepcopy(table_data)
+        columns = normalized.get("columns")
+        if not isinstance(columns, list):
+            return normalized
+
+        column_dicts = [dict(column) for column in columns]
+        if table_name == "word":
+            if not any(str(column.get("name")) == "image" for column in column_dicts):
+                column_dicts.append(
+                    {
+                        "cid": len(column_dicts),
+                        "name": "image",
+                        "type": "TEXT",
+                        "notnull": 0,
+                        "dflt_value": None,
+                        "pk": 0,
+                    }
+                )
+                create_sql = str(normalized.get("create_sql") or "")
+                if create_sql and "image TEXT" not in create_sql:
+                    normalized["create_sql"] = create_sql.replace(
+                        "\n\t\t\t\t\tword_type TEXT\n",
+                        "\n\t\t\t\t\tword_type TEXT,\n\t\t\t\t\timage TEXT\n",
+                    )
+        elif table_name == "word_meaning":
+            for column in column_dicts:
+                if str(column.get("name")) == "image":
+                    column["name"] = "source"
+            create_sql = str(normalized.get("create_sql") or "")
+            if create_sql:
+                normalized["create_sql"] = create_sql.replace("image TEXT", "source TEXT")
+
+        normalized["columns"] = column_dicts
+        return normalized
+
+    @staticmethod
+    def _normalize_record_payload(record: dict[str, Any]) -> dict[str, Any]:
+        normalized = deepcopy(record)
+        meaning = normalized.get("word_meaning")
+        if isinstance(meaning, dict) and "source" not in meaning and "image" in meaning:
+            meaning["source"] = meaning.pop("image")
+        return normalized
+
     def export_database(self, db_path: Path, json_path: Path) -> dict[str, Any]:
         if not db_path.exists():
             raise FileNotFoundError(f"数据库不存在: {db_path}")
@@ -300,7 +344,7 @@ class WordsJsonService:
         if isinstance(schema_payload, dict) and all(table in schema_payload for table in RELATED_TABLES):
             result: dict[str, SchemaTable] = {}
             for table_name in RELATED_TABLES:
-                table_data = schema_payload.get(table_name) or {}
+                table_data = self._normalize_schema_table(table_name, schema_payload.get(table_name) or {})
                 columns = table_data.get("columns")
                 create_sql = table_data.get("create_sql")
                 indexes = table_data.get("indexes") or []
@@ -352,6 +396,8 @@ class WordsJsonService:
         for index, record in enumerate(records, start=1):
             if not isinstance(record, dict):
                 raise ValueError(f"第 {index} 条 records 不是对象")
+
+            record = self._normalize_record_payload(record)
 
             word = dict(record.get("word") or {})
             meaning = dict(record.get("word_meaning") or {})

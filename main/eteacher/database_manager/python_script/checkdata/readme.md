@@ -42,7 +42,7 @@ Excel 读取规则与 `DatabaseCreate.py` 保持一致：
 
 ```text
 word, phonetic, word_type, stage, pos, meaning_en, meaning_zh,
-image, word_tag, form_type, form, example_en, example_zh,
+image, source, word_tag, form_type, form, example_en, example_zh,
 difficulty, example_tag, audio_path, image_path
 ```
 

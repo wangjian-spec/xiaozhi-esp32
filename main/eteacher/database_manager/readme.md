@@ -39,11 +39,12 @@ CREATE TABLE word (
     id INTEGER PRIMARY KEY,
     word TEXT NOT NULL UNIQUE,
     phonetic TEXT,
-    word_type TEXT
+    word_type TEXT,
+    image TEXT
 );
 
 
-word_meaning — 不同学习阶段的释义表，word_tag用于对单词进行分类，如动物，物品，词组，动词，职业，听力，缩写，人名等；pos 为词性，image 用于表达该单词是否有图片
+word_meaning — 不同学习阶段的释义表，word_tag用于对单词进行分类，如动物，物品，词组，动词，职业，听力，缩写，人名等；pos 为词性，source 用于记录释义来源
 CREATE TABLE word_meaning (
     id INTEGER PRIMARY KEY,
     word_id INTEGER NOT NULL,
@@ -51,7 +52,7 @@ CREATE TABLE word_meaning (
     pos TEXT,
     meaning_en TEXT，
     meaning_zh TEXT，
-  image TEXT,
+    source TEXT,
     word_tag TEXT
 );
 
