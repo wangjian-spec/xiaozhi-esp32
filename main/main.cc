@@ -29,6 +29,7 @@
 #include "eteacher/apps/word_snake/word_snake.h"
 #include "eteacher/apps/txt_reader/txt_reader.h"
 #include "eteacher/apps/words_game/words_game.h"
+#include "eteacher/apps/et_client/et_client_app.h"
 
 
 #define TAG "main"
@@ -66,6 +67,7 @@ extern "C" void app_main(void)
     app_mgr.Register(MakeDictionaryApp());
     app_mgr.Register(MakeWordsBookApp());
     app_mgr.Register(MakeSdFileMgrApp());
+    app_mgr.Register(MakeEtClientApp());
     app_mgr.FinalizeRegistration();
 
     // Initialize and run the application
