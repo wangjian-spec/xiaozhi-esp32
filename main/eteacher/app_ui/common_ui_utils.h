@@ -15,6 +15,14 @@ struct BinImage {
     size_t data_size = 0;
 };
 
+const char* GetWordsImagePackagePath();
+const char* GetWordsImageProxyDir();
+std::string BuildWordsImageProxyPath(const std::string& name);
+
+const char* GetWordsAudioDir();
+const char* GetWordsAudioBundlePath();
+std::string BuildWordsAudioPath(const std::string& audio_filename);
+
 bool LoadBinImage(const std::string& name, BinImage* out);
 bool LoadBinImageFallback(const std::vector<std::string>& names, BinImage* out);
 

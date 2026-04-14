@@ -10,7 +10,6 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -59,7 +58,8 @@ from PySide6.QtWidgets import (
 )
 
 
-DEFAULT_OUTPUT_DIR = Path(r"D:\王健备份\个人\英语口语教师\图片和音频资源\audio\word")
+DEFAULT_WORD_OUTPUT_DIR = Path(r"D:\王健备份\个人\英语口语教师\图片和音频资源\audio\word")
+DEFAULT_EXAMPLE_OUTPUT_DIR = Path(r"D:\王健备份\个人\英语口语教师\图片和音频资源\audio\example")
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "words.db"
 DEFAULT_VOICE = "en-US-AriaNeural"
 DEFAULT_RATE = "-10%"
@@ -76,20 +76,6 @@ BUNDLE_ALIGNMENT = 4
 KIND_CODES = {
     "word": 1,
     "example": 2,
-}
-
-STAGE_LABELS = {
-    1: "primary",
-    2: "junior",
-    3: "senior",
-    4: "cet4",
-    5: "cet6",
-    6: "postgraduate",
-    7: "tem4",
-    8: "tem8",
-    9: "toefl",
-    10: "ielts",
-    11: "gre",
 }
 
 INVALID_FILENAME_PATTERN = re.compile(r'[<>:"/\\|?*\x00-\x1F]')
@@ -132,7 +118,8 @@ class ExportItem:
 @dataclass(slots=True)
 class ExportConfig:
     db_path: Path
-    output_dir: Path
+    word_output_dir: Path
+    example_output_dir: Path
     voice: str
     rate: str
     export_words: bool
@@ -180,11 +167,13 @@ def normalize_text(text: str) -> str:
     return WHITESPACE_PATTERN.sub(" ", text.strip())
 
 
-def stage_token(stage: int | None) -> str:
-    if stage is None:
-        return "stage0_unknown"
-    label = STAGE_LABELS.get(stage, f"unknown{stage}")
-    return f"stage{stage}_{label}"
+def sanitize_stem_part(value: str) -> str:
+    sanitized = re.sub(r"[^0-9A-Za-z_-]+", "_", value or "").strip("_")
+    return sanitized or "record"
+
+
+def build_word_audio_base_name(word_id: int, word_text: str) -> str:
+    return f"{word_id}_{sanitize_stem_part(word_text)}"
 
 
 def normalize_bundle_name(name: str) -> str:
@@ -291,28 +280,37 @@ def build_export_items(config: ExportConfig) -> tuple[list[ExportItem], list[str
     if not config.db_path.exists():
         raise FileNotFoundError(f"数据库不存在: {config.db_path}")
 
-    planned_files: set[str] = set()
+    planned_paths: set[Path] = set()
     warnings: list[str] = []
     items: list[ExportItem] = []
 
-    def allocate_name(base_name: str, fallback: str, extension: str, source_id: int) -> str:
+    def allocate_path(
+        output_dir: Path,
+        base_name: str,
+        fallback: str,
+        extension: str,
+        source_id: int,
+    ) -> Path:
         sanitized = sanitize_filename(base_name, fallback)
         filename = f"{sanitized}{extension}"
-        if filename not in planned_files:
-            planned_files.add(filename)
-            return filename
+        candidate_path = output_dir / filename
+        if candidate_path not in planned_paths:
+            planned_paths.add(candidate_path)
+            return candidate_path
         alternate = f"{sanitized}_{source_id}{extension}"
-        if alternate not in planned_files:
-            planned_files.add(alternate)
+        alternate_path = output_dir / alternate
+        if alternate_path not in planned_paths:
+            planned_paths.add(alternate_path)
             warnings.append(f"检测到文件名冲突，已改为: {alternate}")
-            return alternate
+            return alternate_path
         counter = 2
         while True:
             candidate = f"{sanitized}_{source_id}_{counter}{extension}"
-            if candidate not in planned_files:
-                planned_files.add(candidate)
+            candidate_path = output_dir / candidate
+            if candidate_path not in planned_paths:
+                planned_paths.add(candidate_path)
                 warnings.append(f"检测到文件名冲突，已改为: {candidate}")
-                return candidate
+                return candidate_path
             counter += 1
 
     with sqlite3.connect(config.db_path) as conn:
@@ -329,13 +327,20 @@ def build_export_items(config: ExportConfig) -> tuple[list[ExportItem], list[str
             ).fetchall()
             for row in word_rows:
                 word_text = normalize_text(str(row["word"]))
-                filename = allocate_name(word_text, f"word_{row['id']}", ".ogg", int(row["id"]))
+                base_name = build_word_audio_base_name(int(row["id"]), word_text)
+                output_path = allocate_path(
+                    config.word_output_dir,
+                    base_name,
+                    f"word_{row['id']}",
+                    ".ogg",
+                    int(row["id"]),
+                )
                 items.append(
                     ExportItem(
                         kind="word",
                         source_id=int(row["id"]),
                         text=word_text,
-                        output_path=config.output_dir / filename,
+                        output_path=output_path,
                         display_name=word_text,
                     )
                 )
@@ -343,30 +348,36 @@ def build_export_items(config: ExportConfig) -> tuple[list[ExportItem], list[str
         if config.export_examples:
             example_rows = conn.execute(
                 """
-                SELECT we.id, w.word, wm.stage AS stage, we.example_en
+                SELECT we.id, we.meaning_id, w.id AS word_id, w.word, we.example_en
                 FROM word_example AS we
                 JOIN word_meaning AS wm ON wm.id = we.meaning_id
                 JOIN word AS w ON w.id = wm.word_id
                 WHERE TRIM(COALESCE(we.example_en, '')) <> ''
-                ORDER BY w.word, wm.stage, we.id
+                ORDER BY w.id, we.meaning_id, we.id
                 """
             ).fetchall()
-            sequence_by_word_stage: dict[tuple[str, int | None], int] = defaultdict(int)
             for row in example_rows:
                 word_text = normalize_text(str(row["word"]))
-                stage_value = row["stage"]
-                stage = int(stage_value) if stage_value is not None else None
-                sequence_key = (word_text, stage)
-                sequence_by_word_stage[sequence_key] += 1
-                sequence = sequence_by_word_stage[sequence_key]
-                base_name = f"{word_text}_{stage_token(stage)}_{sequence:03d}"
-                filename = allocate_name(base_name, f"example_{row['id']}", ".ogg", int(row["id"]))
+                base_name = "_".join(
+                    [
+                        str(int(row["word_id"])),
+                        sanitize_stem_part(word_text),
+                        str(int(row["meaning_id"])),
+                    ]
+                )
+                output_path = allocate_path(
+                    config.example_output_dir,
+                    base_name,
+                    f"example_{row['id']}",
+                    ".ogg",
+                    int(row["id"]),
+                )
                 items.append(
                     ExportItem(
                         kind="example",
                         source_id=int(row["id"]),
                         text=normalize_text(str(row["example_en"])),
-                        output_path=config.output_dir / filename,
+                        output_path=output_path,
                         display_name=base_name,
                     )
                 )
@@ -458,7 +469,15 @@ class ExportWorker(QObject):
                             "-i",
                             str(temp_audio),
                             "-c:a",
-                            "libvorbis",
+                            "libopus",
+                            "-ac",
+                            "1",
+                            "-ar",
+                            "16000",
+                            "-b:a",
+                            "24k",
+                            "-application",
+                            "voip",
                             str(item.output_path),
                         ],
                         capture_output=True,
@@ -502,17 +521,20 @@ class MainWindow(QMainWindow):
         layout.addLayout(form_layout)
 
         self.db_path_edit = QLineEdit(str(DEFAULT_DB_PATH))
-        self.output_dir_edit = QLineEdit(str(DEFAULT_OUTPUT_DIR))
+        self.word_output_dir_edit = QLineEdit(str(DEFAULT_WORD_OUTPUT_DIR))
+        self.example_output_dir_edit = QLineEdit(str(DEFAULT_EXAMPLE_OUTPUT_DIR))
         self.voice_edit = QLineEdit(DEFAULT_VOICE)
         self.rate_edit = QLineEdit(DEFAULT_RATE)
-        self.bundle_input_dir_edit = QLineEdit(str(DEFAULT_OUTPUT_DIR))
-        self.bundle_output_dir_edit = QLineEdit(str(DEFAULT_OUTPUT_DIR))
+        self.bundle_input_dir_edit = QLineEdit(str(DEFAULT_WORD_OUTPUT_DIR))
+        self.bundle_output_dir_edit = QLineEdit(str(DEFAULT_WORD_OUTPUT_DIR))
         self.bundle_name_edit = QLineEdit(DEFAULT_BUNDLE_NAME)
 
         db_browse_button = QPushButton("选择数据库")
         db_browse_button.clicked.connect(self.select_db_path)
-        output_browse_button = QPushButton("选择输出目录")
-        output_browse_button.clicked.connect(self.select_output_dir)
+        word_output_browse_button = QPushButton("选择单词目录")
+        word_output_browse_button.clicked.connect(self.select_word_output_dir)
+        example_output_browse_button = QPushButton("选择例句目录")
+        example_output_browse_button.clicked.connect(self.select_example_output_dir)
         bundle_input_browse_button = QPushButton("选择打包输入目录")
         bundle_input_browse_button.clicked.connect(self.select_bundle_input_dir)
         bundle_output_browse_button = QPushButton("选择打包输出目录")
@@ -528,27 +550,31 @@ class MainWindow(QMainWindow):
         form_layout.addWidget(self.db_path_edit, 1, 1)
         form_layout.addWidget(db_browse_button, 1, 2)
 
-        form_layout.addWidget(QLabel("音频导出目录"), 2, 0)
-        form_layout.addWidget(self.output_dir_edit, 2, 1)
-        form_layout.addWidget(output_browse_button, 2, 2)
+        form_layout.addWidget(QLabel("单词音频目录"), 2, 0)
+        form_layout.addWidget(self.word_output_dir_edit, 2, 1)
+        form_layout.addWidget(word_output_browse_button, 2, 2)
 
-        form_layout.addWidget(QLabel("Edge TTS 声音"), 3, 0)
-        form_layout.addWidget(self.voice_edit, 3, 1, 1, 2)
+        form_layout.addWidget(QLabel("例句音频目录"), 3, 0)
+        form_layout.addWidget(self.example_output_dir_edit, 3, 1)
+        form_layout.addWidget(example_output_browse_button, 3, 2)
 
-        form_layout.addWidget(QLabel("语速"), 4, 0)
-        form_layout.addWidget(self.rate_edit, 4, 1, 1, 2)
+        form_layout.addWidget(QLabel("Edge TTS 声音"), 4, 0)
+        form_layout.addWidget(self.voice_edit, 4, 1, 1, 2)
 
-        form_layout.addWidget(bundle_section_label, 5, 0)
-        form_layout.addWidget(QLabel("打包输入目录"), 6, 0)
-        form_layout.addWidget(self.bundle_input_dir_edit, 6, 1)
-        form_layout.addWidget(bundle_input_browse_button, 6, 2)
+        form_layout.addWidget(QLabel("语速"), 5, 0)
+        form_layout.addWidget(self.rate_edit, 5, 1, 1, 2)
 
-        form_layout.addWidget(QLabel("打包输出目录"), 7, 0)
-        form_layout.addWidget(self.bundle_output_dir_edit, 7, 1)
-        form_layout.addWidget(bundle_output_browse_button, 7, 2)
+        form_layout.addWidget(bundle_section_label, 6, 0)
+        form_layout.addWidget(QLabel("打包输入目录"), 7, 0)
+        form_layout.addWidget(self.bundle_input_dir_edit, 7, 1)
+        form_layout.addWidget(bundle_input_browse_button, 7, 2)
 
-        form_layout.addWidget(QLabel("BIN 文件名"), 8, 0)
-        form_layout.addWidget(self.bundle_name_edit, 8, 1, 1, 2)
+        form_layout.addWidget(QLabel("打包输出目录"), 8, 0)
+        form_layout.addWidget(self.bundle_output_dir_edit, 8, 1)
+        form_layout.addWidget(bundle_output_browse_button, 8, 2)
+
+        form_layout.addWidget(QLabel("BIN 文件名"), 9, 0)
+        form_layout.addWidget(self.bundle_name_edit, 9, 1, 1, 2)
 
         self.export_words_checkbox = QCheckBox("导出 word 表中的单词音频")
         self.export_words_checkbox.setChecked(True)
@@ -566,8 +592,8 @@ class MainWindow(QMainWindow):
 
         hint_label = QLabel(
             "默认声音为 en-US-AriaNeural（女生，美音），默认语速 -10%。\n"
-            "单词文件名格式：单词.ogg\n"
-            "例句文件名格式：单词_stage序号标签_例句序号.ogg，例如 apple_stage2_junior_001.ogg\n"
+            "单词音频默认导出到 audio\\word，文件名格式保持不变：word_id_word.ogg。\n"
+            "例句音频默认导出到 audio\\example，文件名格式为：word_id_word_meaning_id.ogg。\n"
             "打包功能独立于导出功能。BIN 包会写入固定长度索引，每条索引包含文件名、偏移、长度、类型和源 ID，便于 ESP32-S3 直接按索引定位读取。"
         )
         hint_label.setWordWrap(True)
@@ -609,7 +635,8 @@ class MainWindow(QMainWindow):
     def build_config(self) -> ExportConfig:
         return ExportConfig(
             db_path=Path(self.db_path_edit.text().strip()),
-            output_dir=Path(self.output_dir_edit.text().strip()),
+            word_output_dir=Path(self.word_output_dir_edit.text().strip()),
+            example_output_dir=Path(self.example_output_dir_edit.text().strip()),
             voice=self.voice_edit.text().strip() or DEFAULT_VOICE,
             rate=self.rate_edit.text().strip() or DEFAULT_RATE,
             export_words=self.export_words_checkbox.isChecked(),
@@ -640,21 +667,31 @@ class MainWindow(QMainWindow):
             self.db_path_edit.setText(file_path)
 
     @Slot()
-    def select_output_dir(self) -> None:
+    def select_word_output_dir(self) -> None:
         folder = QFileDialog.getExistingDirectory(
             self,
-            "选择输出目录",
-            self.output_dir_edit.text().strip() or str(DEFAULT_OUTPUT_DIR),
+            "选择单词音频目录",
+            self.word_output_dir_edit.text().strip() or str(DEFAULT_WORD_OUTPUT_DIR),
         )
         if folder:
-            self.output_dir_edit.setText(folder)
+            self.word_output_dir_edit.setText(folder)
+
+    @Slot()
+    def select_example_output_dir(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "选择例句音频目录",
+            self.example_output_dir_edit.text().strip() or str(DEFAULT_EXAMPLE_OUTPUT_DIR),
+        )
+        if folder:
+            self.example_output_dir_edit.setText(folder)
 
     @Slot()
     def select_bundle_input_dir(self) -> None:
         folder = QFileDialog.getExistingDirectory(
             self,
             "选择打包输入目录",
-            self.bundle_input_dir_edit.text().strip() or str(DEFAULT_OUTPUT_DIR),
+            self.bundle_input_dir_edit.text().strip() or str(DEFAULT_WORD_OUTPUT_DIR),
         )
         if folder:
             self.bundle_input_dir_edit.setText(folder)
@@ -664,7 +701,7 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(
             self,
             "选择打包输出目录",
-            self.bundle_output_dir_edit.text().strip() or str(DEFAULT_OUTPUT_DIR),
+            self.bundle_output_dir_edit.text().strip() or str(DEFAULT_WORD_OUTPUT_DIR),
         )
         if folder:
             self.bundle_output_dir_edit.setText(folder)
@@ -722,7 +759,10 @@ class MainWindow(QMainWindow):
                 raise ValueError("请至少勾选一种导出内容。")
             if not config.db_path.exists():
                 raise FileNotFoundError(f"数据库不存在: {config.db_path}")
-            config.output_dir.mkdir(parents=True, exist_ok=True)
+            if config.export_words:
+                config.word_output_dir.mkdir(parents=True, exist_ok=True)
+            if config.export_examples:
+                config.example_output_dir.mkdir(parents=True, exist_ok=True)
         except Exception as exc:
             QMessageBox.critical(self, "参数错误", str(exc))
             return

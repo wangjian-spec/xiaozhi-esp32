@@ -23,6 +23,7 @@
 #include <sqlite3.h>
 
 #include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/app_ui/common_ui_utils.h"
 #include "eteacher/app_service/app_service.h"
 #include "eteacher/database_manager/sqlite_db_api.h"
 #include "eteacher/epd_manager/epd_manager.h"
@@ -41,8 +42,6 @@ constexpr int kScreenH = 300;
 constexpr int64_t kDispatchTimerPeriodUs = 20 * 1000;
 constexpr int64_t kDecisionWindowUs = 200 * 1000;
 constexpr const char* kFont = "wenquanyi_11pt";
-constexpr const char* kQuestionAudioDir = "/resource/audio/wrods/";
-
 bool IsClickLike(const ButtonEvent& event) {
 	return event.action == ButtonAction::Click || event.action == ButtonAction::PressDown ||
 		   event.action == ButtonAction::LongPress;
@@ -103,23 +102,7 @@ std::vector<std::string> SplitSentenceWordsLower(const std::string& value) {
 }
 
 std::string BuildQuestionAudioPath(const std::string& audio_filename) {
-	std::string name = Trim(audio_filename);
-	if (name.empty()) {
-		return {};
-	}
-	auto lower = name;
-	std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
-		return static_cast<char>(std::tolower(ch));
-	});
-	if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".mp3") == 0) {
-		name.replace(name.size() - 4, 4, ".ogg");
-	} else if (lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".opus") == 0) {
-		name.replace(name.size() - 5, 5, ".ogg");
-	}
-	if (!name.empty() && name[0] == '/') {
-		return name;
-	}
-	return std::string(kQuestionAudioDir) + name;
+	return eteacher::app_ui::BuildWordsAudioPath(audio_filename);
 }
 
 size_t Utf8CharLength(unsigned char first_byte) {
@@ -478,35 +461,7 @@ private:
 	}
 
 	std::string DiscoverQuestionDbPath() const {
-		static const std::array<const char*, 3> kCandidates = {
-			"/sdcard/resource/database/question.db",
-			"/sdcard/resources/database/question.db",
-			"/sdcard/resource/db/question.db",
-		};
-
-		for (const char* path : kCandidates) {
-			sqlite3* db = nullptr;
-			const int rc = sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nullptr);
-			if (rc != SQLITE_OK || !db) {
-				if (db) {
-					sqlite3_close(db);
-				}
-				continue;
-			}
-			sqlite3_stmt* stmt = nullptr;
-			const char* sql = "SELECT 1 FROM question_bank LIMIT 1;";
-			const int pr = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
-			if (pr == SQLITE_OK && stmt) {
-				sqlite3_finalize(stmt);
-				sqlite3_close(db);
-				return path;
-			}
-			if (stmt) {
-				sqlite3_finalize(stmt);
-			}
-			sqlite3_close(db);
-		}
-		return {};
+		return eteacher::database_manager::DiscoverQuestionDbPath(kTag);
 	}
 
 	std::vector<std::string> ExtractHints(cJSON* root) const {

@@ -247,11 +247,11 @@ class DatabaseService:
 		self.base_dir = base_dir
 		self.words_db_path = self.base_dir / "words.db"
 		self.question_db_path = self.base_dir / "question.db"
-		self.user_db_path = self.base_dir / "user_data.db"
+		self.user_db_path = self.base_dir / "user.db"
 		self._database_paths = {
 			"words.db": self.words_db_path,
 			"question.db": self.question_db_path,
-			"user_data.db": self.user_db_path,
+			"user.db": self.user_db_path,
 		}
 
 	def ensure_all_databases(self) -> None:
@@ -276,7 +276,7 @@ class DatabaseService:
 		self.clear_database("question.db")
 
 	def clear_user_database(self) -> None:
-		self.clear_database("user_data.db")
+		self.clear_database("user.db")
 
 	def clear_all_databases(self) -> None:
 		self.clear_words_database()
@@ -438,7 +438,7 @@ class DatabaseService:
 		if database_name == "question.db":
 			self._ensure_question_schema()
 			return
-		if database_name == "user_data.db":
+		if database_name == "user.db":
 			self._ensure_user_schema()
 			return
 		raise ValueError(f"不支持的数据库：{database_name}")
@@ -668,7 +668,7 @@ class DatabaseService:
 			"devices",
 			"users",
 		]
-		if database_name == "user_data.db":
+		if database_name == "user.db":
 			return [table_name] if table_name is not None else user_tables
 
 		raise ValueError(f"不支持的数据库：{database_name}")
@@ -2097,7 +2097,7 @@ class DatabaseCreateApp(QMainWindow):
 			self.status_label.setText("数据库创建/更新完成")
 			self.refresh_counts()
 			self.refresh_clear_targets()
-			self._show_info("完成", "words.db、question.db、user_data.db 已创建或更新完成")
+			self._show_info("完成", "words.db、question.db、user.db 已创建或更新完成")
 			self.log("已创建或更新全部数据库、表和索引。")
 		except Exception as exc:  # noqa: BLE001
 			self._show_error("失败", str(exc))
@@ -2138,7 +2138,7 @@ class DatabaseCreateApp(QMainWindow):
 	def clear_all_databases(self) -> None:
 		if not self._confirm_action(
 			"确认删除",
-			"确定要清空 words.db、question.db、user_data.db 中的全部数据吗？该操作不可恢复。",
+			"确定要清空 words.db、question.db、user.db 中的全部数据吗？该操作不可恢复。",
 		):
 			self.log("已取消清空全部数据库。")
 			return
@@ -2148,7 +2148,7 @@ class DatabaseCreateApp(QMainWindow):
 			self.status_label.setText("全部数据库已清空")
 			self.refresh_counts()
 			self.refresh_clear_targets()
-			self.log("已清空 words.db、question.db、user_data.db 中的全部数据。")
+			self.log("已清空 words.db、question.db、user.db 中的全部数据。")
 			self._show_info("完成", "全部数据库已清空")
 		except Exception as exc:  # noqa: BLE001
 			self.log(f"清空全部数据库失败：{exc}")

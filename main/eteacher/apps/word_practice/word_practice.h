@@ -8,6 +8,10 @@
 #include <esp_timer.h>
 
 #include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/apps/word_practice/word_practice_quiz_module.h"
+#include "eteacher/apps/word_practice/word_practice_result_module.h"
+#include "eteacher/apps/word_practice/word_practice_selection_module.h"
+#include "eteacher/apps/word_practice/word_practice_session_module.h"
 #include "eteacher/app_manager/app_base.h"
 #include "eteacher/app_ui/scene.h"
 #include "eteacher/app_ui/ui_engine.h"
@@ -25,32 +29,13 @@ public:
 	void OnChatMessage(const char* role, const char* content) override;
 
 private:
-	struct QuestionData {
-		int id = 0;
-		int type = 1;
-		std::string stage;
-		int difficulty = 1;
-		std::string content_json;
-		std::string answer;
-	};
+	using QuestionData = word_practice::QuestionData;
+	using ChoiceState = word_practice::ChoiceState;
+	using QuestionSelectionStrategy = word_practice::QuestionSelectionStrategy;
 
-	struct ChoiceState {
-		std::string prompt;
-		std::string textbook_name;
-		std::string audio_filename;
-		std::vector<std::string> option_keys;
-		std::vector<std::string> options;
-		std::vector<std::string> option_images;
-		std::vector<std::string> hints;
-		std::vector<std::string> pair_left;
-		std::vector<std::string> pair_right;
-		std::string expected;
-	};
-
-	struct LearnedSnapshot {
-		int correct = 0;
-		int wrong = 0;
-		int64_t last_seen_at = 0;
+	struct AudioBundleEntry {
+		uint64_t offset = 0;
+		uint64_t size = 0;
 	};
 
 	struct QuestionPromptProfile {
@@ -60,11 +45,6 @@ private:
 		int max_lines = 2;
 		int dash_black_len = 4;
 		int dash_white_len = 1;
-	};
-
-	enum class QuestionSelectionStrategy {
-		LegacyAdaptive,
-		TypeCycleRandom,
 	};
 
 	bool LoadUi(AppContext &ctx);
@@ -109,9 +89,12 @@ private:
 	std::string DiscoverUserDbPath() const;
 	bool EnsureStatsTables(sqlite3 *db) const;
 	int QueryCurrentLevel(sqlite3 *db) const;
-	LearnedSnapshot QueryLearned(sqlite3 *db, int question_id, const std::string &textbook) const;
+	word_practice::LearnedSnapshot QueryLearned(sqlite3 *db, int question_id, const std::string &textbook) const;
 	void SaveAnswerStats(const QuestionData &q, bool correct);
 	bool PlayAudioFromSd(const std::string &audio_path);
+	bool EnsureAudioBundleIndexLoaded();
+	bool ReadAudioBundleEntry(const std::string &audio_name, std::string *ogg_data);
+	std::string ResolveBundledImagePath(const std::string &image_name);
 	void ScheduleQuestionAudioAutoPlay();
 	void CancelQuestionAudioAutoPlay();
 	static void QuestionAudioTimerCallback(void *arg);
@@ -171,18 +154,16 @@ private:
 	app_ui::Rect label_asr_static_rect_{};
 	app_ui::Rect image_public_speaker_static_rect_{};
 
-	std::vector<QuestionData> question_pool_{};
-	std::vector<int> recent_types_{};
-	size_t current_index_ = 0;
+	word_practice::SelectionModule selection_module_{};
+	word_practice::QuizModule quiz_module_{};
+	word_practice::SessionModule session_module_{};
+	word_practice::ResultModule result_module_{};
+	word_practice::WordSelectionConfig word_selection_config_{};
+
 	int current_question_type_ = 1;
 	ChoiceState current_choice_{};
 
-	int correct_count_ = 0;
-	int wrong_count_ = 0;
-	int score_ = 0;
-	int total_answered_ = 0;
-	int pass_target_questions_ = 10;
-	bool awaiting_next_question_ = false;
+	int pass_target_questions_ = 12;
 	std::vector<std::string> type4_left_words_{};
 	std::vector<std::string> type4_right_words_{};
 	std::vector<int> type4_expected_right_index_{};
@@ -195,11 +176,13 @@ private:
 	std::vector<std::string> learned_words_this_round_{};
 	std::vector<app_ui::LabelWidget *> settlement_learned_word_labels_{};
 	QuestionPromptProfile question_prompt_profile_{};
-	std::string textbook_name_ = "default";
 	std::string current_audio_path_;
 	esp_timer_handle_t question_audio_timer_ = nullptr;
+	bool audio_bundle_index_loaded_ = false;
+	bool audio_bundle_index_available_ = false;
+	std::string audio_bundle_resolved_path_{};
+	std::unordered_map<std::string, AudioBundleEntry> audio_bundle_entries_{};
 	bool speak_recording_ = false;
-	int next_question_type_cursor_ = 1;
 	QuestionSelectionStrategy question_selection_strategy_ = QuestionSelectionStrategy::TypeCycleRandom;
 };
 

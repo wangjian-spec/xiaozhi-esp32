@@ -17,7 +17,9 @@ namespace runtime {
 // 从编译时生成的描述符构建场景（生产路径，使用静态 Widget 表）
 bool SceneRuntime::LoadFromDesc(const desc::UiDesc& ui, const char* scene_id, uint16_t scene_index) {
     if (!scene_id || !scene_id[0] || !ui.scenes || ui.scene_count == 0) {
-        printf("[SceneRuntime] invalid desc args: scene_id=%p\n", scene_id);
+        if (app_ui::debug::UiDebugLoggingEnabled()) {
+            printf("[SceneRuntime] invalid desc args: scene_id=%p\n", scene_id);
+        }
         return false;
     }
 
@@ -30,13 +32,17 @@ bool SceneRuntime::LoadFromDesc(const desc::UiDesc& ui, const char* scene_id, ui
         }
     }
     if (!target) {
-        printf("[SceneRuntime] desc page not found: %s\n", scene_id);
+        if (app_ui::debug::UiDebugLoggingEnabled()) {
+            printf("[SceneRuntime] desc page not found: %s\n", scene_id);
+        }
         return false;
     }
 
     auto root_widget = BuildWidgetTree(target->widgets, target->widget_count, target->root_id);
     if (!root_widget) {
-        printf("[SceneRuntime] BuildScene(desc) failed for page: %s\n", scene_id);
+        if (app_ui::debug::UiDebugLoggingEnabled()) {
+            printf("[SceneRuntime] BuildScene(desc) failed for page: %s\n", scene_id);
+        }
         return false;
     }
 

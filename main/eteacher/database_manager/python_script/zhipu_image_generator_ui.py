@@ -69,14 +69,18 @@ from PySide6.QtWidgets import (
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-DEFAULT_JSON_PATH = Path(r"C:\Users\wj\xiaozhi-esp32\main\eteacher\database_manager\python_script\stage1\book\record_stage1_gpt5.4_generated.json")
+DEFAULT_JSON_PATHS = [
+    Path(r"C:\Users\wj\xiaozhi-esp32\main\eteacher\database_manager\python_script\stage1\book\record_stage1_gpt5.4_generated_1_2200.json"),
+    Path(r"C:\Users\wj\xiaozhi-esp32\main\eteacher\database_manager\python_script\stage1\book\record_stage1_gpt5.4_generated_2201_4096.json"),
+]
+DEFAULT_JSON_PATH = DEFAULT_JSON_PATHS[0]
 DEFAULT_IMAGE_OUTPUT_ROOT = Path(r"D:\王健备份\个人\英语口语教师\图片和音频资源\images")
 DEFAULT_WORDS_OUTPUT_DIR = DEFAULT_IMAGE_OUTPUT_ROOT / "stage1" / "words"
 DEFAULT_API_URL = "https://open.bigmodel.cn/api/paas/v4/images/generations"
 DEFAULT_MODEL = "glm-image"
 DEFAULT_PROMPT_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 DEFAULT_PROMPT_MODEL = "glm-5"
-DEFAULT_API_KEY = "b32773de044d4576aa0db2698cfd8a4e.yu4AMMf4iWxk4tBj"
+DEFAULT_API_KEY = "1606218869964cd4bdc816788bed6906.Tnr35XftXJltlJDw"
 TARGET_SIZE = (1280, 1280)
 REQUEST_TIMEOUT_SECONDS = 180
 RECORD_LIST_ITEM_HEIGHT = 112
@@ -98,11 +102,16 @@ DEFAULT_VARIABLE_TEMPLATE = """
 """
 
 
+def _build_default_json_paths_text() -> str:
+    return "\n".join(str(path) for path in DEFAULT_JSON_PATHS)
+
+
 @dataclass(slots=True)
 class ExampleRecord:
     list_index: int
     example_id: int | None
     meaning_id: int | None
+    source_json_path: Path | None
     source_record_index: int | None
     source_example_index: int | None
     example_en: str
@@ -125,6 +134,7 @@ class ExampleRecord:
 
 @dataclass(slots=True)
 class MeaningRecord:
+    source_json_path: Path
     source_record_index: int
     meaning_id: int | None
     pos: str
@@ -149,6 +159,7 @@ class WordRecord:
     hidden: bool
     meanings: list[MeaningRecord]
     examples: list[ExampleRecord]
+    source_json_paths: list[Path]
     source_record_indices: list[int]
     source_records: list[dict[str, Any]]
     raw: dict[str, Any]
@@ -157,7 +168,7 @@ class WordRecord:
     def display_text(self) -> str:
         word_id_text = str(self.word_id) if self.word_id is not None else "?"
         meaning_text = _compact_text(_build_meaning_summary_text(self), 96)
-        return f"{self.list_index:04d}. [{word_id_text}] {self.word} | {meaning_text}"
+        return f"[{word_id_text}] {self.word} | {meaning_text}"
 
     @property
     def supports_image_generation(self) -> bool:
@@ -931,10 +942,11 @@ class RecordListItemWidget(QWidget):
 
     def _build_meaning_text(self, record: WordRecord) -> str:
         hidden_prefix = "[已隐藏] " if record.hidden else ""
+        word_id_text = str(record.word_id) if record.word_id is not None else "?"
         meaning_text = _compact_text(record.meaning_zh or _build_meaning_summary_text(record), 28)
         prompt_text = _compact_text(record.image_hint or "-", 52)
         return (
-            f"{record.list_index:04d}. {hidden_prefix}{record.word or '-'}"
+            f"[{word_id_text}] {hidden_prefix}{record.word or '-'}"
             f" | 中文释义: {meaning_text} | image({prompt_text})"
         )
 
@@ -954,94 +966,107 @@ class RecordListItemWidget(QWidget):
 
 
 class RecordRepository:
-    def load(self, json_path: Path) -> list[WordRecord]:
-        if not json_path.exists():
-            raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
+    def load(self, json_paths: Path | list[Path]) -> list[WordRecord]:
+        if isinstance(json_paths, Path):
+            normalized_json_paths = [json_paths]
+        else:
+            normalized_json_paths = list(json_paths)
 
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-        records = payload.get("records") if isinstance(payload, dict) else payload
-        if not isinstance(records, list):
-            raise ValueError("JSON 中缺少 records 数组")
+        if not normalized_json_paths:
+            raise ValueError("请至少选择一个 JSON 文件")
 
         grouped_records: dict[tuple[int | None, str], dict[str, Any]] = {}
         fallback_order = 0
 
-        for source_record_index, item in enumerate(records):
-            if not isinstance(item, dict):
-                continue
+        for json_path in normalized_json_paths:
+            if not json_path.exists():
+                raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
 
-            word_data = item.get("word") or {}
-            meaning_data = item.get("word_meaning") or {}
-            example_items = item.get("word_example") or []
-            if not isinstance(word_data, dict) or not isinstance(meaning_data, dict):
-                continue
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            records = payload.get("records") if isinstance(payload, dict) else payload
+            if not isinstance(records, list):
+                raise ValueError(f"JSON 中缺少 records 数组: {json_path}")
 
-            word_id = _safe_int(word_data.get("id"))
-            word_text = str(word_data.get("word") or "").strip()
-            group_key = (word_id, word_text.casefold())
-            group = grouped_records.get(group_key)
-            if group is None:
-                fallback_order += 1
-                group = {
-                    "word_id": word_id,
-                    "word": word_text,
-                    "phonetic": str(word_data.get("phonetic") or "").strip(),
-                    "word_type": str(word_data.get("word_type") or "").strip(),
-                    "image_hint": str(word_data.get("image") or "").strip(),
-                    "word_tag": str(meaning_data.get("word_tag") or "").strip(),
-                    "hidden_values": [bool(item.get("hidden", False))],
-                    "meanings": [],
-                    "examples": [],
-                    "source_record_indices": [],
-                    "source_records": [],
-                    "primary_raw": item,
-                    "fallback_order": fallback_order,
-                }
-                grouped_records[group_key] = group
-            else:
-                group["hidden_values"].append(bool(item.get("hidden", False)))
-                if not group["phonetic"]:
-                    group["phonetic"] = str(word_data.get("phonetic") or "").strip()
-                if not group["word_type"]:
-                    group["word_type"] = str(word_data.get("word_type") or "").strip()
-                if not group["image_hint"]:
-                    group["image_hint"] = str(word_data.get("image") or "").strip()
-                if not group["word_tag"]:
-                    group["word_tag"] = str(meaning_data.get("word_tag") or "").strip()
+            for source_record_index, item in enumerate(records):
+                if not isinstance(item, dict):
+                    continue
 
-            group["source_record_indices"].append(source_record_index)
-            group["source_records"].append(item)
-            group["meanings"].append(
-                MeaningRecord(
-                    source_record_index=source_record_index,
-                    meaning_id=_safe_int(meaning_data.get("id")),
-                    pos=str(meaning_data.get("pos") or "").strip(),
-                    meaning_en=str(meaning_data.get("meaning_en") or "").strip(),
-                    meaning_zh=str(meaning_data.get("meaning_zh") or "").strip(),
-                    word_tag=str(meaning_data.get("word_tag") or "").strip(),
-                    raw=meaning_data,
-                )
-            )
+                word_data = item.get("word") or {}
+                meaning_data = item.get("word_meaning") or {}
+                example_items = item.get("word_example") or []
+                if not isinstance(word_data, dict) or not isinstance(meaning_data, dict):
+                    continue
 
-            if isinstance(example_items, list):
-                for source_example_index, example in enumerate(example_items):
-                    if not isinstance(example, dict):
-                        continue
-                    group["examples"].append(
-                        ExampleRecord(
-                            list_index=len(group["examples"]) + 1,
-                            example_id=_safe_int(example.get("id")),
-                            meaning_id=_safe_int(example.get("meaning_id")),
-                            source_record_index=source_record_index,
-                            source_example_index=source_example_index,
-                            example_en=str(example.get("example_en") or "").strip(),
-                            example_zh=str(example.get("example_zh") or "").strip(),
-                            difficulty=_safe_int(example.get("difficulty")),
-                            example_tag=str(example.get("example_tag") or "").strip(),
-                            image_prompt=str(example.get("image") or "").strip(),
-                            raw=example,
-                        )
+                word_id = _safe_int(word_data.get("id"))
+                word_text = str(word_data.get("word") or "").strip()
+                group_key = (word_id, word_text.casefold())
+                group = grouped_records.get(group_key)
+                if group is None:
+                    fallback_order += 1
+                    group = {
+                        "word_id": word_id,
+                        "word": word_text,
+                        "phonetic": str(word_data.get("phonetic") or "").strip(),
+                        "word_type": str(word_data.get("word_type") or "").strip(),
+                        "image_hint": str(word_data.get("image") or "").strip(),
+                        "word_tag": str(meaning_data.get("word_tag") or "").strip(),
+                        "hidden_values": [bool(item.get("hidden", False))],
+                        "meanings": [],
+                        "examples": [],
+                        "source_json_paths": [],
+                        "source_record_indices": [],
+                        "source_records": [],
+                        "primary_raw": item,
+                        "fallback_order": fallback_order,
+                    }
+                    grouped_records[group_key] = group
+                else:
+                    group["hidden_values"].append(bool(item.get("hidden", False)))
+                    if not group["phonetic"]:
+                        group["phonetic"] = str(word_data.get("phonetic") or "").strip()
+                    if not group["word_type"]:
+                        group["word_type"] = str(word_data.get("word_type") or "").strip()
+                    if not group["image_hint"]:
+                        group["image_hint"] = str(word_data.get("image") or "").strip()
+                    if not group["word_tag"]:
+                        group["word_tag"] = str(meaning_data.get("word_tag") or "").strip()
+
+                group["source_json_paths"].append(json_path)
+                group["source_record_indices"].append(source_record_index)
+                group["source_records"].append(item)
+                group["meanings"].append(
+                    MeaningRecord(
+                        source_json_path=json_path,
+                        source_record_index=source_record_index,
+                        meaning_id=_safe_int(meaning_data.get("id")),
+                        pos=str(meaning_data.get("pos") or "").strip(),
+                        meaning_en=str(meaning_data.get("meaning_en") or "").strip(),
+                        meaning_zh=str(meaning_data.get("meaning_zh") or "").strip(),
+                        word_tag=str(meaning_data.get("word_tag") or "").strip(),
+                        raw=meaning_data,
                     )
+                )
+
+                if isinstance(example_items, list):
+                    for source_example_index, example in enumerate(example_items):
+                        if not isinstance(example, dict):
+                            continue
+                        group["examples"].append(
+                            ExampleRecord(
+                                list_index=len(group["examples"]) + 1,
+                                example_id=_safe_int(example.get("id")),
+                                meaning_id=_safe_int(example.get("meaning_id")),
+                                source_json_path=json_path,
+                                source_record_index=source_record_index,
+                                source_example_index=source_example_index,
+                                example_en=str(example.get("example_en") or "").strip(),
+                                example_zh=str(example.get("example_zh") or "").strip(),
+                                difficulty=_safe_int(example.get("difficulty")),
+                                example_tag=str(example.get("example_tag") or "").strip(),
+                                image_prompt=str(example.get("image") or "").strip(),
+                                raw=example,
+                            )
+                        )
 
         parsed_records: list[WordRecord] = []
         sorted_groups = sorted(
@@ -1081,6 +1106,7 @@ class RecordRepository:
                     hidden=all(group["hidden_values"]),
                     meanings=meanings,
                     examples=group["examples"],
+                    source_json_paths=group["source_json_paths"],
                     source_record_indices=group["source_record_indices"],
                     source_records=group["source_records"],
                     raw=group["primary_raw"],
@@ -1388,6 +1414,7 @@ class MainWindow(QMainWindow):
         self._client = ZhipuImageClient()
         self._prompt_client = ZhipuPromptClient()
         self._exporter = BinImageWriter()
+        self._json_paths: list[Path] = []
 
         self._records: list[WordRecord] = []
         self._filtered_record_indices: list[int] = []
@@ -1469,7 +1496,9 @@ class MainWindow(QMainWindow):
         layout.setHorizontalSpacing(6)
         layout.setVerticalSpacing(2)
 
-        self.json_path_edit = QLineEdit(str(DEFAULT_JSON_PATH), group)
+        self.json_path_edit = QPlainTextEdit(_build_default_json_paths_text(), group)
+        self.json_path_edit.setMaximumHeight(56)
+        self.json_path_edit.setPlaceholderText("每行一个 JSON 文件路径")
         json_row = QHBoxLayout()
         json_row.addWidget(self.json_path_edit)
         json_browse_button = QPushButton("选择", group)
@@ -1697,24 +1726,69 @@ class MainWindow(QMainWindow):
         return group
 
     def _load_default_state(self) -> None:
-        return
+        json_paths = self._parse_json_paths_text(self.json_path_edit.toPlainText().strip())
+        if not json_paths or not all(json_path.exists() for json_path in json_paths):
+            self.statusBar().showMessage("默认 JSON 不存在，请选择 JSON 并加载 record")
+            return
+        self.load_records()
+
+    def _parse_json_paths_text(self, raw_text: str) -> list[Path]:
+        parts = [part.strip().strip('"') for part in re.split(r"[;\r\n]+", raw_text) if part.strip()]
+        parsed_paths: list[Path] = []
+        seen_paths: set[str] = set()
+        for part in parts:
+            path = Path(part)
+            path_key = str(path.resolve()) if path.exists() else str(path)
+            if path_key in seen_paths:
+                continue
+            seen_paths.add(path_key)
+            parsed_paths.append(path)
+        return parsed_paths
+
+    def _set_selected_json_paths(self, json_paths: list[Path]) -> None:
+        self._json_paths = list(json_paths)
+        self.json_path_edit.setPlainText("\n".join(str(path) for path in self._json_paths))
+
+    def _get_selected_json_paths(self) -> list[Path]:
+        json_paths = self._parse_json_paths_text(self.json_path_edit.toPlainText().strip())
+        if not json_paths:
+            raise ValueError("请至少选择一个 JSON 文件")
+        return json_paths
+
+    def _load_json_document(self, json_path: Path) -> tuple[Any, list[Any]]:
+        if not json_path.exists():
+            raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
+
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        records = payload.get("records") if isinstance(payload, dict) else payload
+        if not isinstance(records, list):
+            raise ValueError(f"JSON 中缺少 records 数组: {json_path}")
+        return payload, records
+
+    def _group_record_sources(self, record: WordRecord) -> dict[Path, list[int]]:
+        grouped_sources: dict[Path, list[int]] = {}
+        for json_path, source_record_index in zip(record.source_json_paths, record.source_record_indices):
+            grouped_sources.setdefault(json_path, []).append(source_record_index)
+        return grouped_sources
 
     @Slot()
     def choose_json_file(self) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_paths, _ = QFileDialog.getOpenFileNames(
             self,
-            "选择 JSON 文件",
+            "选择一个或多个 JSON 文件",
             str(DEFAULT_JSON_PATH.parent),
             "JSON Files (*.json)",
         )
-        if file_path:
-            self.json_path_edit.setText(file_path)
+        if file_paths:
+            self._set_selected_json_paths([Path(file_path) for file_path in file_paths])
 
     @Slot()
     def load_records(self) -> None:
         try:
-            json_path = Path(self.json_path_edit.text().strip())
-            self._records = self._repository.load(json_path)
+            json_paths = self._get_selected_json_paths()
+            normalized_group_count, normalized_record_count = self._normalize_hidden_groups_in_json(json_paths)
+            self._records = self._repository.load(json_paths)
+            self._json_paths = list(json_paths)
         except Exception as exc:
             QMessageBox.critical(self, "加载失败", str(exc))
             return
@@ -1722,8 +1796,13 @@ class MainWindow(QMainWindow):
         self._current_record_index = 0 if self._records else None
         self._current_row_code = -1
         self._batch_selected_record_indices.clear()
-        self.record_summary_label.setText(f"共加载 {len(self._records)} 条记录")
-        self.statusBar().showMessage(f"已加载 {len(self._records)} 条记录")
+        self.record_summary_label.setText(f"共加载 {len(self._records)} 条记录，来自 {len(self._json_paths)} 个 JSON 文件")
+        if normalized_record_count > 0:
+            self.statusBar().showMessage(
+                f"已加载 {len(self._records)} 条记录（{len(self._json_paths)} 个文件），并补全隐藏状态: {normalized_group_count} 组 / {normalized_record_count} 条"
+            )
+        else:
+            self.statusBar().showMessage(f"已加载 {len(self._records)} 条记录（{len(self._json_paths)} 个文件）")
         self._rebuild_filtered_record_indices()
         self._record_items_per_page = self._calculate_record_items_per_page()
         self._ensure_record_page_valid()
@@ -2236,8 +2315,9 @@ class MainWindow(QMainWindow):
     def _format_selected_record_text(self, record: WordRecord) -> str:
         meaning_lines = _build_meaning_lines(record)
         lines = [
-            f"序号: {record.list_index}",
+            f"列表序号: {record.list_index}",
             f"Word ID: {record.word_id if record.word_id is not None else '-'}",
+            f"主释义 ID: {record.meaning_id if record.meaning_id is not None else '-'}",
             f"单词: {record.word or '-'}",
             f"音标: {record.phonetic or '-'}",
             f"分类: {record.word_tag or '-'}",
@@ -2258,7 +2338,11 @@ class MainWindow(QMainWindow):
         if record.image_hint:
             lines.append(f"现有图像提示: {record.image_hint}")
         lines.append("")
-        lines.append(f"来源记录索引: {', '.join(str(index) for index in record.source_record_indices)}")
+        source_refs = [
+            f"{json_path.name}:{source_record_index}"
+            for json_path, source_record_index in zip(record.source_json_paths, record.source_record_indices)
+        ]
+        lines.append(f"来源记录: {', '.join(source_refs)}")
         lines.append("")
         lines.append("完整字段:")
         lines.append(self._format_json_payload(record.raw))
@@ -2592,14 +2676,17 @@ class MainWindow(QMainWindow):
     def _confirm_record_by_index(self, record_index: int) -> None:
         record = self._records[record_index]
         new_hidden = not record.hidden
+        related_record_indices = self._collect_related_record_indices(record_index)
 
         try:
             self._update_record_hidden_in_json(record_index, new_hidden)
-            record.hidden = new_hidden
-            record.raw["hidden"] = new_hidden
-            for source_record in record.source_records:
-                if isinstance(source_record, dict):
-                    source_record["hidden"] = new_hidden
+            for related_record_index in related_record_indices:
+                related_record = self._records[related_record_index]
+                related_record.hidden = new_hidden
+                related_record.raw["hidden"] = new_hidden
+                for source_record in related_record.source_records:
+                    if isinstance(source_record, dict):
+                        source_record["hidden"] = new_hidden
         except Exception as exc:
             QMessageBox.critical(self, "确认记录失败", str(exc))
             return
@@ -2610,9 +2697,13 @@ class MainWindow(QMainWindow):
         self._update_preview_for_current_selection()
         self._update_selection_details()
         if new_hidden:
-            self.statusBar().showMessage(f"已确认并隐藏记录: {record.word or '-'}")
+            self.statusBar().showMessage(
+                f"已确认并隐藏 {len(related_record_indices)} 条同词记录: {record.word or '-'}"
+            )
         else:
-            self.statusBar().showMessage(f"已取消确认记录: {record.word or '-'}")
+            self.statusBar().showMessage(
+                f"已取消确认 {len(related_record_indices)} 条同词记录: {record.word or '-'}"
+            )
 
     @Slot(int)
     def _delete_all_record_prompts_by_index(self, record_index: int) -> None:
@@ -2661,50 +2752,50 @@ class MainWindow(QMainWindow):
         self._sync_record_word_image_to_memory(record, prompt_text)
 
     def _update_record_word_image_in_json(self, record_index: int, prompt_text: str) -> None:
-        json_path = Path(self.json_path_edit.text().strip())
-        if not json_path.exists():
-            raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
-
         record = self._records[record_index]
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-        records = payload.get("records") if isinstance(payload, dict) else payload
-        if not isinstance(records, list):
-            raise ValueError("当前 JSON 记录索引无效，无法更新 word.image 字段")
+        documents = {
+            json_path: self._load_json_document(json_path)
+            for json_path in self._group_record_sources(record)
+        }
 
-        for source_record_index in record.source_record_indices:
-            if source_record_index >= len(records):
-                continue
-            record_payload = records[source_record_index]
-            if not isinstance(record_payload, dict):
-                continue
-            word_payload = record_payload.get("word")
-            if isinstance(word_payload, dict):
-                word_payload["image"] = prompt_text
+        for json_path, source_record_indices in self._group_record_sources(record).items():
+            payload, records = documents[json_path]
+            del payload
+            for source_record_index in source_record_indices:
+                if source_record_index >= len(records):
+                    continue
+                record_payload = records[source_record_index]
+                if not isinstance(record_payload, dict):
+                    continue
+                word_payload = record_payload.get("word")
+                if isinstance(word_payload, dict):
+                    word_payload["image"] = prompt_text
 
-        json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        for json_path, (payload, _) in documents.items():
+            json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _update_record_word_in_json(self, record_index: int, word_text: str) -> None:
-        json_path = Path(self.json_path_edit.text().strip())
-        if not json_path.exists():
-            raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
-
         record = self._records[record_index]
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-        records = payload.get("records") if isinstance(payload, dict) else payload
-        if not isinstance(records, list):
-            raise ValueError("当前 JSON 记录索引无效，无法更新 word.word 字段")
+        documents = {
+            json_path: self._load_json_document(json_path)
+            for json_path in self._group_record_sources(record)
+        }
 
-        for source_record_index in record.source_record_indices:
-            if source_record_index >= len(records):
-                continue
-            record_payload = records[source_record_index]
-            if not isinstance(record_payload, dict):
-                continue
-            word_payload = record_payload.get("word")
-            if isinstance(word_payload, dict):
-                word_payload["word"] = word_text
+        for json_path, source_record_indices in self._group_record_sources(record).items():
+            payload, records = documents[json_path]
+            del payload
+            for source_record_index in source_record_indices:
+                if source_record_index >= len(records):
+                    continue
+                record_payload = records[source_record_index]
+                if not isinstance(record_payload, dict):
+                    continue
+                word_payload = record_payload.get("word")
+                if isinstance(word_payload, dict):
+                    word_payload["word"] = word_text
 
-        json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        for json_path, (payload, _) in documents.items():
+            json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _rename_meaning_output_files(
         self,
@@ -2759,35 +2850,36 @@ class MainWindow(QMainWindow):
             task.status_text = f"正在生成 {record.word} 的释义图片..."
 
     def _update_record_prompt_in_json(self, record_index: int, row_code: int, prompt_text: str) -> None:
-        json_path = Path(self.json_path_edit.text().strip())
-        if not json_path.exists():
-            raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
-
         record = self._records[record_index]
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-        records = payload.get("records") if isinstance(payload, dict) else payload
-        if not isinstance(records, list):
-            raise ValueError("当前 JSON 记录索引无效，无法更新提示词字段")
-
         if row_code == -1:
-            for source_record_index in record.source_record_indices:
-                if source_record_index >= len(records):
-                    continue
-                record_payload = records[source_record_index]
-                if not isinstance(record_payload, dict):
-                    continue
-                word_payload = record_payload.get("word")
-                if isinstance(word_payload, dict):
-                    word_payload["image"] = prompt_text
-                meaning_payload = record_payload.get("word_meaning")
-                if isinstance(meaning_payload, dict) and "image" in meaning_payload:
-                    meaning_payload["image"] = prompt_text
+            documents = {
+                json_path: self._load_json_document(json_path)
+                for json_path in self._group_record_sources(record)
+            }
+            for json_path, source_record_indices in self._group_record_sources(record).items():
+                payload, records = documents[json_path]
+                del payload
+                for source_record_index in source_record_indices:
+                    if source_record_index >= len(records):
+                        continue
+                    record_payload = records[source_record_index]
+                    if not isinstance(record_payload, dict):
+                        continue
+                    word_payload = record_payload.get("word")
+                    if isinstance(word_payload, dict):
+                        word_payload["image"] = prompt_text
+                    meaning_payload = record_payload.get("word_meaning")
+                    if isinstance(meaning_payload, dict) and "image" in meaning_payload:
+                        meaning_payload["image"] = prompt_text
+            for json_path, (payload, _) in documents.items():
+                json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         else:
             if row_code >= len(record.examples):
                 raise ValueError("当前记录缺少对应例句，无法更新提示词字段")
             example = record.examples[row_code]
-            if example.source_record_index is None or example.source_example_index is None:
+            if example.source_json_path is None or example.source_record_index is None or example.source_example_index is None:
                 raise ValueError("当前例句缺少来源索引，无法更新提示词字段")
+            payload, records = self._load_json_document(example.source_json_path)
             if example.source_record_index >= len(records):
                 raise ValueError("当前例句来源记录无效，无法更新提示词字段")
             record_payload = records[example.source_record_index]
@@ -2800,61 +2892,161 @@ class MainWindow(QMainWindow):
             if not isinstance(example_payload, dict):
                 raise ValueError("当前例句格式无效，无法更新提示词字段")
             example_payload["image"] = prompt_text
-
-        json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            example.source_json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _update_all_record_prompts_in_json(self, record_index: int, prompt_text: str) -> None:
-        json_path = Path(self.json_path_edit.text().strip())
-        if not json_path.exists():
-            raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
+        record = self._records[record_index]
+        documents = {
+            json_path: self._load_json_document(json_path)
+            for json_path in self._group_record_sources(record)
+        }
+
+        for json_path, source_record_indices in self._group_record_sources(record).items():
+            payload, records = documents[json_path]
+            del payload
+            for source_record_index in source_record_indices:
+                if source_record_index >= len(records):
+                    continue
+                record_payload = records[source_record_index]
+                if not isinstance(record_payload, dict):
+                    continue
+
+                word_payload = record_payload.get("word")
+                if isinstance(word_payload, dict):
+                    word_payload["image"] = prompt_text
+
+                meaning_payload = record_payload.get("word_meaning")
+                if isinstance(meaning_payload, dict) and "image" in meaning_payload:
+                    meaning_payload["image"] = prompt_text
+
+                example_payloads = record_payload.get("word_example")
+                if isinstance(example_payloads, list):
+                    for example_payload in example_payloads:
+                        if isinstance(example_payload, dict):
+                            example_payload["image"] = prompt_text
+
+        for json_path, (payload, _) in documents.items():
+            json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _collect_related_record_indices(self, record_index: int) -> list[int]:
+        if record_index < 0 or record_index >= len(self._records):
+            return []
 
         record = self._records[record_index]
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-        records = payload.get("records") if isinstance(payload, dict) else payload
-        if not isinstance(records, list):
-            raise ValueError("当前 JSON 记录索引无效，无法更新提示词字段")
+        word_id = record.word_id
+        word_key = record.word.strip().casefold()
+        if word_id is None or not word_key:
+            return [record_index]
 
-        for source_record_index in record.source_record_indices:
-            if source_record_index >= len(records):
-                continue
-            record_payload = records[source_record_index]
-            if not isinstance(record_payload, dict):
-                continue
+        related_indices = [
+            index
+            for index, candidate in enumerate(self._records)
+            if candidate.word_id == word_id and candidate.word.strip().casefold() == word_key
+        ]
+        return related_indices or [record_index]
 
-            word_payload = record_payload.get("word")
-            if isinstance(word_payload, dict):
-                word_payload["image"] = prompt_text
+    def _normalize_hidden_groups_in_json(self, json_paths: Path | list[Path]) -> tuple[int, int]:
+        if isinstance(json_paths, Path):
+            normalized_json_paths = [json_paths]
+        else:
+            normalized_json_paths = list(json_paths)
 
-            meaning_payload = record_payload.get("word_meaning")
-            if isinstance(meaning_payload, dict) and "image" in meaning_payload:
-                meaning_payload["image"] = prompt_text
+        changed_group_count = 0
+        changed_record_count = 0
+        for json_path in normalized_json_paths:
+            payload, records = self._load_json_document(json_path)
 
-            example_payloads = record_payload.get("word_example")
-            if isinstance(example_payloads, list):
-                for example_payload in example_payloads:
-                    if isinstance(example_payload, dict):
-                        example_payload["image"] = prompt_text
+            grouped_indices: dict[tuple[int | None, str], list[int]] = {}
+            hidden_group_keys: set[tuple[int | None, str]] = set()
 
-        json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            for record_index, record_payload in enumerate(records):
+                if not isinstance(record_payload, dict):
+                    continue
+
+                word_payload = record_payload.get("word")
+                if not isinstance(word_payload, dict):
+                    continue
+
+                word_id = _safe_int(word_payload.get("id"))
+                word_key = str(word_payload.get("word") or "").strip().casefold()
+                if word_id is None or not word_key:
+                    continue
+
+                group_key = (word_id, word_key)
+                grouped_indices.setdefault(group_key, []).append(record_index)
+                if bool(record_payload.get("hidden", False)):
+                    hidden_group_keys.add(group_key)
+
+            file_changed_group_count = 0
+            file_changed_record_count = 0
+            for group_key in hidden_group_keys:
+                group_changed = False
+                for record_index in grouped_indices.get(group_key, []):
+                    record_payload = records[record_index]
+                    if not isinstance(record_payload, dict):
+                        continue
+                    if bool(record_payload.get("hidden", False)):
+                        continue
+                    record_payload["hidden"] = True
+                    file_changed_record_count += 1
+                    group_changed = True
+                if group_changed:
+                    file_changed_group_count += 1
+
+            if file_changed_record_count > 0:
+                json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            changed_group_count += file_changed_group_count
+            changed_record_count += file_changed_record_count
+
+        return changed_group_count, changed_record_count
+
+    def _record_payload_matches_word_identity(
+        self,
+        record_payload: dict[str, Any],
+        word_id: int | None,
+        word_key: str,
+    ) -> bool:
+        if word_id is None or not word_key:
+            return False
+
+        word_payload = record_payload.get("word")
+        if not isinstance(word_payload, dict):
+            return False
+
+        candidate_word_id = _safe_int(word_payload.get("id"))
+        candidate_word_key = str(word_payload.get("word") or "").strip().casefold()
+        return candidate_word_id == word_id and candidate_word_key == word_key
 
     def _update_record_hidden_in_json(self, record_index: int, hidden: bool) -> None:
-        json_path = Path(self.json_path_edit.text().strip())
-        if not json_path.exists():
-            raise FileNotFoundError(f"JSON 文件不存在: {json_path}")
-
         record = self._records[record_index]
-        payload = json.loads(json_path.read_text(encoding="utf-8"))
-        records = payload.get("records") if isinstance(payload, dict) else payload
-        if not isinstance(records, list):
-            raise ValueError("当前 JSON 记录索引无效，无法更新 hidden 字段")
+        related_record_indices = self._collect_related_record_indices(record_index)
+        target_sources_by_json: dict[Path, set[int]] = {}
+        for related_record_index in related_record_indices:
+            related_record = self._records[related_record_index]
+            for json_path, source_record_index in zip(related_record.source_json_paths, related_record.source_record_indices):
+                target_sources_by_json.setdefault(json_path, set()).add(source_record_index)
 
-        for source_record_index in record.source_record_indices:
-            if source_record_index >= len(records):
-                continue
-            record_payload = records[source_record_index]
-            if isinstance(record_payload, dict):
-                record_payload["hidden"] = hidden
-        json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        target_word_id = record.word_id
+        target_word_key = record.word.strip().casefold()
+        json_paths = self._json_paths or list(target_sources_by_json)
+        documents = {json_path: self._load_json_document(json_path) for json_path in json_paths}
+
+        for json_path, (payload, records) in documents.items():
+            del payload
+            target_source_record_indices = target_sources_by_json.get(json_path, set())
+            for source_record_index, record_payload in enumerate(records):
+                if not isinstance(record_payload, dict):
+                    continue
+                if source_record_index in target_source_record_indices or self._record_payload_matches_word_identity(
+                    record_payload,
+                    target_word_id,
+                    target_word_key,
+                ):
+                    record_payload["hidden"] = hidden
+
+        for json_path, (payload, _) in documents.items():
+            json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _start_prompt_generation(self, record_index: int | None, row_code: int) -> None:
         if record_index is None:
@@ -3292,23 +3484,28 @@ def _record_supports_image_generation(record: WordRecord) -> bool:
     return record.word_id is not None and bool(record.word.strip())
 
 
+def _format_record_identifier(record: WordRecord, meaning: MeaningRecord | None = None) -> str:
+    word_id_text = str(record.word_id) if record.word_id is not None else "?"
+    if meaning is None or meaning.meaning_id is None:
+        return f"[word_id:{word_id_text}]"
+    return f"[word_id:{word_id_text}, meaning_id:{meaning.meaning_id}]"
+
+
 def _build_meaning_summary_text(record: WordRecord) -> str:
     parts: list[str] = []
     for meaning in record.meanings:
-        meaning_id_text = str(meaning.meaning_id) if meaning.meaning_id is not None else "?"
         meaning_text = meaning.meaning_zh or meaning.meaning_en or meaning.pos or "无释义"
-        parts.append(f"[{meaning_id_text}] {meaning_text}")
+        parts.append(f"{_format_record_identifier(record, meaning)} {meaning_text}")
     return "; ".join(parts) if parts else (record.meaning_zh or record.meaning_en or "无释义")
 
 
 def _build_meaning_lines(record: WordRecord) -> list[str]:
     lines: list[str] = []
     for meaning in record.meanings:
-        meaning_id_text = str(meaning.meaning_id) if meaning.meaning_id is not None else "?"
         pos_text = meaning.pos or "未标注词性"
         zh_text = meaning.meaning_zh or "-"
         en_text = meaning.meaning_en or "-"
-        lines.append(f"- [{meaning_id_text}] {pos_text} | {zh_text} | {en_text}")
+        lines.append(f"- {_format_record_identifier(record, meaning)} {pos_text} | {zh_text} | {en_text}")
     return lines
 
 
@@ -3316,8 +3513,10 @@ def _build_meaning_prompt_context(record: WordRecord) -> str:
     lines = _build_meaning_lines(record)
     if lines:
         return "\n".join(lines)
-    meaning_id_text = str(record.meaning_id) if record.meaning_id is not None else "?"
-    return f"- [{meaning_id_text}] {record.pos or '-'} | {record.meaning_zh or '-'} | {record.meaning_en or '-'}"
+    return (
+        f"- {_format_record_identifier(record)} "
+        f"{record.pos or '-'} | {record.meaning_zh or '-'} | {record.meaning_en or '-'}"
+    )
 
 
 def _build_image_subject_prompt(record: WordRecord) -> str:

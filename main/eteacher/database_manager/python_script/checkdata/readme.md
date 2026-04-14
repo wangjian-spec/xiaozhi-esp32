@@ -2,6 +2,8 @@
 
 入口脚本：`word_data_checker_ui.py`
 
+JSON 分片/生成结果检查工具：`check_json.py`
+
 默认参考数据库：
 
 - `main/eteacher/database_manager/python_script/words.db`
@@ -24,20 +26,23 @@ python word_data_checker_ui.py
 
 ### 1. `words.db`
 
-可直接校验数据库中的：
+### JSON 记录校验
 
-- `word`
-- `word_meaning`
+- `word.id` 是否连续、是否重复
+- 是否存在 `metadata.source_record_range` 对应的缺号
+- `word` / `word_meaning` / `word_example` / `hidden` 结构是否正确
+- `word.id`、`word_meaning.id`、`word_meaning.word_id` 是否一致
+- `word_example[].meaning_id` 是否与 `word_meaning.id` 一致
+- `batch_record_count` 是否与实际记录数一致
+- 支持把两个分片 JSON 合并成一个新文件，并按 `word_meaning.id` 排序输出
 
-### 2. 多个 Excel 文件
+例如：
 
-支持一次选择多个 `.xls` / `.xlsx` 文件。
+- `record_stage1_gpt5.4_generated_1_2200.json`
+- `record_stage1_gpt5.4_generated_2201_4096.json`
 
-Excel 读取规则与 `DatabaseCreate.py` 保持一致：
-
-- 只扫描第一个工作表
+可在 `check_json.py` 界面中合并为一个新的 JSON 文件。
 - 前 5 行内自动识别表头
-- 表头名必须与脚本字段名完全一致
 - 支持字段：
 
 ```text

@@ -318,7 +318,7 @@ bool UpdateTaskFlagByRowId(int rowid, const char *column, int value) {
 
 	const std::string db_path = DiscoverDataDbPath();
 	if (db_path.empty()) {
-		ESP_LOGW(kTag, "user_data.db not found");
+		ESP_LOGW(kTag, "user.db not found");
 		return false;
 	}
 
@@ -2142,14 +2142,14 @@ std::vector<CalendarScheduleApp::TaskEntry> CalendarScheduleApp::QueryTasks() co
 
 	const std::string db_path = DiscoverDataDbPath();
 	if (db_path.empty()) {
-		ESP_LOGW(kTag, "user_data.db not found");
+		ESP_LOGW(kTag, "user.db not found");
 		return out;
 	}
 
 	sqlite3 *db = nullptr;
 	int rc = sqlite3_open_v2(db_path.c_str(), &db, SQLITE_OPEN_READONLY, nullptr);
 	if (rc != SQLITE_OK || !db) {
-		ESP_LOGW(kTag, "open user_data.db failed rc=%d", rc);
+		ESP_LOGW(kTag, "open user.db failed rc=%d", rc);
 		if (db) {
 			sqlite3_close(db);
 		}

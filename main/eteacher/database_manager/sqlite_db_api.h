@@ -6,10 +6,15 @@
 
 namespace eteacher::database_manager {
 
+const char *GetDictionaryDbFixedPath();
+const char *GetQuestionDbFixedPath();
+const char *GetUserDataDbFixedPath();
+
 bool EnsureSqliteRuntimeReady(const char *log_tag);
 bool EnsureSqliteSdMounted(const char *log_tag);
 
 std::string DiscoverDictionaryDbPath(const char *log_tag);
+std::string DiscoverQuestionDbPath(const char *log_tag);
 std::string DiscoverUserDataDbPath(const char *log_tag, const char *required_table = "vocab_items");
 
 bool ConfigureWriteConnection(sqlite3 *db, const char *log_tag);

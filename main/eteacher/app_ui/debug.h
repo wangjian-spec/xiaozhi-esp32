@@ -13,6 +13,13 @@ namespace debug {
 #define APP_UI_DEBUG 1
 #endif
 
+#ifndef APP_UI_DEBUG_LOG_ENABLED_DEFAULT
+#define APP_UI_DEBUG_LOG_ENABLED_DEFAULT 0
+#endif
+
+bool UiDebugLoggingEnabled();
+void SetUiDebugLoggingEnabled(bool enabled);
+
 #if APP_UI_DEBUG
 void PrintSceneLoaded(const char* scene_id, uint16_t scene_index, Widget* root, bool has_public);
 void PrintSceneSwitch(Widget* prev_root, Widget* pending_root, uint32_t pending_focus_id);

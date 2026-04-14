@@ -3,7 +3,7 @@
 本文档用于统一说明：
 
 1. SD 卡数据库与资源目录结构
-2. `user_data.db` / `words.db` 的核心表模型
+2. `user.db` / `words.db` 的核心表模型
 3. 统一数据库 API 的使用方式与约束
 4. 新 App 接入数据库的标准流程
 
@@ -20,8 +20,7 @@
 
 ### 1.2 动态数据（可写）
 
-- 用户数据库：`/sdcard/user/user_data.db`
-- 兼容路径（历史/大小写/FAT 短文件名）由统一 API 自动识别
+- 用户数据库：`/sdcard/user/user.db`
 
 ---
 
@@ -112,7 +111,7 @@ CREATE TABLE question_bank (
   - `audio_path`：每条记录都写入有效路径（非空）
   - `image_path`：每条记录都写入有效路径（非空）
 
-### 2.3 动态用户库 `user_data.db`
+### 2.3 动态用户库 `user.db`
 
 #### A. 账号与设备
 
@@ -157,6 +156,10 @@ CREATE TABLE vocab_items (
   is_deleted      INTEGER DEFAULT 0
 );
 
+上面生词表用户自己维护，用于用户把感兴趣的单词添加到生词表，用户可以对生词表单词做重点练习，可以标记为是否掌握，是否移除等；
+
+
+
 CREATE TABLE vocab_learning_state (
   user_id         INTEGER,
   vocab_id        INTEGER,
@@ -171,6 +174,8 @@ CREATE TABLE vocab_learning_state (
   PRIMARY KEY(user_id, vocab_id)
 );
 
+上面表用于记录记忆曲线，
+
 CREATE TABLE vocab_review_log (
   id              INTEGER PRIMARY KEY,
   user_id         INTEGER,
@@ -181,7 +186,8 @@ CREATE TABLE vocab_review_log (
   is_correct      INTEGER,
   created_at      INTEGER
 );
-```
+
+上面表用于记录单词的学习记录，每做一次题，做一次记录，记录到数据库，用于后面做学习统计；
 
 #### C. AI 学习过程
 

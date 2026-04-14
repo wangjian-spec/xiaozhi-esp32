@@ -1,0 +1,1 @@
+﻿OK count=1300 batch=1300 lastMeaning=1300 lastWord=factory
