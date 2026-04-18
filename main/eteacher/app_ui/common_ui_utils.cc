@@ -22,6 +22,8 @@ constexpr const char* kWordsImagePackagePath = "/sdcard/resource/image/words/sta
 constexpr const char* kWordsImageProxyDir = "/resource/image/words/";
 constexpr const char* kWordsAudioDir = "/resource/audio/words/";
 constexpr const char* kWordsAudioBundlePath = "/resource/audio/words/stage_1.bin";
+constexpr const char* kExampleAudioDir = "/resource/audio/example/";
+constexpr const char* kExampleAudioBundlePath = "/resource/audio/example/stage_1.bin";
 
 struct ImagePackageEntry {
     uint32_t offset = 0;
@@ -40,6 +42,32 @@ static inline uint16_t ReadLE16(const uint8_t* p) {
 std::string BasenameFromPath(const std::string& path) {
     const size_t pos = path.find_last_of("\\/");
     return pos == std::string::npos ? path : path.substr(pos + 1);
+}
+
+std::string BuildAudioProxyPath(const char* directory, const std::string& audio_filename) {
+    std::string name = audio_filename;
+    while (!name.empty() && std::isspace(static_cast<unsigned char>(name.front())) != 0) {
+        name.erase(name.begin());
+    }
+    while (!name.empty() && std::isspace(static_cast<unsigned char>(name.back())) != 0) {
+        name.pop_back();
+    }
+    if (name.empty()) {
+        return {};
+    }
+    auto lower = name;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".mp3") == 0) {
+        name.replace(name.size() - 4, 4, ".ogg");
+    } else if (lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".opus") == 0) {
+        name.replace(name.size() - 5, 5, ".ogg");
+    }
+    if (!name.empty() && name[0] == '/') {
+        return name;
+    }
+    return std::string(directory ? directory : "") + BasenameFromPath(name);
 }
 
 std::string NormalizePackageEntryName(const std::string& path) {
@@ -186,29 +214,19 @@ const char* GetWordsAudioBundlePath() {
 }
 
 std::string BuildWordsAudioPath(const std::string& audio_filename) {
-    std::string name = audio_filename;
-    while (!name.empty() && std::isspace(static_cast<unsigned char>(name.front())) != 0) {
-        name.erase(name.begin());
-    }
-    while (!name.empty() && std::isspace(static_cast<unsigned char>(name.back())) != 0) {
-        name.pop_back();
-    }
-    if (name.empty()) {
-        return {};
-    }
-    auto lower = name;
-    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    if (lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".mp3") == 0) {
-        name.replace(name.size() - 4, 4, ".ogg");
-    } else if (lower.size() >= 5 && lower.compare(lower.size() - 5, 5, ".opus") == 0) {
-        name.replace(name.size() - 5, 5, ".ogg");
-    }
-    if (!name.empty() && name[0] == '/') {
-        return name;
-    }
-    return std::string(kWordsAudioDir) + BasenameFromPath(name);
+    return BuildAudioProxyPath(kWordsAudioDir, audio_filename);
+}
+
+const char* GetExampleAudioDir() {
+    return kExampleAudioDir;
+}
+
+const char* GetExampleAudioBundlePath() {
+    return kExampleAudioBundlePath;
+}
+
+std::string BuildExampleAudioPath(const std::string& audio_filename) {
+    return BuildAudioProxyPath(kExampleAudioDir, audio_filename);
 }
 
 bool LoadBinImage(const std::string& name, BinImage* out) {

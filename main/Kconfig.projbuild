@@ -6,6 +6,16 @@ config OTA_URL
     help
         The application will access this URL to check for new firmwares and server address.
 
+config ET_SERVER_BASE_URL
+    string "English Teacher server base URL"
+    default "http://192.168.1.195:18080"
+    help
+        Base URL used by the English Teacher device_setting client for device registration,
+        authentication, verification code sending, login, and resource downloads.
+
+        This must be reachable from the ESP device over the LAN. Do not use 127.0.0.1 or
+        localhost here, because those loop back to the ESP32 itself rather than your PC.
+
 choice
     prompt "Flash Assets"
     default FLASH_DEFAULT_ASSETS

@@ -77,7 +77,8 @@ EXACT_WORD_HEADERS = (
 	"example_zh",
 	"difficulty",
 	"example_tag",
-	"audio_path",
+	"selection_zh",
+	"selection_en",
 	"image_path",
 )
 
@@ -934,7 +935,8 @@ class DatabaseService:
 		difficulty = _parse_int(record.get("difficulty"), 1) or 1
 		image = _to_text(record.get("image"))
 		example_tag = _to_text(record.get("example_tag"))
-		audio_path = _to_text(record.get("audio_path"))
+		selection_zh = _to_text(record.get("selection_zh"))
+		selection_en = _to_text(record.get("selection_en"))
 
 		exists = conn.execute(
 			"""
@@ -945,10 +947,11 @@ class DatabaseService:
 			  AND COALESCE(difficulty, -1) = COALESCE(?, -1)
 			  AND COALESCE(image, '') = COALESCE(?, '')
 			  AND COALESCE(example_tag, '') = COALESCE(?, '')
-			  AND COALESCE(audio_path, '') = COALESCE(?, '')
+			  AND COALESCE(selection_zh, '') = COALESCE(?, '')
+			  AND COALESCE(selection_en, '') = COALESCE(?, '')
 			LIMIT 1
 			""",
-			(meaning_id, example_en, example_zh, difficulty, image, example_tag, audio_path),
+			(meaning_id, example_en, example_zh, difficulty, image, example_tag, selection_zh, selection_en),
 		).fetchone()
 		if exists:
 			return 0, 1
@@ -957,8 +960,8 @@ class DatabaseService:
 			"""
 			INSERT INTO word_example (
 				meaning_id, example_en, example_zh,
-				difficulty, image, example_tag, audio_path
-			) VALUES (?, ?, ?, ?, ?, ?, ?)
+				difficulty, image, example_tag, selection_zh, selection_en
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			""",
 			(
 				meaning_id,
@@ -967,7 +970,8 @@ class DatabaseService:
 				difficulty,
 				image or None,
 				example_tag or None,
-				audio_path or None,
+				selection_zh or None,
+				selection_en or None,
 			),
 		)
 		return 1, 0
@@ -1496,7 +1500,8 @@ class DatabaseService:
 					difficulty INTEGER,
 					image TEXT,
 					example_tag TEXT,
-					audio_path TEXT,
+					selection_zh TEXT,
+					selection_en TEXT,
 					FOREIGN KEY(meaning_id) REFERENCES word_meaning(id)
 				);
 
@@ -1562,10 +1567,19 @@ class DatabaseService:
 
 	def _migrate_word_example_schema(self, conn: sqlite3.Connection) -> None:
 		columns = [row[1] for row in conn.execute("PRAGMA table_info(word_example)").fetchall()]
-		if "stage" not in columns and "image" in columns and "source" not in columns:
+		if (
+			"stage" not in columns
+			and "image" in columns
+			and "source" not in columns
+			and "audio_path" not in columns
+			and "selection_zh" in columns
+			and "selection_en" in columns
+		):
 			return
 
 		image_select = "image" if "image" in columns else "source"
+		selection_zh_select = "selection_zh" if "selection_zh" in columns else "''"
+		selection_en_select = "selection_en" if "selection_en" in columns else "''"
 
 		conn.executescript(
 			f"""
@@ -1579,17 +1593,18 @@ class DatabaseService:
 				difficulty INTEGER,
 				image TEXT,
 				example_tag TEXT,
-				audio_path TEXT,
+				selection_zh TEXT,
+				selection_en TEXT,
 				FOREIGN KEY(meaning_id) REFERENCES word_meaning(id)
 			);
 
 			INSERT INTO word_example_new (
 				id, meaning_id, example_en, example_zh,
-				difficulty, image, example_tag, audio_path
+				difficulty, image, example_tag, selection_zh, selection_en
 			)
 			SELECT
 				id, meaning_id, example_en, example_zh,
-				difficulty, {image_select}, example_tag, audio_path
+				difficulty, {image_select}, example_tag, {selection_zh_select}, {selection_en_select}
 			FROM word_example;
 
 			DROP TABLE word_example;

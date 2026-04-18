@@ -109,6 +109,56 @@ class WordsJsonService:
             create_sql = str(normalized.get("create_sql") or "")
             if create_sql:
                 normalized["create_sql"] = create_sql.replace("image TEXT", "source TEXT")
+        elif table_name == "word_example":
+            normalized_columns: list[dict[str, Any]] = []
+            has_selection_zh = False
+            has_selection_en = False
+            for column in column_dicts:
+                column_name = str(column.get("name"))
+                if column_name == "audio_path":
+                    continue
+                if column_name == "selection_zh":
+                    has_selection_zh = True
+                if column_name == "selection_en":
+                    has_selection_en = True
+                normalized_columns.append(column)
+            if not has_selection_zh:
+                normalized_columns.append(
+                    {
+                        "cid": len(normalized_columns),
+                        "name": "selection_zh",
+                        "type": "TEXT",
+                        "notnull": 0,
+                        "dflt_value": None,
+                        "pk": 0,
+                    }
+                )
+            if not has_selection_en:
+                normalized_columns.append(
+                    {
+                        "cid": len(normalized_columns),
+                        "name": "selection_en",
+                        "type": "TEXT",
+                        "notnull": 0,
+                        "dflt_value": None,
+                        "pk": 0,
+                    }
+                )
+            column_dicts = normalized_columns
+            create_sql = str(normalized.get("create_sql") or "")
+            if create_sql:
+                create_sql = create_sql.replace(",\n\t\t\t\t\taudio_path TEXT", "")
+                create_sql = create_sql.replace(",\n                    audio_path TEXT", "")
+                if "selection_zh TEXT" not in create_sql:
+                    create_sql = create_sql.replace(
+                        "\n\t\t\t\t\texample_tag TEXT\n",
+                        "\n\t\t\t\t\texample_tag TEXT,\n\t\t\t\t\tselection_zh TEXT,\n\t\t\t\t\tselection_en TEXT\n",
+                    )
+                    create_sql = create_sql.replace(
+                        "\n                    example_tag TEXT\n",
+                        "\n                    example_tag TEXT,\n                    selection_zh TEXT,\n                    selection_en TEXT\n",
+                    )
+                normalized["create_sql"] = create_sql
 
         normalized["columns"] = column_dicts
         return normalized
@@ -119,6 +169,13 @@ class WordsJsonService:
         meaning = normalized.get("word_meaning")
         if isinstance(meaning, dict) and "source" not in meaning and "image" in meaning:
             meaning["source"] = meaning.pop("image")
+        examples = normalized.get("word_example")
+        if isinstance(examples, list):
+            for example in examples:
+                if isinstance(example, dict):
+                    example.pop("audio_path", None)
+                    example.setdefault("selection_zh", None)
+                    example.setdefault("selection_en", None)
         return normalized
 
     def export_database(self, db_path: Path, json_path: Path) -> dict[str, Any]:

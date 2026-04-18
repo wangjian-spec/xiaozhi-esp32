@@ -27,7 +27,8 @@
 #include "eteacher/app_service/app_service.h"
 #include "eteacher/database_manager/sqlite_db_api.h"
 
-#define WP_APP_DBLOGW(tag, format, ...) DB_LOGW(tag, format, ##__VA_ARGS__)
+#define WP_APP_DBLOGW(tag, format, ...) esp_log_write(ESP_LOG_WARN, tag, format, ##__VA_ARGS__)
+#define WP_DIAG_LOGW(tag, format, ...) esp_log_write(ESP_LOG_WARN, tag, format, ##__VA_ARGS__)
 #define WP_ASSET_LOGI(tag, format, ...) esp_log_write(ESP_LOG_INFO, tag, format, ##__VA_ARGS__)
 #define WP_ASSET_LOGW(tag, format, ...) esp_log_write(ESP_LOG_WARN, tag, format, ##__VA_ARGS__)
 
@@ -95,14 +96,13 @@ constexpr uint32_t kWidgetBottomBar = 0x80DAA8ADu;
 constexpr uint32_t kWidgetTextAreaInputAnswer = 0x9210078Au;
 constexpr uint32_t kWidgetDialogSelectBoard = 0x3175DFAAu;
 constexpr char kAudioBundleMagic[] = {'O', 'G', 'G', 'B', 'I', 'N', '1', '\0'};
+constexpr int kType4MeaningMaxWidth = 110;
+constexpr size_t kImageChoiceOptionCount = 3;
 
 void LogResolvedDbAccess(const char *scope, const std::string &path, const char *method) {
-	esp_log_write(ESP_LOG_WARN,
-		kTag,
-		"RESOURCE_OK kind=db scope=%s path=%s method=%s",
-		scope ? scope : "unknown",
-		path.empty() ? "(empty)" : path.c_str(),
-		method ? method : "unknown");
+	(void)scope;
+	(void)path;
+	(void)method;
 }
 
 void LogResolvedAssetAccess(const char *kind,
@@ -111,19 +111,44 @@ void LogResolvedAssetAccess(const char *kind,
 				 const std::string &path,
 				 const char *method,
 				 const char *detail = nullptr) {
-	esp_log_write(ESP_LOG_WARN,
-		kTag,
-		"RESOURCE_OK kind=%s action=%s request=%s path=%s method=%s detail=%s",
-		kind ? kind : "unknown",
-		action ? action : "unknown",
-		request.empty() ? "(empty)" : request.c_str(),
-		path.empty() ? "(empty)" : path.c_str(),
-		method ? method : "unknown",
-		detail ? detail : "-");
+	(void)kind;
+	(void)action;
+	(void)request;
+	(void)path;
+	(void)method;
+	(void)detail;
 }
 
 bool IsClickLike(const ButtonEvent &event) {
 	return event.action == ButtonAction::Click;
+}
+
+bool BufferContainsToken(const std::string &data, const char *token, size_t token_length) {
+	if (token == nullptr || token_length == 0 || data.size() < token_length) {
+		return false;
+	}
+	for (size_t index = 0; index + token_length <= data.size(); ++index) {
+		if (std::memcmp(data.data() + index, token, token_length) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string BuildAudioPreviewHex(const std::string &data, size_t max_bytes) {
+	constexpr char kHexDigits[] = "0123456789ABCDEF";
+	const size_t preview_size = std::min(max_bytes, data.size());
+	std::string preview;
+	preview.reserve(preview_size * 3);
+	for (size_t index = 0; index < preview_size; ++index) {
+		const unsigned char value = static_cast<unsigned char>(data[index]);
+		if (!preview.empty()) {
+			preview.push_back(' ');
+		}
+		preview.push_back(kHexDigits[(value >> 4) & 0x0F]);
+		preview.push_back(kHexDigits[value & 0x0F]);
+	}
+	return preview;
 }
 
 bool IsNextQuestionTriggerButton(AppButton button) {
@@ -164,6 +189,13 @@ std::string BuildStage1AssetBaseName(int word_id, const std::string &word_text) 
 		return {};
 	}
 	return std::to_string(word_id) + "_" + SanitizeStemPart(Trim(word_text));
+}
+
+std::string BuildStage1ExampleAudioBaseName(int word_id, const std::string &word_text, int example_id) {
+	if (word_id <= 0 || example_id <= 0) {
+		return {};
+	}
+	return std::to_string(word_id) + "_" + SanitizeStemPart(Trim(word_text)) + "_" + std::to_string(example_id);
 }
 
 std::string NormalizeAudioEntryName(const std::string &audio_filename) {
@@ -239,6 +271,11 @@ std::string ResolveStage1AudioName(const std::string &audio_filename, int word_i
 	return base_name.empty() ? std::string() : (base_name + ".ogg");
 }
 
+std::string ResolveStage1ExampleAudioName(int word_id, const std::string &word_text, int example_id) {
+	const std::string base_name = BuildStage1ExampleAudioBaseName(word_id, word_text, example_id);
+	return base_name.empty() ? std::string() : (base_name + ".ogg");
+}
+
 std::string ResolveStage1ImageName(const std::string &image_name, int word_id, const std::string &word_text) {
 	const std::string base_name = BuildStage1AssetBaseName(word_id, word_text);
 	return base_name.empty() ? std::string() : (base_name + ".bin");
@@ -246,6 +283,20 @@ std::string ResolveStage1ImageName(const std::string &image_name, int word_id, c
 
 std::string BuildQuestionAudioPath(const std::string &audio_filename) {
 	return eteacher::app_ui::BuildWordsAudioPath(audio_filename);
+}
+
+std::string BuildExampleQuestionAudioPath(const std::string &audio_filename) {
+	return eteacher::app_ui::BuildExampleAudioPath(audio_filename);
+}
+
+bool IsExampleAudioProxyPath(const std::string &audio_path) {
+	return audio_path.rfind(eteacher::app_ui::GetExampleAudioDir(), 0) == 0 ||
+		   audio_path.rfind("/sdcard/resource/audio/example/", 0) == 0;
+}
+
+const char *ResolveAudioBundlePath(const std::string &audio_path) {
+	return IsExampleAudioProxyPath(audio_path) ? eteacher::app_ui::GetExampleAudioBundlePath() :
+									  eteacher::app_ui::GetWordsAudioBundlePath();
 }
 
 std::string Trim(const std::string &value) {
@@ -260,7 +311,7 @@ std::string Trim(const std::string &value) {
 	return value.substr(start, end - start);
 }
 
-std::string JsonString(cJSON *obj, const char *key) {
+[[maybe_unused]] std::string JsonString(cJSON *obj, const char *key) {
 	if (!obj || !key) {
 		return {};
 	}
@@ -417,6 +468,56 @@ std::vector<std::string> NormalizeSentenceWordsLower(const std::string &value) {
 	return words;
 }
 
+std::vector<std::string> ExtractSentenceDisplayTokens(const std::string &value) {
+	std::vector<std::string> words;
+	std::string current;
+	for (unsigned char ch : value) {
+		if (std::isalnum(ch) != 0) {
+			current.push_back(static_cast<char>(ch));
+		} else if (!current.empty()) {
+			words.push_back(std::move(current));
+			current.clear();
+		}
+	}
+	if (!current.empty()) {
+		words.push_back(std::move(current));
+	}
+	return words;
+}
+
+void ShuffleStringVector(std::vector<std::string> *items) {
+	if (items == nullptr || items->size() < 2) {
+		return;
+	}
+	for (size_t index = items->size(); index > 1; --index) {
+		const size_t swap_index = static_cast<size_t>(esp_random() % index);
+		std::swap((*items)[index - 1], (*items)[swap_index]);
+	}
+}
+
+bool PreservesAnswerTokenOrder(const std::vector<std::string> &items, const std::vector<std::string> &answer_tokens) {
+	if (answer_tokens.empty()) {
+		return false;
+	}
+
+	std::vector<std::string> normalized_items;
+	normalized_items.reserve(items.size());
+	for (const auto &item : items) {
+		normalized_items.push_back(NormalizeLettersOnlyLower(item));
+	}
+
+	size_t matched = 0;
+	for (const auto &item : normalized_items) {
+		if (matched >= answer_tokens.size()) {
+			break;
+		}
+		if (item == NormalizeLettersOnlyLower(answer_tokens[matched])) {
+			++matched;
+		}
+	}
+	return matched == answer_tokens.size();
+}
+
 float ComputeWordCoverageRatio(const std::vector<std::string> &asr_words, const std::vector<std::string> &answer_words) {
 	if (answer_words.empty()) {
 		return asr_words.empty() ? 1.0f : 0.0f;
@@ -440,7 +541,7 @@ float ComputeWordCoverageRatio(const std::vector<std::string> &asr_words, const 
 	return static_cast<float>(matched) / static_cast<float>(answer_words.size());
 }
 
-int ParseTypeToken(const std::string &value) {
+[[maybe_unused]] int ParseTypeToken(const std::string &value) {
 	std::string text = Trim(value);
 	if (text.empty()) {
 		return 1;
@@ -458,7 +559,11 @@ int64_t NowSec() {
 	return static_cast<int64_t>(esp_timer_get_time() / 1000000ULL);
 }
 
-std::string TodayDate() {
+int64_t NowMs() {
+	return static_cast<int64_t>(esp_timer_get_time() / 1000ULL);
+}
+
+[[maybe_unused]] std::string TodayDate() {
 	const int64_t now = NowSec();
 	const int day = static_cast<int>((now / 86400) % 3650);
 	const int year = 2024 + day / 365;
@@ -471,7 +576,7 @@ std::string TodayDate() {
 	return buf;
 }
 
-bool StepDone(sqlite3_stmt *stmt) {
+[[maybe_unused]] bool StepDone(sqlite3_stmt *stmt) {
 	const int rc = sqlite3_step(stmt);
 	return rc == SQLITE_DONE || rc == SQLITE_ROW;
 }
@@ -479,13 +584,19 @@ bool StepDone(sqlite3_stmt *stmt) {
 struct VocabularySeed {
 	int word_id = 0;
 	int meaning_id = 0;
+	int example_id = 0;
+	int meaning_count = 0;
+	int meaning_with_example_count = 0;
+	int word_example_count = 0;
+	int selected_meaning_example_count = 0;
 	std::string word;
 	std::string meaning_zh;
 	std::string meaning_en;
 	std::string image;
 	std::string example_en;
 	std::string example_zh;
-	std::string audio_path;
+	std::string selection_zh;
+	std::string selection_en;
 	int stage = 1;
 	bool is_review = false;
 };
@@ -496,6 +607,7 @@ struct OptionSeed {
 	std::string meaning_zh;
 	std::string meaning_en;
 	std::string image;
+	std::string audio_path;
 };
 
 struct SqliteStmtFinalizer {
@@ -525,7 +637,7 @@ bool PrepareStatement(sqlite3 *db, const char *sql, std::unique_ptr<sqlite3_stmt
 	return true;
 }
 
-bool LoadVocabularySeedFromStatement(sqlite3_stmt *stmt, VocabularySeed *seed) {
+bool LoadVocabularyMeaningFromStatement(sqlite3_stmt *stmt, VocabularySeed *seed) {
 	if (stmt == nullptr || seed == nullptr) {
 		return false;
 	}
@@ -538,27 +650,173 @@ bool LoadVocabularySeedFromStatement(sqlite3_stmt *stmt, VocabularySeed *seed) {
 	const unsigned char *meaning_zh_text = sqlite3_column_text(stmt, 2);
 	const unsigned char *meaning_en_text = sqlite3_column_text(stmt, 3);
 	const unsigned char *image_text = sqlite3_column_text(stmt, 4);
-	const unsigned char *example_en_text = sqlite3_column_text(stmt, 5);
-	const unsigned char *example_zh_text = sqlite3_column_text(stmt, 6);
-	const unsigned char *audio_text = sqlite3_column_text(stmt, 7);
 	seed->meaning_zh = meaning_zh_text != nullptr ? reinterpret_cast<const char *>(meaning_zh_text) : "";
 	seed->meaning_en = meaning_en_text != nullptr ? reinterpret_cast<const char *>(meaning_en_text) : "";
 	if (Trim(seed->image).empty()) {
 		seed->image = image_text != nullptr ? reinterpret_cast<const char *>(image_text) : "";
 	}
-	seed->example_en = example_en_text != nullptr ? reinterpret_cast<const char *>(example_en_text) : "";
-	seed->example_zh = example_zh_text != nullptr ? reinterpret_cast<const char *>(example_zh_text) : "";
-	seed->audio_path = audio_text != nullptr ? reinterpret_cast<const char *>(audio_text) : "";
-	seed->stage = sqlite3_column_int(stmt, 8);
+	seed->stage = sqlite3_column_int(stmt, 5);
 	return true;
 }
 
-bool SeedHasDictionaryContent(const VocabularySeed &seed) {
+bool LoadVocabularyExampleFromStatement(sqlite3_stmt *stmt, VocabularySeed *seed) {
+	if (stmt == nullptr || seed == nullptr) {
+		return false;
+	}
+
+	if (sqlite3_step(stmt) != SQLITE_ROW) {
+		return false;
+	}
+
+	seed->example_id = sqlite3_column_int(stmt, 0);
+	const unsigned char *example_en_text = sqlite3_column_text(stmt, 1);
+	const unsigned char *example_zh_text = sqlite3_column_text(stmt, 2);
+	const unsigned char *selection_zh_text = sqlite3_column_text(stmt, 3);
+	const unsigned char *selection_en_text = sqlite3_column_text(stmt, 4);
+	seed->example_en = example_en_text != nullptr ? reinterpret_cast<const char *>(example_en_text) : "";
+	seed->example_zh = example_zh_text != nullptr ? reinterpret_cast<const char *>(example_zh_text) : "";
+	seed->selection_zh = selection_zh_text != nullptr ? reinterpret_cast<const char *>(selection_zh_text) : "";
+	seed->selection_en = selection_en_text != nullptr ? reinterpret_cast<const char *>(selection_en_text) : "";
+	return true;
+}
+
+void ClearVocabularyExample(VocabularySeed *seed) {
+	if (seed == nullptr) {
+		return;
+	}
+	seed->example_id = 0;
+	seed->selected_meaning_example_count = 0;
+	seed->example_en.clear();
+	seed->example_zh.clear();
+	seed->selection_zh.clear();
+	seed->selection_en.clear();
+}
+
+int QuerySingleInt(sqlite3 *db, const char *sql, int bind_int) {
+	if (db == nullptr || sql == nullptr) {
+		return 0;
+	}
+	std::unique_ptr<sqlite3_stmt, SqliteStmtFinalizer> stmt;
+	if (!PrepareStatement(db, sql, &stmt)) {
+		return 0;
+	}
+	sqlite3_bind_int(stmt.get(), 1, bind_int);
+	if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
+		return 0;
+	}
+	return sqlite3_column_int(stmt.get(), 0);
+}
+
+void LoadVocabularySeedStats(sqlite3 *db, VocabularySeed *seed) {
+	if (db == nullptr || seed == nullptr || seed->word_id <= 0) {
+		return;
+	}
+	static constexpr const char *kMeaningCountSql =
+		"SELECT COUNT(*) FROM word_meaning WHERE word_id = ?;";
+	static constexpr const char *kMeaningWithExampleCountSql =
+		"SELECT COUNT(DISTINCT m.id) "
+		"FROM word_meaning AS m "
+		"JOIN word_example AS e ON e.meaning_id = m.id "
+		"WHERE m.word_id = ?;";
+	static constexpr const char *kWordExampleCountSql =
+		"SELECT COUNT(*) "
+		"FROM word_example AS e "
+		"JOIN word_meaning AS m ON m.id = e.meaning_id "
+		"WHERE m.word_id = ?;";
+
+	seed->meaning_count = QuerySingleInt(db, kMeaningCountSql, seed->word_id);
+	seed->meaning_with_example_count = QuerySingleInt(db, kMeaningWithExampleCountSql, seed->word_id);
+	seed->word_example_count = QuerySingleInt(db, kWordExampleCountSql, seed->word_id);
+}
+
+bool LoadRandomMeaningForSeed(sqlite3 *db, const char *sql, const word_practice::SelectedWord &selected_word, VocabularySeed *seed, bool bind_word) {
+	std::unique_ptr<sqlite3_stmt, SqliteStmtFinalizer> stmt;
+	if (!PrepareStatement(db, sql, &stmt)) {
+		WP_APP_DBLOGW(kTag,
+			"load random meaning prepare failed word_id=%d word=%s bind_word=%d",
+			selected_word.word_id,
+			selected_word.word.c_str(),
+			bind_word ? 1 : 0);
+		return false;
+	}
+
+	if (bind_word) {
+		sqlite3_bind_text(stmt.get(), 1, seed->word.c_str(), -1, SQLITE_TRANSIENT);
+	} else {
+		sqlite3_bind_int(stmt.get(), 1, selected_word.word_id);
+	}
+
+	if (!LoadVocabularyMeaningFromStatement(stmt.get(), seed)) {
+		return false;
+	}
+
+	const int resolved_word_id = sqlite3_column_int(stmt.get(), 0);
+	if (resolved_word_id > 0) {
+		seed->word_id = resolved_word_id;
+	}
+	return true;
+}
+
+bool LoadRandomExampleForSeed(sqlite3 *db, VocabularySeed *seed) {
+	if (db == nullptr || seed == nullptr || seed->meaning_id <= 0) {
+		return false;
+	}
+
+	static constexpr const char *kSql =
+		"SELECT "
+		"e.id, "
+		"COALESCE(e.example_en, ''), "
+		"COALESCE(e.example_zh, ''), "
+		"COALESCE(e.selection_zh, ''), "
+		"COALESCE(e.selection_en, '') "
+		"FROM word_example AS e "
+		"WHERE e.meaning_id = ? "
+		"ORDER BY RANDOM() "
+		"LIMIT 1;";
+	static constexpr const char *kLegacySql =
+		"SELECT "
+		"e.id, "
+		"COALESCE(e.example_en, ''), "
+		"COALESCE(e.example_zh, ''), "
+		"'', "
+		"'' "
+		"FROM word_example AS e "
+		"WHERE e.meaning_id = ? "
+		"ORDER BY RANDOM() "
+		"LIMIT 1;";
+
+	seed->selected_meaning_example_count = QuerySingleInt(
+		db,
+		"SELECT COUNT(*) FROM word_example WHERE meaning_id = ?;",
+		seed->meaning_id);
+
+	std::unique_ptr<sqlite3_stmt, SqliteStmtFinalizer> stmt;
+	if (!PrepareStatement(db, kSql, &stmt)) {
+		WP_DIAG_LOGW(kTag,
+			"load random example primary prepare failed meaning_id=%d word_id=%d msg=%s; trying legacy schema fallback",
+			seed->meaning_id,
+			seed->word_id,
+			sqlite3_errmsg(db));
+		if (!PrepareStatement(db, kLegacySql, &stmt)) {
+			WP_DIAG_LOGW(kTag,
+				"load random example legacy prepare failed meaning_id=%d word_id=%d msg=%s",
+				seed->meaning_id,
+				seed->word_id,
+				sqlite3_errmsg(db));
+			return false;
+		}
+	}
+	sqlite3_bind_int(stmt.get(), 1, seed->meaning_id);
+	return LoadVocabularyExampleFromStatement(stmt.get(), seed);
+}
+
+[[maybe_unused]] bool SeedHasDictionaryContent(const VocabularySeed &seed) {
 	return !Trim(seed.meaning_zh).empty() ||
 		   !Trim(seed.meaning_en).empty() ||
 		   !Trim(seed.example_en).empty() ||
 		   !Trim(seed.example_zh).empty() ||
-		   !Trim(seed.audio_path).empty();
+		   !Trim(seed.selection_zh).empty() ||
+		   !Trim(seed.selection_en).empty();
 }
 
 std::string StageNumberToTag(int stage) {
@@ -587,17 +845,18 @@ std::string BestMeaningText(const VocabularySeed &seed) {
 }
 
 OptionSeed ToOptionSeed(const VocabularySeed &seed) {
-	return OptionSeed{seed.word_id, seed.word, seed.meaning_zh, seed.meaning_en, seed.image};
+	return OptionSeed{seed.word_id, seed.word, seed.meaning_zh, seed.meaning_en, seed.image, ""};
 }
 
 constexpr std::array<const char *, 4> kQuestionOptionTokens = {"A", "B", "C", "D"};
 
 std::vector<std::string> BuildHintTokens(const std::string &text);
 std::string BuildChoiceQuestionJson(const VocabularySeed &seed,
-					const std::array<OptionSeed, 4> &options,
+					const std::vector<OptionSeed> &options,
 					const std::string &textbook_name,
 					const std::string &prompt_text,
 					const std::string &audio_path);
+void ShuffleOptionVector(std::vector<OptionSeed> *options);
 std::string BuildPairQuestionJson(const std::array<OptionSeed, 4> &left_options,
 				  const std::array<OptionSeed, 4> &right_options,
 				  const std::string &textbook_name);
@@ -628,14 +887,18 @@ bool AppendChoiceQuestion(std::vector<word_practice::QuestionData> *question_poo
 					  int question_type,
 					  const std::vector<OptionSeed> &candidate_options,
 					  const std::string &prompt_text,
-					  const std::string &audio_path) {
-	if (question_pool == nullptr || question_built_count == nullptr || candidate_options.size() < 4) {
+					  const std::string &audio_path,
+					  size_t option_count = 4) {
+	if (question_pool == nullptr ||
+		question_built_count == nullptr ||
+		option_count < 2 ||
+		option_count > kQuestionOptionTokens.size() ||
+		candidate_options.size() < option_count) {
 		return false;
 	}
 
-	std::array<OptionSeed, 4> options = {
-		candidate_options[0], candidate_options[1], candidate_options[2], candidate_options[3]};
-	ShuffleOptionArray(&options);
+	std::vector<OptionSeed> options(candidate_options.begin(), candidate_options.begin() + static_cast<std::ptrdiff_t>(option_count));
+	ShuffleOptionVector(&options);
 
 	size_t answer_index = 0;
 	for (size_t index = 0; index < options.size(); ++index) {
@@ -713,6 +976,7 @@ bool AppendSentenceQuestion(std::vector<word_practice::QuestionData> *question_p
 				    int question_type,
 				    const std::string &prompt_text,
 				    const std::string &answer_text,
+				    const std::vector<std::string> &hints,
 				    const std::string &audio_path) {
 	if (question_pool == nullptr || question_built_count == nullptr) {
 		return false;
@@ -730,7 +994,7 @@ bool AppendSentenceQuestion(std::vector<word_practice::QuestionData> *question_p
 	question.content_json = BuildSentenceQuestionJson(
 		seed,
 		prompt_text,
-		BuildHintTokens(answer_text),
+		hints,
 		textbook_name,
 		audio_path);
 	if (question.content_json.empty()) {
@@ -807,15 +1071,48 @@ std::vector<std::string> BuildHintTokens(const std::string &text) {
 	return hints;
 }
 
+std::vector<std::string> BuildQuestionHints(const std::string &answer_text, const std::string &selection_text) {
+	std::vector<std::string> answer_tokens = ExtractSentenceDisplayTokens(answer_text);
+	std::vector<std::string> hints = answer_tokens;
+	std::vector<std::string> selection_tokens = ExtractSentenceDisplayTokens(selection_text);
+	hints.insert(hints.end(), selection_tokens.begin(), selection_tokens.end());
+
+	if (hints.empty()) {
+		return BuildHintTokens(answer_text);
+	}
+	if (hints.size() <= 1 || answer_tokens.size() <= 1) {
+		return hints;
+	}
+
+	std::vector<std::string> shuffled = hints;
+	for (int attempt = 0; attempt < 32; ++attempt) {
+		ShuffleStringVector(&shuffled);
+		if (!PreservesAnswerTokenOrder(shuffled, answer_tokens)) {
+			return shuffled;
+		}
+	}
+
+	shuffled.clear();
+	for (auto it = answer_tokens.rbegin(); it != answer_tokens.rend(); ++it) {
+		shuffled.push_back(*it);
+	}
+	shuffled.insert(shuffled.end(), selection_tokens.begin(), selection_tokens.end());
+	if (!PreservesAnswerTokenOrder(shuffled, answer_tokens)) {
+		return shuffled;
+	}
+
+	return hints;
+}
+
 std::vector<OptionSeed> BuildOptionCandidates(const VocabularySeed &seed, const std::vector<OptionSeed> &distractors, bool require_image) {
 	std::vector<OptionSeed> options;
-	options.reserve(4);
+	options.reserve(kQuestionOptionTokens.size());
 	const OptionSeed correct = ToOptionSeed(seed);
 	if (!require_image || !Trim(correct.image).empty()) {
 		options.push_back(correct);
 	}
 	for (const auto &candidate : distractors) {
-		if (options.size() >= 4) {
+		if (options.size() >= kQuestionOptionTokens.size()) {
 			break;
 		}
 		if (candidate.word_id == seed.word_id) {
@@ -866,8 +1163,16 @@ std::vector<OptionSeed> BuildDistractorOptionsFromSeeds(const VocabularySeed &se
 	return distractors;
 }
 
+std::string ResolveQuestionAudioField(const std::string &audio_path, int word_id, const std::string &word_text) {
+	const std::string trimmed = Trim(audio_path);
+	if (!trimmed.empty() && trimmed.front() == '/') {
+		return trimmed;
+	}
+	return ResolveStage1AudioName(trimmed, word_id, word_text);
+}
+
 std::string BuildChoiceQuestionJson(const VocabularySeed &seed,
-						const std::array<OptionSeed, 4> &options,
+					const std::vector<OptionSeed> &options,
 						const std::string &textbook_name,
 						const std::string &prompt_text,
 						const std::string &audio_path) {
@@ -884,7 +1189,7 @@ std::string BuildChoiceQuestionJson(const VocabularySeed &seed,
 	if (seed.word_id > 0) {
 		cJSON_AddNumberToObject(root, "word_id", seed.word_id);
 	}
-	const std::string resolved_audio = ResolveStage1AudioName(audio_path, seed.word_id, seed.word);
+	const std::string resolved_audio = ResolveQuestionAudioField(audio_path, seed.word_id, seed.word);
 	if (!resolved_audio.empty()) {
 		cJSON_AddStringToObject(root, "audio", resolved_audio.c_str());
 	}
@@ -893,10 +1198,9 @@ std::string BuildChoiceQuestionJson(const VocabularySeed &seed,
 
 	cJSON *options_obj = cJSON_CreateObject();
 	if (options_obj != nullptr) {
-		AddOptionPayload(options_obj, "A", options[0]);
-		AddOptionPayload(options_obj, "B", options[1]);
-		AddOptionPayload(options_obj, "C", options[2]);
-		AddOptionPayload(options_obj, "D", options[3]);
+		for (size_t index = 0; index < options.size() && index < kQuestionOptionTokens.size(); ++index) {
+			AddOptionPayload(options_obj, kQuestionOptionTokens[index], options[index]);
+		}
 		cJSON_AddItemToObject(root, "options", options_obj);
 	}
 
@@ -924,7 +1228,19 @@ std::string BuildPairQuestionJson(const std::array<OptionSeed, 4> &left_options,
 	cJSON *right = cJSON_CreateArray();
 	if (left != nullptr && right != nullptr) {
 		for (const auto &option : left_options) {
-			cJSON_AddItemToArray(left, cJSON_CreateString(Trim(option.word).c_str()));
+			cJSON *left_item = cJSON_CreateObject();
+			if (left_item == nullptr) {
+				continue;
+			}
+			const std::string left_word = Trim(option.word);
+			if (!left_word.empty()) {
+				cJSON_AddStringToObject(left_item, "word", left_word.c_str());
+			}
+			const std::string resolved_audio = ResolveStage1AudioName(option.audio_path, option.word_id, option.word);
+			if (!resolved_audio.empty()) {
+				cJSON_AddStringToObject(left_item, "audio", resolved_audio.c_str());
+			}
+			cJSON_AddItemToArray(left, left_item);
 		}
 		for (const auto &option : right_options) {
 			cJSON_AddItemToArray(right, cJSON_CreateString(Trim(option.meaning_zh).c_str()));
@@ -964,7 +1280,7 @@ std::string BuildSentenceQuestionJson(const VocabularySeed &seed,
 	if (seed.word_id > 0) {
 		cJSON_AddNumberToObject(root, "word_id", seed.word_id);
 	}
-	const std::string resolved_audio = ResolveStage1AudioName(audio_path, seed.word_id, seed.word);
+	const std::string resolved_audio = ResolveQuestionAudioField(audio_path, seed.word_id, seed.word);
 	if (!resolved_audio.empty()) {
 		cJSON_AddStringToObject(root, "audio", resolved_audio.c_str());
 	}
@@ -999,9 +1315,18 @@ bool LoadVocabularySeed(sqlite3 *db, const word_practice::SelectedWord &selected
 	seed->image = Trim(selected_word.image);
 	seed->stage = 1;
 	seed->is_review = selected_word.is_review;
+	ClearVocabularyExample(seed);
 	if (seed->word.empty()) {
 		return false;
 	}
+	LoadVocabularySeedStats(db, seed);
+	WP_DIAG_LOGW(kTag,
+		"load seed start selected_word_id=%d resolved_word=%s meaning_count=%d meaning_with_example_count=%d word_example_count=%d",
+		selected_word.word_id,
+		seed->word.c_str(),
+		seed->meaning_count,
+		seed->meaning_with_example_count,
+		seed->word_example_count);
 
 	const char *sql_by_id =
 		"SELECT "
@@ -1010,15 +1335,26 @@ bool LoadVocabularySeed(sqlite3 *db, const word_practice::SelectedWord &selected
 		"COALESCE(m.meaning_zh, ''), "
 		"COALESCE(m.meaning_en, ''), "
 		"COALESCE(w.image, ''), "
-		"COALESCE(e.example_en, ''), "
-		"COALESCE(e.example_zh, ''), "
-		"COALESCE(e.audio_path, ''), "
 		"COALESCE(m.stage, 1) "
 		"FROM word AS w "
 		"LEFT JOIN word_meaning AS m ON m.word_id = w.id "
-		"LEFT JOIN word_example AS e ON e.meaning_id = m.id "
 		"WHERE w.id = ? "
-		"ORDER BY m.id ASC, e.id ASC "
+		"ORDER BY RANDOM() "
+		"LIMIT 1;";
+	const char *sql_by_id_with_example =
+		"SELECT "
+		"w.id, "
+		"COALESCE(m.id, 0), "
+		"COALESCE(m.meaning_zh, ''), "
+		"COALESCE(m.meaning_en, ''), "
+		"COALESCE(w.image, ''), "
+		"COALESCE(m.stage, 1) "
+		"FROM word AS w "
+		"JOIN word_meaning AS m ON m.word_id = w.id "
+		"JOIN word_example AS e ON e.meaning_id = m.id "
+		"WHERE w.id = ? "
+		"GROUP BY w.id, m.id, m.meaning_zh, m.meaning_en, w.image, m.stage "
+		"ORDER BY RANDOM() "
 		"LIMIT 1;";
 	const char *sql_by_word =
 		"SELECT "
@@ -1027,54 +1363,69 @@ bool LoadVocabularySeed(sqlite3 *db, const word_practice::SelectedWord &selected
 		"COALESCE(m.meaning_zh, ''), "
 		"COALESCE(m.meaning_en, ''), "
 		"COALESCE(w.image, ''), "
-		"COALESCE(e.example_en, ''), "
-		"COALESCE(e.example_zh, ''), "
-		"COALESCE(e.audio_path, ''), "
 		"COALESCE(m.stage, 1) "
 		"FROM word AS w "
 		"LEFT JOIN word_meaning AS m ON m.word_id = w.id "
-		"LEFT JOIN word_example AS e ON e.meaning_id = m.id "
 		"WHERE w.word = ? "
-		"ORDER BY m.id ASC, e.id ASC "
+		"ORDER BY RANDOM() "
+		"LIMIT 1;";
+	const char *sql_by_word_with_example =
+		"SELECT "
+		"w.id, "
+		"COALESCE(m.id, 0), "
+		"COALESCE(m.meaning_zh, ''), "
+		"COALESCE(m.meaning_en, ''), "
+		"COALESCE(w.image, ''), "
+		"COALESCE(m.stage, 1) "
+		"FROM word AS w "
+		"JOIN word_meaning AS m ON m.word_id = w.id "
+		"JOIN word_example AS e ON e.meaning_id = m.id "
+		"WHERE w.word = ? "
+		"GROUP BY w.id, m.id, m.meaning_zh, m.meaning_en, w.image, m.stage "
+		"ORDER BY RANDOM() "
 		"LIMIT 1;";
 
-	std::unique_ptr<sqlite3_stmt, SqliteStmtFinalizer> stmt;
-	if (!PrepareStatement(db, sql_by_id, &stmt)) {
-		WP_APP_DBLOGW(kTag, "load seed prepare by-id failed word_id=%d word=%s", selected_word.word_id, seed->word.c_str());
-	} else {
-		sqlite3_bind_int(stmt.get(), 1, selected_word.word_id);
-		if (LoadVocabularySeedFromStatement(stmt.get(), seed)) {
-			const int resolved_word_id = sqlite3_column_int(stmt.get(), 0);
-			if (resolved_word_id > 0) {
-				seed->word_id = resolved_word_id;
-			}
+	bool loaded_with_example = LoadRandomMeaningForSeed(db, sql_by_id_with_example, selected_word, seed, false);
+	bool loaded_by_id = loaded_with_example;
+	if (!loaded_by_id) {
+		loaded_by_id = LoadRandomMeaningForSeed(db, sql_by_id, selected_word, seed, false);
+	}
+
+	if (seed->meaning_id <= 0) {
+		loaded_with_example = LoadRandomMeaningForSeed(db, sql_by_word_with_example, selected_word, seed, true);
+		if (loaded_with_example || LoadRandomMeaningForSeed(db, sql_by_word, selected_word, seed, true)) {
+			WP_APP_DBLOGW(kTag,
+				"load seed fallback hit by word word_id=%d word=%s meaning_id=%d",
+				selected_word.word_id,
+				seed->word.c_str(),
+				seed->meaning_id);
 		}
 	}
 
-	if (!SeedHasDictionaryContent(*seed)) {
-		stmt.reset();
-		if (!PrepareStatement(db, sql_by_word, &stmt)) {
-			WP_APP_DBLOGW(kTag, "load seed prepare by-word failed word_id=%d word=%s", selected_word.word_id, seed->word.c_str());
-		} else {
-			sqlite3_bind_text(stmt.get(), 1, seed->word.c_str(), -1, SQLITE_TRANSIENT);
-			if (LoadVocabularySeedFromStatement(stmt.get(), seed)) {
-				const int resolved_word_id = sqlite3_column_int(stmt.get(), 0);
-				if (resolved_word_id > 0) {
-					seed->word_id = resolved_word_id;
-				}
-				WP_APP_DBLOGW(kTag,
-					"load seed fallback hit by word word_id=%d word=%s meaning_id=%d",
-					selected_word.word_id,
-					seed->word.c_str(),
-					seed->meaning_id);
-			}
-		}
+	if (seed->meaning_id > 0) {
+		ClearVocabularyExample(seed);
+		const bool has_example = LoadRandomExampleForSeed(db, seed);
+		WP_DIAG_LOGW(kTag,
+			"load seed random result word_id=%d word=%s loaded_by_id=%d preferred_example_meaning=%d meaning_id=%d stage=%d selected_meaning_example_count=%d example_id=%d has_example=%d example_en_len=%d example_zh_len=%d selection_en_len=%d selection_zh_len=%d",
+			seed->word_id,
+			seed->word.c_str(),
+			loaded_by_id ? 1 : 0,
+			loaded_with_example ? 1 : 0,
+			seed->meaning_id,
+			seed->stage,
+			seed->selected_meaning_example_count,
+			seed->example_id,
+			has_example ? 1 : 0,
+			static_cast<int>(seed->example_en.size()),
+			static_cast<int>(seed->example_zh.size()),
+			static_cast<int>(seed->selection_en.size()),
+			static_cast<int>(seed->selection_zh.size()));
 	}
 
 	return !seed->word.empty();
 }
 
-std::vector<OptionSeed> LoadDistractorOptions(sqlite3 *db, int word_id, const std::string &word, size_t limit) {
+[[maybe_unused]] std::vector<OptionSeed> LoadDistractorOptions(sqlite3 *db, int word_id, const std::string &word, size_t limit) {
 	std::vector<OptionSeed> distractors;
 	if (db == nullptr || limit == 0) {
 		return distractors;
@@ -1155,12 +1506,14 @@ std::vector<OptionSeed> LoadDistractorOptions(sqlite3 *db, int word_id, const st
 }
 
 std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
-	const std::vector<word_practice::SelectedWord> &selected_words) {
+	const std::vector<word_practice::SelectedWord> &selected_words,
+	bool include_speak_questions) {
 	std::vector<word_practice::QuestionData> question_pool;
 	if (selected_words.empty()) {
 		return question_pool;
 	}
-	WP_APP_DBLOGW(kTag, "build vocabulary pool start selected=%d", static_cast<int>(selected_words.size()));
+	const int64_t build_start_ms = NowMs();
+	WP_DIAG_LOGW(kTag, "build vocabulary pool start selected=%d", static_cast<int>(selected_words.size()));
 
 	const std::string db_path = eteacher::database_manager::DiscoverDictionaryDbPath(kTag);
 	if (db_path.empty()) {
@@ -1169,35 +1522,43 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 	}
 
 	sqlite3 *db = nullptr;
-	const int open_rc = sqlite3_open_v2(db_path.c_str(), &db, SQLITE_OPEN_READONLY, nullptr);
-	if (open_rc != SQLITE_OK || db == nullptr) {
-		ESP_LOGW(kTag, "open dictionary db failed rc=%d msg=%s", open_rc, db ? sqlite3_errmsg(db) : "null");
-		if (db != nullptr) {
-			sqlite3_close(db);
-		}
+	std::string opened_db_path;
+	if (!eteacher::database_manager::OpenReadonlyDbFile(db_path, &db, &opened_db_path, kTag, "word_practice_dictionary") || db == nullptr) {
+		ESP_LOGW(kTag, "open dictionary db failed via sqlite_db_api path=%s", db_path.c_str());
 		return question_pool;
 	}
-	LogResolvedDbAccess("word_practice_dictionary", db_path, "sqlite3_open_v2(READONLY)");
+	LogResolvedDbAccess("word_practice_dictionary", opened_db_path, "sqlite_db_api::OpenReadonlyDbFile");
 
-	question_pool.reserve(selected_words.size() * 12);
+	question_pool.reserve(selected_words.size() * (include_speak_questions ? 12 : 8));
 	std::vector<VocabularySeed> loaded_seeds;
 	loaded_seeds.reserve(selected_words.size());
 	int seed_loaded_count = 0;
 	int question_built_count = 0;
 	std::array<int, 13> type_built_count = {};
+	int64_t seed_load_total_ms = 0;
+	int64_t question_build_total_ms = 0;
 
 	for (const auto &selected_word : selected_words) {
+		const int64_t seed_start_ms = NowMs();
 		VocabularySeed seed;
 		if (!LoadVocabularySeed(db, selected_word, &seed)) {
+			seed_load_total_ms += (NowMs() - seed_start_ms);
 			ESP_LOGW(kTag, "skip vocabulary seed word_id=%d word=%s", selected_word.word_id, selected_word.word.c_str());
 			continue;
 		}
+		seed_load_total_ms += (NowMs() - seed_start_ms);
 		++seed_loaded_count;
 		loaded_seeds.push_back(std::move(seed));
 	}
 
 	for (const auto &seed : loaded_seeds) {
+		const int64_t question_start_ms = NowMs();
 		const std::vector<OptionSeed> distractors = BuildDistractorOptionsFromSeeds(seed, loaded_seeds, 12);
+		const std::string word_audio = ResolveStage1AudioName("", seed.word_id, seed.word);
+		const std::string example_audio = ResolveStage1ExampleAudioName(seed.word_id, seed.word, seed.example_id);
+		const std::string example_en = Trim(seed.example_en);
+		const std::string example_zh = Trim(seed.example_zh);
+		const bool has_example_sentence = !example_en.empty() && !example_zh.empty();
 
 		const std::string stage_tag = StageNumberToTag(seed.stage);
 		const std::string textbook_name = stage_tag.empty() ? "vocab" : stage_tag;
@@ -1205,20 +1566,37 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 		const std::vector<OptionSeed> standard_options = BuildOptionCandidates(seed, distractors, false);
 		const std::vector<OptionSeed> image_options = BuildOptionCandidates(seed, distractors, true);
 		const size_t before_count = question_pool.size();
-		WP_APP_DBLOGW(kTag,
-			"build word start word_id=%d word=%s distractors=%d standard_options=%d image_options=%d has_image=%d example_en=%d example_zh=%d audio=%d",
+		WP_DIAG_LOGW(kTag,
+			"build word start word_id=%d word=%s distractors=%d standard_options=%d image_options=%d has_image=%d meaning_count=%d meaning_with_example_count=%d word_example_count=%d meaning_id=%d selected_meaning_example_count=%d example_id=%d example_en=%d example_zh=%d has_example_sentence=%d word_audio=%d example_audio=%d",
 			seed.word_id,
 			seed.word.c_str(),
 			static_cast<int>(distractors.size()),
 			static_cast<int>(standard_options.size()),
 			static_cast<int>(image_options.size()),
 			Trim(seed.image).empty() ? 0 : 1,
-			Trim(seed.example_en).empty() ? 0 : 1,
-			Trim(seed.example_zh).empty() ? 0 : 1,
-			seed.audio_path.empty() ? 0 : 1);
+			seed.meaning_count,
+			seed.meaning_with_example_count,
+			seed.word_example_count,
+			seed.meaning_id,
+			seed.selected_meaning_example_count,
+			seed.example_id,
+			example_en.empty() ? 0 : 1,
+			example_zh.empty() ? 0 : 1,
+			has_example_sentence ? 1 : 0,
+			word_audio.empty() ? 0 : 1,
+			example_audio.empty() ? 0 : 1);
 
-		if (!Trim(seed.image).empty() && image_options.size() >= 4) {
-			if (AppendChoiceQuestion(&question_pool, &question_built_count, seed, textbook_name, 1, image_options, Trim(seed.word), "")) {
+		if (!Trim(seed.image).empty() && image_options.size() >= kImageChoiceOptionCount) {
+			if (AppendChoiceQuestion(
+					&question_pool,
+					&question_built_count,
+					seed,
+					textbook_name,
+					1,
+					image_options,
+					Trim(seed.word),
+					"",
+					kImageChoiceOptionCount)) {
 				++type_built_count[1];
 			}
 		}
@@ -1233,28 +1611,48 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 			++type_built_count[4];
 		}
 
-		const std::string answer_en = Trim(seed.example_en).empty() ? Trim(seed.word) : Trim(seed.example_en);
-		const std::string answer_zh = Trim(seed.example_zh).empty() ? BestMeaningText(seed) : Trim(seed.example_zh);
-		const std::string prompt_zh = answer_zh.empty() ? BestMeaningText(seed) : answer_zh;
-		const std::string prompt_en = answer_en.empty() ? Trim(seed.word) : answer_en;
-
-		if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 5, prompt_zh, answer_en, seed.audio_path)) {
-			++type_built_count[5];
+		if (has_example_sentence) {
+			if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 5, example_zh, example_en,
+					   BuildQuestionHints(example_en, seed.selection_en), BuildExampleQuestionAudioPath(example_audio))) {
+				++type_built_count[5];
+			}
+			if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 6, example_en, example_en,
+					   BuildQuestionHints(example_en, seed.selection_en), BuildExampleQuestionAudioPath(example_audio))) {
+				++type_built_count[6];
+			}
 		}
-		if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 6, prompt_en, answer_zh, seed.audio_path)) {
-			++type_built_count[6];
+		if (!has_example_sentence) {
+			WP_DIAG_LOGW(kTag,
+				"skip example question types word_id=%d word=%s meaning_id=%d example_id=%d selected_meaning_example_count=%d example_en_len=%d example_zh_len=%d selection_en_len=%d selection_zh_len=%d",
+				seed.word_id,
+				seed.word.c_str(),
+				seed.meaning_id,
+				seed.example_id,
+				seed.selected_meaning_example_count,
+				static_cast<int>(example_en.size()),
+				static_cast<int>(example_zh.size()),
+				static_cast<int>(seed.selection_en.size()),
+				static_cast<int>(seed.selection_zh.size()));
 		}
-		if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 7, Trim(seed.word), Trim(seed.word), seed.audio_path)) {
-			++type_built_count[7];
-		}
-		if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 8, BestMeaningText(seed), Trim(seed.word), seed.audio_path)) {
-			++type_built_count[8];
-		}
-		if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 9, prompt_en, answer_en, seed.audio_path)) {
-			++type_built_count[9];
-		}
-		if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 10, prompt_zh, answer_en, seed.audio_path)) {
-			++type_built_count[10];
+		if (include_speak_questions) {
+			if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 7, Trim(seed.word), Trim(seed.word),
+					   BuildHintTokens(Trim(seed.word)), BuildQuestionAudioPath(word_audio))) {
+				++type_built_count[7];
+			}
+			if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 8, BestMeaningText(seed), Trim(seed.word),
+					   BuildHintTokens(Trim(seed.word)), BuildQuestionAudioPath(word_audio))) {
+				++type_built_count[8];
+			}
+			if (has_example_sentence) {
+				if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 9, example_en, example_en,
+						   BuildQuestionHints(example_en, seed.selection_en), BuildExampleQuestionAudioPath(example_audio))) {
+					++type_built_count[9];
+				}
+				if (AppendSentenceQuestion(&question_pool, &question_built_count, seed, textbook_name, 10, example_zh, example_en,
+						   BuildQuestionHints(example_en, seed.selection_en), BuildExampleQuestionAudioPath(example_audio))) {
+					++type_built_count[10];
+				}
+			}
 		}
 		if (AppendChoiceQuestion(
 			&question_pool,
@@ -1263,8 +1661,8 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 			textbook_name,
 			11,
 			standard_options,
-			seed.audio_path.empty() ? Trim(seed.word) : "按Start播放音频",
-			seed.audio_path)) {
+			word_audio.empty() ? Trim(seed.word) : "按Start播放音频",
+			word_audio)) {
 			++type_built_count[11];
 		}
 		if (AppendChoiceQuestion(
@@ -1274,8 +1672,8 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 			textbook_name,
 			12,
 			standard_options,
-			seed.audio_path.empty() ? BestMeaningText(seed) : "按Start播放音频",
-			seed.audio_path)) {
+			word_audio.empty() ? BestMeaningText(seed) : "按Start播放音频",
+			word_audio)) {
 			++type_built_count[12];
 		}
 
@@ -1286,7 +1684,7 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 				++built_types[static_cast<size_t>(type - 1)];
 			}
 		}
-		WP_APP_DBLOGW(kTag,
+		WP_DIAG_LOGW(kTag,
 			"build word done word_id=%d built_total=%d built_types t1=%d t2=%d t3=%d t4=%d t5=%d t6=%d t7=%d t8=%d t9=%d t10=%d t11=%d t12=%d",
 			seed.word_id,
 			static_cast<int>(question_pool.size() - before_count),
@@ -1302,6 +1700,7 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 			built_types[9],
 			built_types[10],
 			built_types[11]);
+		question_build_total_ms += (NowMs() - question_start_ms);
 	}
 
 	WP_APP_DBLOGW(kTag,
@@ -1323,6 +1722,14 @@ std::vector<word_practice::QuestionData> BuildVocabularyQuestionPool(
 		type_built_count[10],
 		type_built_count[11],
 		type_built_count[12]);
+	ESP_LOGW(kTag,
+		"startup timing build_pool total_ms=%lld seed_load_ms=%lld question_build_ms=%lld selected_words=%d loaded_seeds=%d question_pool=%d",
+		static_cast<long long>(NowMs() - build_start_ms),
+		static_cast<long long>(seed_load_total_ms),
+		static_cast<long long>(question_build_total_ms),
+		static_cast<int>(selected_words.size()),
+		seed_loaded_count,
+		static_cast<int>(question_pool.size()));
 
 	sqlite3_close(db);
 	return question_pool;
@@ -1422,6 +1829,65 @@ std::string FitUtf8TextToWidth(const std::string &text, int max_width, const cha
 		*used_bytes = best;
 	}
 	return text.substr(0, best);
+}
+
+std::string FitUtf8TextWithEllipsisToWidth(const std::string &text,
+					  int max_width,
+					  const char *font_name,
+					  CustomEpdDisplay *epd) {
+	if (text.empty() || !epd || max_width <= 0) {
+		return text;
+	}
+	if (epd->MeasureUtf8Width(text, font_name) <= max_width) {
+		return text;
+	}
+
+	const std::string ellipsis = "...";
+	if (epd->MeasureUtf8Width(ellipsis, font_name) > max_width) {
+		size_t used_bytes = 0;
+		return FitUtf8TextToWidth(ellipsis, max_width, font_name, epd, &used_bytes);
+	}
+
+	size_t idx = 0;
+	size_t best = 0;
+	while (idx < text.size()) {
+		size_t next = idx;
+		uint32_t cp = 0;
+		if (!DecodeNextUtf8Codepoint(text, next, cp)) {
+			next = idx + 1;
+		}
+		const std::string candidate = text.substr(0, next) + ellipsis;
+		if (epd->MeasureUtf8Width(candidate, font_name) > max_width) {
+			break;
+		}
+		best = next;
+		idx = next;
+	}
+
+	if (best == 0) {
+		return ellipsis;
+	}
+	return text.substr(0, best) + ellipsis;
+}
+
+struct Type4MeaningTextLayout {
+	std::string text;
+	const char *font_name = "wenquanyi_11pt";
+};
+
+Type4MeaningTextLayout LayoutType4MeaningText(const std::string &text, CustomEpdDisplay *epd) {
+	const std::string trimmed = Trim(text);
+	if (trimmed.empty()) {
+		return {};
+	}
+
+	if (!epd || epd->MeasureUtf8Width(trimmed, "wenquanyi_11pt") <= kType4MeaningMaxWidth) {
+		return {trimmed, "wenquanyi_11pt"};
+	}
+	if (epd->MeasureUtf8Width(trimmed, "wenquanyi_9pt") <= kType4MeaningMaxWidth) {
+		return {trimmed, "wenquanyi_9pt"};
+	}
+	return {FitUtf8TextWithEllipsisToWidth(trimmed, kType4MeaningMaxWidth, "wenquanyi_9pt", epd), "wenquanyi_9pt"};
 }
 
 int FontLineHeight(const char *font_name) {
@@ -1592,6 +2058,7 @@ MenuMeta WordPracticeApp::GetMenuMeta() const {
 }
 
 void WordPracticeApp::OnEnter(AppContext &ctx) {
+	const int64_t enter_start_ms = NowMs();
 	ctx_ = &ctx;
 	ui_ready_ = false;
 	root_ = nullptr;
@@ -1647,14 +2114,19 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	current_question_type_ = 1;
 	current_choice_ = {};
 	type4_left_words_.clear();
+	type4_left_audio_filenames_.clear();
 	type4_right_words_.clear();
 	type4_expected_right_index_.clear();
 	type4_selected_right_by_left_.clear();
 	type4_selected_left_index_ = 0;
+	type4_last_spoken_left_index_ = -1;
 	type56_words_.clear();
+	type56_dialog_items_.clear();
 	type56_selected_index_ = 0;
 	type56_grid_cols_ = 1;
 	type56_input_answer_.clear();
+	type56_show_correct_answer_ = false;
+	type56_correct_answer_display_.clear();
 	learned_words_this_round_.clear();
 	settlement_learned_word_labels_.clear();
 	current_audio_path_.clear();
@@ -1687,11 +2159,28 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 		Render(ctx);
 	}
 
+	const int64_t startup_begin_ms = NowMs();
+	ESP_LOGW(kTag,
+		"startup timing ui_setup_ms=%lld",
+		static_cast<long long>(startup_begin_ms - enter_start_ms));
 	LoadQuestionPool();
+	const int64_t after_pool_ms = NowMs();
 	if (!PickNextQuestion()) {
 		ctx.board.GetDisplay()->SetChatMessage("system", "WordPractice: 词库为空");
+		ESP_LOGW(kTag,
+			"startup timing failed total_ms=%lld ui_setup_ms=%lld pool_ms=%lld",
+			static_cast<long long>(after_pool_ms - enter_start_ms),
+			static_cast<long long>(startup_begin_ms - enter_start_ms),
+			static_cast<long long>(after_pool_ms - startup_begin_ms));
 		return;
 	}
+	const int64_t after_pick_ms = NowMs();
+	ESP_LOGW(kTag,
+		"startup timing total_ms=%lld ui_setup_ms=%lld pool_ms=%lld first_question_ms=%lld",
+		static_cast<long long>(after_pick_ms - enter_start_ms),
+		static_cast<long long>(startup_begin_ms - enter_start_ms),
+		static_cast<long long>(after_pool_ms - startup_begin_ms),
+		static_cast<long long>(after_pick_ms - after_pool_ms));
 
 	Render(ctx);
 }
@@ -1731,6 +2220,7 @@ void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 		selection_module_.ResetProgress();
 		learned_words_this_round_.clear();
 		HideSettlementLearnedWordLabels();
+		settlement_learned_word_labels_.clear();
 		if (bottom_bar_) {
 			bottom_bar_->SetText("新一轮开始");
 		}
@@ -1847,6 +2337,8 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	bottom_bar_ = dynamic_cast<app_ui::TextWidget *>(root->FindById(kWidgetBottomBar));
 	textarea_input_answer_ = dynamic_cast<app_ui::TextAreaWidget *>(root->FindById(kWidgetTextAreaInputAnswer));
 	if (textarea_input_answer_) {
+		textarea_input_answer_->SetFocusable(false);
+		textarea_input_answer_->SetFocused(false);
 		app_ui::TextAreaProfile profile;
 		profile.decoration_mode = app_ui::TextAreaProfile::DecorationMode::UnderlineDashed;
 		profile.max_lines = 3;
@@ -2022,6 +2514,38 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	if (image_bad_) image_bad_->SetVisible(false);
 	if (image_write_) image_write_->SetVisible(false);
 	if (image_input_) image_input_->SetVisible(false);
+	if (image_a_) {
+		app_ui::ImageProfile profile = image_a_->Profile();
+		profile.draw_border = true;
+		profile.draw_border_on_content = true;
+		profile.border_thickness = 2;
+		profile.content_inset = 2;
+		image_a_->SetProfile(profile);
+	}
+	if (image_b_) {
+		app_ui::ImageProfile profile = image_b_->Profile();
+		profile.draw_border = true;
+		profile.draw_border_on_content = true;
+		profile.border_thickness = 2;
+		profile.content_inset = 2;
+		image_b_->SetProfile(profile);
+	}
+	if (image_c_) {
+		app_ui::ImageProfile profile = image_c_->Profile();
+		profile.draw_border = true;
+		profile.draw_border_on_content = true;
+		profile.border_thickness = 2;
+		profile.content_inset = 2;
+		image_c_->SetProfile(profile);
+	}
+	if (image_d_) {
+		app_ui::ImageProfile profile = image_d_->Profile();
+		profile.draw_border = true;
+		profile.draw_border_on_content = true;
+		profile.border_thickness = 2;
+		profile.content_inset = 2;
+		image_d_->SetProfile(profile);
+	}
 
 	if (label_question_type_) label_question_type_->SetFontName("wenquanyi_11pt");
 	if (label_correct_count_) label_correct_count_->SetFontName("wenquanyi_11pt");
@@ -2070,6 +2594,7 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 }
 
 void WordPracticeApp::LoadQuestionPool() {
+	const int64_t load_start_ms = NowMs();
 	if (!eteacher::database_manager::EnsureSqliteRuntimeReady(kTag)) {
 		ESP_LOGE(kTag, "sqlite runtime init failed");
 		return;
@@ -2080,17 +2605,25 @@ void WordPracticeApp::LoadQuestionPool() {
 		word_selection_config_.review_word_count,
 		word_selection_config_.new_word_count,
 		word_selection_config_.TotalCount());
+	const int64_t select_words_start_ms = NowMs();
 	const std::vector<word_practice::SelectedWord> selected_words =
 		selection_module_.SelectWordsFromVocabulary(word_selection_config_, kDefaultUserId);
+	const int64_t select_words_end_ms = NowMs();
 	WP_APP_DBLOGW(kTag, "load question pool selected_words=%d", static_cast<int>(selected_words.size()));
-	std::vector<QuestionData> question_pool = BuildVocabularyQuestionPool(selected_words);
+	const int64_t build_pool_start_ms = NowMs();
+	std::vector<QuestionData> question_pool = BuildVocabularyQuestionPool(selected_words, enable_speak_questions_);
+	ESP_LOGW(kTag,
+		"question pool speak switch enabled=%d built=%d",
+		enable_speak_questions_ ? 1 : 0,
+		static_cast<int>(question_pool.size()));
+	const int64_t build_pool_end_ms = NowMs();
 	std::array<int, 13> pool_type_count = {};
 	for (const auto &question : question_pool) {
 		if (question.type >= 1 && question.type <= 12) {
 			++pool_type_count[static_cast<size_t>(question.type)];
 		}
 	}
-	WP_APP_DBLOGW(kTag,
+	WP_DIAG_LOGW(kTag,
 		"load question pool built=%d by type t1=%d t2=%d t3=%d t4=%d t5=%d t6=%d t7=%d t8=%d t9=%d t10=%d t11=%d t12=%d",
 		static_cast<int>(question_pool.size()),
 		pool_type_count[1],
@@ -2107,6 +2640,13 @@ void WordPracticeApp::LoadQuestionPool() {
 		pool_type_count[12]);
 	selection_module_.LoadQuestionPool(std::move(question_pool));
 	WP_APP_DBLOGW(kTag, "vocabulary question pool loaded: %d", static_cast<int>(selection_module_.QuestionPool().size()));
+	ESP_LOGW(kTag,
+		"startup timing load_question_pool total_ms=%lld select_words_ms=%lld build_pool_ms=%lld selected_words=%d question_pool=%d",
+		static_cast<long long>(build_pool_end_ms - load_start_ms),
+		static_cast<long long>(select_words_end_ms - select_words_start_ms),
+		static_cast<long long>(build_pool_end_ms - build_pool_start_ms),
+		static_cast<int>(selected_words.size()),
+		static_cast<int>(selection_module_.QuestionPool().size()));
 }
 
 bool WordPracticeApp::PickNextQuestion() {
@@ -2171,6 +2711,7 @@ void WordPracticeApp::CommitSelectedQuestion(size_t index) {
 }
 
 void WordPracticeApp::PresentCurrentQuestion() {
+	const int64_t present_start_ms = NowMs();
 	const QuestionData *question = selection_module_.GetQuestion(session_module_.CurrentQuestionIndex());
 	if (!question) {
 		return;
@@ -2193,14 +2734,6 @@ void WordPracticeApp::PresentCurrentQuestion() {
 
 	current_choice_ = BuildChoiceState(q);
 	current_audio_path_ = BuildQuestionAudioPath(current_choice_.audio_filename);
-	DB_LOGI(kTag,
-		"present question type=%d word_id=%d word=%s audio=%s resolved_audio=%s first_image=%s",
-		q.type,
-		current_choice_.source_word_id,
-		current_choice_.source_word.c_str(),
-		current_choice_.audio_filename.c_str(),
-		current_audio_path_.c_str(),
-		(current_choice_.option_images.empty() ? "" : current_choice_.option_images.front().c_str()));
 	if (!current_audio_path_.empty()) {
 		ScheduleQuestionAudioAutoPlay();
 	} else {
@@ -2222,7 +2755,7 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	if (bottom_bar_) {
 		bottom_bar_->SetText(TypeInstruction(q.type));
 	}
-	UpdateQuestionPromptPresentation(q.type, current_choice_.prompt);
+	UpdateQuestionPromptPresentation(q.type, q.type == 6 ? "" : current_choice_.prompt);
 	if (label_asr_result_) {
 		if (q.type >= 7 && q.type <= 10) {
 			UpdateAsrResultPresentation(q.type, "");
@@ -2267,27 +2800,34 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	}
 
 	type56_words_.clear();
+	type56_dialog_items_.clear();
 	type56_input_answer_.clear();
+	type56_show_correct_answer_ = false;
+	type56_correct_answer_display_.clear();
 	type56_selected_index_ = 0;
 	type4_left_words_.clear();
+	type4_left_audio_filenames_.clear();
 	type4_right_words_.clear();
 	type4_expected_right_index_.clear();
 	type4_selected_right_by_left_.clear();
 	type4_selected_left_index_ = 0;
+	type4_last_spoken_left_index_ = -1;
 	session_module_.SetAwaitingNextQuestion(false);
 	if (is_type56) {
 		type56_words_ = current_choice_.hints;
-		if (type56_words_.empty()) {
-			type56_words_ = current_choice_.options;
-		}
+		type56_dialog_items_ = type56_words_;
 	}
 	RefreshType56Widgets();
 
 	if (q.type == 4) {
 		type4_left_words_ = current_choice_.pair_left;
+		type4_left_audio_filenames_ = current_choice_.pair_left_audio;
 		type4_right_words_ = current_choice_.pair_right;
 		if (type4_left_words_.size() < 4) {
 			type4_left_words_.resize(4);
+		}
+		if (type4_left_audio_filenames_.size() < 4) {
+			type4_left_audio_filenames_.resize(4);
 		}
 		if (type4_right_words_.size() < 4) {
 			type4_right_words_.resize(4);
@@ -2373,25 +2913,33 @@ void WordPracticeApp::PresentCurrentQuestion() {
 		if (label_a_) {
 			const std::string option = current_choice_.options.size() > 0 ? current_choice_.options[0] : "";
 			const std::string option_key = current_choice_.option_keys.size() > 0 ? current_choice_.option_keys[0] : "A";
-			label_a_->SetText(uses_choice_option_text ? FormatOptionWithKey(option_key, option) : (option.empty() ? "A" : option));
+			label_a_->SetText(q.type == 1 ? (option_key.empty() ? "A" : option_key)
+								 : (uses_choice_option_text ? FormatOptionWithKey(option_key, option)
+											  : (option.empty() ? "A" : option)));
 			label_a_->SetFocused(false);
 		}
 		if (label_b_) {
 			const std::string option = current_choice_.options.size() > 1 ? current_choice_.options[1] : "";
 			const std::string option_key = current_choice_.option_keys.size() > 1 ? current_choice_.option_keys[1] : "B";
-			label_b_->SetText(uses_choice_option_text ? FormatOptionWithKey(option_key, option) : (option.empty() ? "B" : option));
+			label_b_->SetText(q.type == 1 ? (option_key.empty() ? "B" : option_key)
+								 : (uses_choice_option_text ? FormatOptionWithKey(option_key, option)
+											  : (option.empty() ? "B" : option)));
 			label_b_->SetFocused(false);
 		}
 		if (label_c_) {
 			const std::string option = current_choice_.options.size() > 2 ? current_choice_.options[2] : "";
 			const std::string option_key = current_choice_.option_keys.size() > 2 ? current_choice_.option_keys[2] : "C";
-			label_c_->SetText(uses_choice_option_text ? FormatOptionWithKey(option_key, option) : (option.empty() ? "C" : option));
+			label_c_->SetText(q.type == 1 ? (option_key.empty() ? "C" : option_key)
+								 : (uses_choice_option_text ? FormatOptionWithKey(option_key, option)
+											  : (option.empty() ? "C" : option)));
 			label_c_->SetFocused(false);
 		}
 		if (label_d_) {
 			const std::string option = current_choice_.options.size() > 3 ? current_choice_.options[3] : "";
 			const std::string option_key = current_choice_.option_keys.size() > 3 ? current_choice_.option_keys[3] : "D";
-			label_d_->SetText(uses_choice_option_text ? FormatOptionWithKey(option_key, option) : (option.empty() ? "D" : option));
+			label_d_->SetText(q.type == 1 ? (option_key.empty() ? "D" : option_key)
+								 : (uses_choice_option_text ? FormatOptionWithKey(option_key, option)
+											  : (option.empty() ? "D" : option)));
 			label_d_->SetFocused(false);
 		}
 
@@ -2415,6 +2963,13 @@ void WordPracticeApp::PresentCurrentQuestion() {
 
 	if (image_good_) image_good_->SetVisible(false);
 	if (image_bad_) image_bad_->SetVisible(false);
+	ESP_LOGW(kTag,
+		"startup timing present_question type=%d question_id=%d present_ms=%lld audio=%d scene=%s",
+		q.type,
+		q.id,
+		static_cast<long long>(NowMs() - present_start_ms),
+		current_audio_path_.empty() ? 0 : 1,
+		scene.c_str());
 }
 
 void WordPracticeApp::ShowSessionSummary() {
@@ -2617,7 +3172,7 @@ void WordPracticeApp::UpdateQuestionPromptPresentation(int question_type, const 
 	}
 	ApplyPromptPresentation(
 		question_type,
-		question_prompt_profile_.visible,
+		show,
 		question_prompt_profile_.dash_width,
 		question_prompt_profile_.dash_gap_px,
 		question_prompt_profile_.max_lines,
@@ -2811,7 +3366,36 @@ void WordPracticeApp::RefreshType4Widgets() {
 
 	for (int i = 0; i < 4; ++i) {
 		const std::string right_text = (i < static_cast<int>(type4_right_words_.size())) ? type4_right_words_[static_cast<size_t>(i)] : "";
-		set_text_and_focus(right_labels[static_cast<size_t>(i)], right_text, right_matched[static_cast<size_t>(i)]);
+		auto *right_label = right_labels[static_cast<size_t>(i)];
+		if (!right_label) {
+			continue;
+		}
+		const Type4MeaningTextLayout layout = LayoutType4MeaningText(right_text, epd_);
+		right_label->SetFontName(layout.font_name);
+		set_text_and_focus(right_label, layout.text, right_matched[static_cast<size_t>(i)]);
+	}
+
+	PlayType4FocusedWordAudioIfNeeded();
+}
+
+void WordPracticeApp::PlayType4FocusedWordAudioIfNeeded() {
+	if (current_question_type_ != 4) {
+		return;
+	}
+	if (type4_selected_left_index_ < 0 ||
+		type4_selected_left_index_ >= static_cast<int>(type4_left_audio_filenames_.size()) ||
+		type4_selected_left_index_ == type4_last_spoken_left_index_) {
+		return;
+	}
+
+	const std::string audio_filename = Trim(type4_left_audio_filenames_[static_cast<size_t>(type4_selected_left_index_)]);
+	if (audio_filename.empty()) {
+		type4_last_spoken_left_index_ = type4_selected_left_index_;
+		return;
+	}
+
+	if (PlayAudioFromSd(BuildQuestionAudioPath(audio_filename))) {
+		type4_last_spoken_left_index_ = type4_selected_left_index_;
 	}
 }
 
@@ -3083,12 +3667,13 @@ void WordPracticeApp::RefreshType56Widgets() {
 	const bool show = (current_question_type_ == 5 || current_question_type_ == 6);
 	if (textarea_input_answer_) {
 		textarea_input_answer_->SetVisible(show);
+		textarea_input_answer_->SetFocused(false);
 		textarea_input_answer_->SetText(show ? type56_input_answer_ : "");
 	}
 	if (dialog_select_board_) {
 		dialog_select_board_->SetVisible(show);
 		if (show) {
-			const int count = static_cast<int>(type56_words_.size());
+			const int count = static_cast<int>(type56_dialog_items_.size());
 			int grid_rows = 1;
 			int grid_cols = 1;
 			const char *selected_font = "wenquanyi_11pt";
@@ -3100,7 +3685,7 @@ void WordPracticeApp::RefreshType56Widgets() {
 				const std::array<const char *, 2> font_candidates = {"wenquanyi_11pt", "wenquanyi_9pt"};
 				for (const char *font_name : font_candidates) {
 					int max_word_width = 0;
-					for (const auto &word : type56_words_) {
+					for (const auto &word : type56_dialog_items_) {
 						const int w = static_cast<int>(epd_ ? epd_->MeasureUtf8Width(word, font_name) : static_cast<int>(word.size() * 8));
 						max_word_width = std::max(max_word_width, w);
 					}
@@ -3136,16 +3721,16 @@ void WordPracticeApp::RefreshType56Widgets() {
 			dialog_profile.grid_rows = std::max(1, grid_rows);
 			dialog_profile.grid_cols = std::max(1, grid_cols);
 			dialog_profile.navigation_enabled = false;
-			dialog_profile.selection_highlight_enabled = true;
+			dialog_profile.selection_highlight_enabled = !type56_show_correct_answer_;
 			dialog_select_board_->SetProfile(dialog_profile);
 
 			if (type56_selected_index_ < 0) {
 				type56_selected_index_ = 0;
 			}
-			if (!type56_words_.empty() && type56_selected_index_ >= static_cast<int>(type56_words_.size())) {
-				type56_selected_index_ = static_cast<int>(type56_words_.size()) - 1;
+			if (!type56_dialog_items_.empty() && type56_selected_index_ >= static_cast<int>(type56_dialog_items_.size())) {
+				type56_selected_index_ = static_cast<int>(type56_dialog_items_.size()) - 1;
 			}
-			dialog_select_board_->SetItems(type56_words_);
+			dialog_select_board_->SetItems(type56_dialog_items_);
 			dialog_select_board_->SetSelectedIndex(type56_selected_index_);
 		} else {
 			type56_grid_cols_ = 1;
@@ -3165,9 +3750,7 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 
 	if (type56_words_.empty()) {
 		type56_words_ = current_choice_.hints;
-		if (type56_words_.empty()) {
-			type56_words_ = current_choice_.options;
-		}
+		type56_dialog_items_ = type56_words_;
 		if (type56_selected_index_ >= static_cast<int>(type56_words_.size())) {
 			type56_selected_index_ = 0;
 		}
@@ -3242,6 +3825,9 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 	}
 
 	if (button == AppButton::B) {
+		type56_show_correct_answer_ = false;
+		type56_correct_answer_display_.clear();
+		type56_dialog_items_ = type56_words_;
 		std::string text = Trim(type56_input_answer_);
 		if (!text.empty()) {
 			const size_t split = text.find_last_of(' ');
@@ -3256,6 +3842,9 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 	}
 
 	if (button == AppButton::C && count > 0 && type56_selected_index_ >= 0 && type56_selected_index_ < count) {
+		type56_show_correct_answer_ = false;
+		type56_correct_answer_display_.clear();
+		type56_dialog_items_ = type56_words_;
 		const std::string &picked_word = type56_words_[type56_selected_index_];
 		if (!picked_word.empty()) {
 			if (!type56_input_answer_.empty()) {
@@ -3267,7 +3856,16 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 		return;
 	}
 
-	if (button != AppButton::Start) {
+	if (button == AppButton::Start) {
+		if (!current_audio_path_.empty() && !PlayAudioFromSd(current_audio_path_)) {
+			if (label_alert_) {
+				label_alert_->SetText("音频播放失败");
+			}
+		}
+		return;
+	}
+
+	if (button != AppButton::D) {
 		return;
 	}
 
@@ -3278,6 +3876,9 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 	session_module_.RecordAnswer(correct);
 
 	if (correct) {
+		type56_show_correct_answer_ = false;
+		type56_correct_answer_display_.clear();
+		type56_dialog_items_ = type56_words_;
 		AddLearnedWordsFromText(answer_text);
 		if (image_good_) {
 			image_good_->SetText("word_practice_good.bin");
@@ -3300,7 +3901,10 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 		if (image_good_) {
 			image_good_->SetVisible(false);
 		}
-		type56_input_answer_ = expected_display;
+		type56_show_correct_answer_ = true;
+		type56_correct_answer_display_ = expected_display;
+		type56_dialog_items_.assign(1, expected_display);
+		type56_selected_index_ = 0;
 		RefreshType56Widgets();
 		if (label_alert_) {
 			label_alert_->SetText("回答错误");
@@ -3308,6 +3912,10 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 		if (bottom_bar_) {
 			bottom_bar_->SetText("按方向键或ABCD进入下一题");
 		}
+	}
+
+	if (current_question_type_ == 6) {
+		UpdateQuestionPromptPresentation(current_question_type_, "");
 	}
 
 	SaveAnswerStats(q, correct);
@@ -3395,7 +4003,26 @@ bool WordPracticeApp::PlayAudioFromSd(const std::string &audio_path) {
 
 	std::string ogg_data;
 	const std::string bundle_name = NormalizeAudioEntryName(audio_path);
-	if (!bundle_name.empty() && ReadAudioBundleEntry(bundle_name, &ogg_data)) {
+	if (!bundle_name.empty() && ReadAudioBundleEntry(audio_path, bundle_name, &ogg_data)) {
+		const bool has_ogg_page = BufferContainsToken(ogg_data, "OggS", 4);
+		const bool has_opus_head = BufferContainsToken(ogg_data, "OpusHead", 8);
+		if (!has_ogg_page || !has_opus_head) {
+			WP_DIAG_LOGW(kTag,
+				"audio payload invalid path=%s bundle=%s size=%u has_ogg_page=%d has_opus_head=%d preview=%s",
+				audio_path.c_str(),
+				bundle_name.c_str(),
+				static_cast<unsigned>(ogg_data.size()),
+				has_ogg_page ? 1 : 0,
+				has_opus_head ? 1 : 0,
+				BuildAudioPreviewHex(ogg_data, 16).c_str());
+			return false;
+		}
+		WP_DIAG_LOGW(kTag,
+			"audio payload ready path=%s bundle=%s size=%u preview=%s",
+			audio_path.c_str(),
+			bundle_name.c_str(),
+			static_cast<unsigned>(ogg_data.size()),
+			BuildAudioPreviewHex(ogg_data, 16).c_str());
 		LogResolvedAssetAccess(
 			"audio",
 			"play",
@@ -3412,8 +4039,9 @@ bool WordPracticeApp::PlayAudioFromSd(const std::string &audio_path) {
 	return false;
 }
 
-bool WordPracticeApp::EnsureAudioBundleIndexLoaded() {
-	if (audio_bundle_index_loaded_) {
+bool WordPracticeApp::EnsureAudioBundleIndexLoaded(const std::string &audio_path) {
+	const std::string bundle_path = ResolveAudioBundlePath(audio_path);
+	if (audio_bundle_index_loaded_ && audio_bundle_resolved_path_ == bundle_path) {
 		return audio_bundle_index_available_;
 	}
 	audio_bundle_index_loaded_ = true;
@@ -3422,7 +4050,6 @@ bool WordPracticeApp::EnsureAudioBundleIndexLoaded() {
 	audio_bundle_entries_.clear();
 
 	File sd_file;
-	const std::string bundle_path = eteacher::app_ui::GetWordsAudioBundlePath();
 	sd_file = SD.open(bundle_path.c_str(), FILE_READ);
 	if (!sd_file) {
 		DB_LOGW(kTag, "Open audio bundle failed path=%s", bundle_path.c_str());
@@ -3432,7 +4059,7 @@ bool WordPracticeApp::EnsureAudioBundleIndexLoaded() {
 	LogResolvedAssetAccess(
 		"audio",
 		"open",
-		eteacher::app_ui::GetWordsAudioBundlePath(),
+		bundle_path,
 		bundle_path,
 		"SD.open(FILE_READ)",
 		"audio_bundle");
@@ -3446,7 +4073,7 @@ bool WordPracticeApp::EnsureAudioBundleIndexLoaded() {
 	}
 	if (std::memcmp(header.data(), kAudioBundleMagic, sizeof(kAudioBundleMagic)) != 0) {
 		sd_file.close();
-		WP_ASSET_LOGW(kTag, "Invalid audio bundle magic: %s", eteacher::app_ui::GetWordsAudioBundlePath());
+		WP_ASSET_LOGW(kTag, "Invalid audio bundle magic: %s", bundle_path.c_str());
 		return false;
 	}
 
@@ -3486,15 +4113,15 @@ bool WordPracticeApp::EnsureAudioBundleIndexLoaded() {
 	LogResolvedAssetAccess(
 		"audio",
 		"index",
-		eteacher::app_ui::GetWordsAudioBundlePath(),
+		bundle_path,
 		bundle_path,
 		"SD.readBytes(bundle_index)",
 		"audio_bundle_index");
 	return audio_bundle_index_available_;
 }
 
-bool WordPracticeApp::ReadAudioBundleEntry(const std::string &audio_name, std::string *ogg_data) {
-	if (ogg_data == nullptr || audio_name.empty() || !EnsureAudioBundleIndexLoaded()) {
+bool WordPracticeApp::ReadAudioBundleEntry(const std::string &audio_path, const std::string &audio_name, std::string *ogg_data) {
+	if (ogg_data == nullptr || audio_name.empty() || !EnsureAudioBundleIndexLoaded(audio_path)) {
 		return false;
 	}
 	const auto it = audio_bundle_entries_.find(audio_name);

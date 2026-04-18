@@ -58,6 +58,10 @@ int64_t NowSec() {
 	return static_cast<int64_t>(esp_timer_get_time() / 1000000ULL);
 }
 
+int64_t NowMs() {
+	return static_cast<int64_t>(esp_timer_get_time() / 1000ULL);
+}
+
 int QuerySingleInt(sqlite3 *db, const std::string &sql, int fallback = 0) {
 	if (db == nullptr) {
 		return fallback;
@@ -218,7 +222,7 @@ bool AttachReadonlyDb(sqlite3 *db, const std::string &db_path, const char *alias
 		ESP_LOGW(kTag, "attach db failed rc=%d path=%s msg=%s", step_rc, db_path.c_str(), sqlite3_errmsg(db));
 		return false;
 	}
-	esp_log_write(ESP_LOG_WARN, kTag, "RESOURCE_OK kind=db scope=dictionary action=attach path=%s method=ATTACH DATABASE alias=%s", db_path.c_str(), alias);
+	DB_LOGI(kTag, "RESOURCE_OK kind=db scope=dictionary action=attach path=%s method=ATTACH DATABASE alias=%s", db_path.c_str(), alias);
 	return true;
 }
 
@@ -413,6 +417,7 @@ void SelectionModule::ResetProgress() {
 std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordSelectionConfig &config,
 							 int user_id) const {
 	std::vector<SelectedWord> selected_words;
+	const int64_t select_start_ms = NowMs();
 	const int total_count = std::max(0, config.TotalCount());
 	if (total_count <= 0) {
 		ESP_LOGW(kTag, "skip vocabulary selection: invalid total_count=%d", total_count);
@@ -431,6 +436,7 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 
 	const std::string user_db_path = eteacher::database_manager::DiscoverUserDataDbPath(kTag, "vocab_learning_state");
 	const std::string words_db_path = eteacher::database_manager::DiscoverDictionaryDbPath(kTag);
+	const int64_t discover_db_ms = NowMs();
 	ESP_LOGW(kTag, "selection db paths user=%s words=%s",
 		user_db_path.empty() ? "(missing)" : user_db_path.c_str(),
 		words_db_path.empty() ? "(missing)" : words_db_path.c_str());
@@ -442,6 +448,7 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 	}
 
 	sqlite3 *raw_db = nullptr;
+	const int64_t open_user_db_start_ms = NowMs();
 	const int open_rc = sqlite3_open_v2(user_db_path.c_str(), &raw_db, SQLITE_OPEN_READONLY, nullptr);
 	if (open_rc != SQLITE_OK || raw_db == nullptr) {
 		ESP_LOGW(kTag, "open user db failed rc=%d msg=%s", open_rc, raw_db ? sqlite3_errmsg(raw_db) : "null");
@@ -450,13 +457,16 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 		}
 		return selected_words;
 	}
-	esp_log_write(ESP_LOG_WARN, kTag, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READONLY) caller=SelectWordsFromVocabulary", user_db_path.c_str());
+	DB_LOGI(kTag, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READONLY) caller=SelectWordsFromVocabulary", user_db_path.c_str());
 	std::unique_ptr<sqlite3, SqliteDbCloser> db(raw_db);
+	const int64_t open_user_db_ms = NowMs() - open_user_db_start_ms;
 
+	const int64_t attach_dict_start_ms = NowMs();
 	if (!AttachReadonlyDb(db.get(), words_db_path, "dictdb")) {
 		ESP_LOGW(kTag, "attach words db failed: %s", words_db_path.c_str());
 		return selected_words;
 	}
+	const int64_t attach_dict_ms = NowMs() - attach_dict_start_ms;
 
 	const bool has_vocab_learning_state = TableExists(db.get(), "main", "vocab_learning_state");
 	const bool has_vocab_items = TableExists(db.get(), "main", "vocab_items");
@@ -512,6 +522,7 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 		effective_learning_states,
 		can_join_through_vocab_items);
 	const int64_t now_sec = NowSec();
+	const int64_t review_select_start_ms = NowMs();
 	if (review_target > 0) {
 		const std::string review_sql = can_join_through_vocab_items
 			? (
@@ -536,8 +547,10 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 				"LIMIT ?;");
 		AppendSelectedWords(db.get(), review_sql, effective_user_id, now_sec, static_cast<size_t>(review_target), true, &selected_words);
 	}
+	const int64_t review_select_ms = NowMs() - review_select_start_ms;
 
 	const int remaining = std::min(new_target, total_count - static_cast<int>(selected_words.size()));
+	const int64_t new_select_start_ms = NowMs();
 	if (remaining > 0) {
 		AppendRandomNewWords(
 			db.get(),
@@ -546,6 +559,7 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 			static_cast<size_t>(remaining),
 			&selected_words);
 	}
+	const int64_t new_select_ms = NowMs() - new_select_start_ms;
 
 	ESP_LOGW(kTag,
 		"selected words summary total=%d requested_review=%d actual_review=%d actual_new=%d",
@@ -565,6 +579,16 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 			selected.word_id,
 			selected.word.c_str());
 	}
+
+	ESP_LOGW(kTag,
+		"startup timing select_words total_ms=%lld discover_db_ms=%lld open_user_db_ms=%lld attach_dict_ms=%lld review_select_ms=%lld new_select_ms=%lld selected=%d",
+		static_cast<long long>(NowMs() - select_start_ms),
+		static_cast<long long>(discover_db_ms - select_start_ms),
+		static_cast<long long>(open_user_db_ms),
+		static_cast<long long>(attach_dict_ms),
+		static_cast<long long>(review_select_ms),
+		static_cast<long long>(new_select_ms),
+		static_cast<int>(selected_words.size()));
 
 	return selected_words;
 }

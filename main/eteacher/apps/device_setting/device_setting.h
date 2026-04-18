@@ -15,6 +15,7 @@
 #include "eteacher/app_ui/widget.h"
 
 class CustomEpdDisplay;
+#include "eteacher/apps/device_setting/et_server_client.h"
 
 class DeviceSettingApp : public AppBase {
 public:
@@ -58,11 +59,19 @@ private:
 	void SendInputToUi(const ButtonEvent &event);
 
 	void ShowKeyboardForSsid(const std::string& ssid);
+	void ShowKeyboardForUserField(app_ui::TextAreaWidget* field);
 	void ShowConfirmDialog(const std::string& title, const std::string& detail, const std::string& ssid, bool delete_action);
 	void HideConfirmDialog();
 	void SetHintAlertLabel(const std::string& text);
 	void RefreshHintAlertLabel();
 	void ConfirmPendingDialogAction();
+	void RefreshUserSettingsPage();
+	void RefreshDeviceInfoPage();
+	void RefreshClientUiState();
+	void TriggerStatusCheck();
+	void TriggerSendVerificationCode();
+	void TriggerCompleteLogin();
+	void TriggerResourceDownload();
 	bool ConnectToSsidWithPassword(const std::string& ssid,
 	                              const std::string& password,
 	                              bool save_on_success,
@@ -83,15 +92,26 @@ private:
 	bool IsScanningInProgress() const;
 	bool IsInputDialogVisible() const;
 	bool IsHintDialogVisible() const;
+	bool IsUserSettingsScene() const;
+	bool IsDeviceInfoScene() const;
 	std::string GetSavedPasswordBySsid(const std::string& ssid) const;
 	std::string ConnectErrorToText(uint8_t reason) const;
 	std::string CurrentConnectedSsid() const;
 	bool IsPlaceholderItem(const std::string& item) const;
+	std::string TextAreaText(app_ui::TextAreaWidget* field) const;
+	void SetTextAreaText(app_ui::TextAreaWidget* field, const std::string& text);
+	std::string UserFieldTitle(app_ui::TextAreaWidget* field) const;
 
 	static void OnConnectWifiEvent(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 	static void OnConnectIpEvent(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 	static void OnAutoCloseTimer(void* arg);
 	static void OnKeyboardKey(app_ui::SoftKeyboardWidget* widget, const char* value, void* ctx);
+
+	enum class KeyboardMode {
+		None,
+		WifiPassword,
+		UserField,
+	};
 
 	app_ui::UIEngine ui_engine_{};
 	app_ui::runtime::SceneRuntime scene_runtime_{};
@@ -113,8 +133,11 @@ private:
 	uint64_t confirm_cooldown_until_us_ = 0;
 	uint8_t connect_wait_reason_ = WIFI_REASON_UNSPECIFIED;
 	bool is_wifi_scene_ = false;
+	KeyboardMode keyboard_mode_ = KeyboardMode::None;
+	bool keyboard_ignore_activation_once_ = false;
 
 	std::string active_ssid_{};
+	std::string keyboard_field_title_{};
 	std::string pending_confirm_ssid_{};
 	std::string hint_alert_text_{};
 	std::string bottom_bar_hint_{};
@@ -146,6 +169,23 @@ private:
 	app_ui::LabelWidget* page_alert_label_ = nullptr;
 	app_ui::LabelWidget* hint_alert_label_ = nullptr;
 	app_ui::TextAreaWidget* password_area_ = nullptr;
+	app_ui::TextAreaWidget* user_phone_area_ = nullptr;
+	app_ui::TextAreaWidget* user_password_area_ = nullptr;
+	app_ui::TextAreaWidget* user_code_area_ = nullptr;
+	app_ui::TextAreaWidget* active_user_input_ = nullptr;
+	app_ui::ButtonWidget* user_send_code_button_ = nullptr;
+	app_ui::ButtonWidget* user_login_button_ = nullptr;
+	app_ui::LabelWidget* user_status_label_ = nullptr;
+	app_ui::LabelWidget* user_name_label_ = nullptr;
+	app_ui::LabelWidget* user_phone_label_ = nullptr;
+	app_ui::LabelWidget* user_mode_label_ = nullptr;
+	app_ui::ButtonWidget* device_status_button_ = nullptr;
+	app_ui::ButtonWidget* device_download_button_ = nullptr;
+	app_ui::LabelWidget* device_model_label_ = nullptr;
+	app_ui::LabelWidget* device_id_label_ = nullptr;
+	app_ui::LabelWidget* device_resource_label_ = nullptr;
+	app_ui::LabelWidget* device_activation_label_ = nullptr;
+	EtServerClient et_server_client_{};
 
 	esp_event_handler_instance_t connect_disconnected_handler_ = nullptr;
 	esp_event_handler_instance_t connect_got_ip_handler_ = nullptr;

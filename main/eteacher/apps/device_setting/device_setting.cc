@@ -9,15 +9,21 @@
 #include <esp_log.h>
 #include <esp_wifi.h>
 
+#include "boards/common/board.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/app_service/app_service.h"
 #include "eteacher/app_ui/input.h"
 #include "eteacher/app_ui/scene.h"
 #include "eteacher/apps/device_setting/device_setting_ui.h"
+#include "system_info.h"
 
 namespace {
 constexpr const char* kTag = "DeviceSettingApp";
 constexpr const app_ui::desc::UiDesc* kUiDesc = &app_ui::generated::device_setting::kUi;
+
+bool IsUserFieldPlaceholder(const std::string& text) {
+    return text == "Phone" || text == "Password" || text == "code";
+}
 
 constexpr uint32_t kWidgetTabView = 0xA8EC2EDCu;
 constexpr uint32_t kWidgetBottomBar = 0x80DAA8ADu;
@@ -39,11 +45,27 @@ constexpr uint32_t kWidgetHintAlert = 0x7F1B0E11u;
 constexpr uint32_t kWidgetButtonSubmit = 0xD17B7AB2u;
 constexpr uint32_t kWidgetButtonCancel = 0x087A890Eu;
 
-constexpr const char* kInputInitStatus = "请输入WIFI密码,按start连接网络";
+constexpr uint32_t kWidgetUserPhone = 0xEAB63B8Fu;
+constexpr uint32_t kWidgetUserPassword = 0xA49D920Au;
+constexpr uint32_t kWidgetUserCode = 0x5F18D61Cu;
+constexpr uint32_t kWidgetUserSendCode = 0x57562AC1u;
+constexpr uint32_t kWidgetUserLogin = 0xB563EFF5u;
+constexpr uint32_t kWidgetUserStatus = 0x4BA45650u;
+constexpr uint32_t kWidgetUserName = 0x113D6751u;
+constexpr uint32_t kWidgetUserPhoneLabel = 0x80F9AF09u;
+constexpr uint32_t kWidgetUserMode = 0x511A6020u;
+
+constexpr uint32_t kWidgetDeviceModel = 0x09683472u;
+constexpr uint32_t kWidgetDeviceId = 0xA5FFEB50u;
+constexpr uint32_t kWidgetDeviceResource = 0x708485AEu;
+constexpr uint32_t kWidgetDeviceActivation = 0xB43FAADDu;
+constexpr uint32_t kWidgetDeviceStatusButton = 0xBC786763u;
+constexpr uint32_t kWidgetDeviceDownloadButton = 0xCD89E678u;
+
+constexpr const char* kInputInitStatus = "请输入WIFI密码,按Start退出键盘";
 
 bool IsClickLike(const ButtonEvent& event) {
-    return event.action == ButtonAction::Click || event.action == ButtonAction::PressDown ||
-           event.action == ButtonAction::LongPress;
+    return event.action == ButtonAction::Click || event.action == ButtonAction::LongPress;
 }
 
 void AppendIfValid(const app_ui::Widget* widget, std::vector<uint32_t>& out) {
@@ -111,6 +133,8 @@ bool DeviceSettingApp::ShouldInterceptSelectExit() const {
 void DeviceSettingApp::OnEnter(AppContext &ctx) {
     ui_ready_ = false;
     keyboard_visible_ = false;
+    keyboard_mode_ = KeyboardMode::None;
+    keyboard_ignore_activation_once_ = false;
     confirm_dialog_visible_ = false;
     confirm_delete_action_ = false;
     scanning_in_progress_ = false;
@@ -121,8 +145,10 @@ void DeviceSettingApp::OnEnter(AppContext &ctx) {
     submit_cooldown_until_us_ = 0;
     confirm_cooldown_until_us_ = 0;
     hint_alert_text_.clear();
+    keyboard_field_title_.clear();
     last_alert_text_.clear();
     last_connected_ssid_.clear();
+    active_user_input_ = nullptr;
     router_.Reset();
     scene_load_id_ = 0;
     epd_ = dynamic_cast<CustomEpdDisplay*>(ctx.board.GetDisplay());
@@ -154,12 +180,16 @@ void DeviceSettingApp::OnExit(AppContext &ctx) {
 
     ui_ready_ = false;
     keyboard_visible_ = false;
+    keyboard_mode_ = KeyboardMode::None;
+    keyboard_ignore_activation_once_ = false;
     confirm_dialog_visible_ = false;
     submit_connect_in_progress_ = false;
     confirm_connect_in_progress_ = false;
     submit_cooldown_until_us_ = 0;
     confirm_cooldown_until_us_ = 0;
     hint_alert_text_.clear();
+    keyboard_field_title_.clear();
+    active_user_input_ = nullptr;
     epd_ = nullptr;
 }
 
@@ -251,9 +281,14 @@ bool DeviceSettingApp::LoadScene(AppContext &ctx, const std::string& scene_id, u
     UpdateTabSelection();
     BuildFocusCycle(scene_id);
     SyncFocusCycleIndex();
-    if (tabview_) {
+    if (scene_id == "page_1e8a" && user_phone_area_) {
+        ui_engine_.RequestFocus(user_phone_area_->Id());
+    } else if (scene_id == "page_9b37" && device_status_button_) {
+        ui_engine_.RequestFocus(device_status_button_->Id());
+    } else if (tabview_) {
         ui_engine_.RequestFocus(tabview_->Id());
     }
+    ESP_LOGI(kTag, "Load scene: %s", scene_id.c_str());
     HideKeyboard();
     HideConfirmDialog();
     UpdateAlertStatusByNetwork();
@@ -318,6 +353,21 @@ void DeviceSettingApp::BindWidgets(app_ui::Widget* root) {
         page_alert_label_ = nullptr;
         hint_alert_label_ = nullptr;
         password_area_ = nullptr;
+        user_phone_area_ = nullptr;
+        user_password_area_ = nullptr;
+        user_code_area_ = nullptr;
+        user_send_code_button_ = nullptr;
+        user_login_button_ = nullptr;
+        user_status_label_ = nullptr;
+        user_name_label_ = nullptr;
+        user_phone_label_ = nullptr;
+        user_mode_label_ = nullptr;
+        device_status_button_ = nullptr;
+        device_download_button_ = nullptr;
+        device_model_label_ = nullptr;
+        device_id_label_ = nullptr;
+        device_resource_label_ = nullptr;
+        device_activation_label_ = nullptr;
         return;
     }
 
@@ -340,6 +390,34 @@ void DeviceSettingApp::BindWidgets(app_ui::Widget* root) {
     status_info_label_ = input_dialog_ ? dynamic_cast<app_ui::LabelWidget*>(input_dialog_->FindById(kWidgetLabelStatusInformation)) : nullptr;
     password_area_ = input_dialog_ ? dynamic_cast<app_ui::TextAreaWidget*>(input_dialog_->FindById(kWidgetTextAreaPassword)) : nullptr;
     hint_alert_label_ = hint_dialog_ ? dynamic_cast<app_ui::LabelWidget*>(hint_dialog_->FindById(kWidgetHintAlert)) : nullptr;
+
+    user_phone_area_ = dynamic_cast<app_ui::TextAreaWidget*>(root->FindById(kWidgetUserPhone));
+    user_password_area_ = dynamic_cast<app_ui::TextAreaWidget*>(root->FindById(kWidgetUserPassword));
+    user_code_area_ = dynamic_cast<app_ui::TextAreaWidget*>(root->FindById(kWidgetUserCode));
+    user_send_code_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetUserSendCode));
+    user_login_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetUserLogin));
+    user_status_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserStatus));
+    user_name_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserName));
+    user_phone_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserPhoneLabel));
+    user_mode_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserMode));
+
+    device_status_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetDeviceStatusButton));
+    device_download_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetDeviceDownloadButton));
+    device_model_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetDeviceModel));
+    device_id_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetDeviceId));
+    device_resource_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetDeviceResource));
+    device_activation_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetDeviceActivation));
+
+    if (user_phone_area_ && IsUserFieldPlaceholder(user_phone_area_->Text())) {
+        user_phone_area_->SetText("");
+    }
+    if (user_password_area_ && IsUserFieldPlaceholder(user_password_area_->Text())) {
+        user_password_area_->SetText("");
+    }
+    if (user_code_area_ && IsUserFieldPlaceholder(user_code_area_->Text())) {
+        user_code_area_->SetText("");
+    }
+
     if (!hint_alert_label_ && hint_dialog_) {
         hint_alert_label_ = dynamic_cast<app_ui::LabelWidget*>(hint_dialog_->FindById(kWidgetPageAlert));
     }
@@ -369,6 +447,7 @@ void DeviceSettingApp::BindWidgets(app_ui::Widget* root) {
     HideConfirmDialog();
     SetInputStatus(kInputInitStatus);
     SetBottomBarHint("");
+    RefreshClientUiState();
 }
 
 void DeviceSettingApp::UpdateTabSelection() {
@@ -553,7 +632,7 @@ void DeviceSettingApp::PushBottomBarHint(const std::string& text) {
 
 void DeviceSettingApp::UpdateBottomBarHintByFocus() {
     if (IsInputDialogVisible() || keyboard_visible_) {
-        SetBottomBarHint("软键盘：B退格 C确定 D翻页 Start提交");
+        SetBottomBarHint("软键盘：方向键移动 C输入 B退格 D翻页 Start退出");
         return;
     }
     if (IsHintDialogVisible()) {
@@ -572,6 +651,27 @@ void DeviceSettingApp::UpdateBottomBarHintByFocus() {
         SetBottomBarHint("C连接 D删除");
         return;
     }
+    if ((user_phone_area_ && user_phone_area_->Focused()) || (user_password_area_ && user_password_area_->Focused()) ||
+        (user_code_area_ && user_code_area_->Focused())) {
+        SetBottomBarHint("按Start/C键编辑");
+        return;
+    }
+    if (user_send_code_button_ && user_send_code_button_->Focused()) {
+        SetBottomBarHint("按Start/C发送验证码");
+        return;
+    }
+    if (user_login_button_ && user_login_button_->Focused()) {
+        SetBottomBarHint("按Start/C注册或登录");
+        return;
+    }
+    if (device_status_button_ && device_status_button_->Focused()) {
+        SetBottomBarHint("按Start/C检查设备状态");
+        return;
+    }
+    if (device_download_button_ && device_download_button_->Focused()) {
+        SetBottomBarHint("按Start/C下载资源");
+        return;
+    }
     SetBottomBarHint("");
 }
 
@@ -579,13 +679,25 @@ void DeviceSettingApp::BuildFocusCycle(const std::string& scene_id) {
     is_wifi_scene_ = (scene_id == "page_main");
     focus_cycle_ids_.clear();
     focus_cycle_index_ = 0;
-    if (!is_wifi_scene_) {
+    AppendIfValid(tabview_, focus_cycle_ids_);
+    if (scene_id == "page_main") {
+        AppendIfValid(scan_button_, focus_cycle_ids_);
+        AppendIfValid(scan_list_, focus_cycle_ids_);
+        AppendIfValid(saved_list_, focus_cycle_ids_);
         return;
     }
-    AppendIfValid(tabview_, focus_cycle_ids_);
-    AppendIfValid(scan_button_, focus_cycle_ids_);
-    AppendIfValid(scan_list_, focus_cycle_ids_);
-    AppendIfValid(saved_list_, focus_cycle_ids_);
+    if (scene_id == "page_1e8a") {
+        AppendIfValid(user_phone_area_, focus_cycle_ids_);
+        AppendIfValid(user_password_area_, focus_cycle_ids_);
+        AppendIfValid(user_code_area_, focus_cycle_ids_);
+        AppendIfValid(user_send_code_button_, focus_cycle_ids_);
+        AppendIfValid(user_login_button_, focus_cycle_ids_);
+        return;
+    }
+    if (scene_id == "page_9b37") {
+        AppendIfValid(device_status_button_, focus_cycle_ids_);
+        AppendIfValid(device_download_button_, focus_cycle_ids_);
+    }
 }
 
 void DeviceSettingApp::SyncFocusCycleIndex() {
@@ -605,13 +717,19 @@ void DeviceSettingApp::SyncFocusCycleIndex() {
 }
 
 bool DeviceSettingApp::HandleFocusCycle(const ButtonEvent &event) {
-    if (!is_wifi_scene_ || focus_cycle_ids_.empty()) {
+    if (focus_cycle_ids_.empty()) {
         return false;
     }
 
     const bool tab_focused = tabview_ && tabview_->Focused();
+    const bool allow_four_way_cycle = IsUserSettingsScene() || IsDeviceInfoScene();
     if (tab_focused) {
         if (event.id != AppButton::Up && event.id != AppButton::Down) {
+            return false;
+        }
+    } else if (allow_four_way_cycle) {
+        if (event.id != AppButton::Up && event.id != AppButton::Down &&
+            event.id != AppButton::Left && event.id != AppButton::Right) {
             return false;
         }
     } else if (event.id != AppButton::Left && event.id != AppButton::Right) {
@@ -626,6 +744,7 @@ bool DeviceSettingApp::HandleFocusCycle(const ButtonEvent &event) {
         focus_cycle_index_ = (focus_cycle_index_ + 1) % count;
     }
     ui_engine_.RequestFocus(focus_cycle_ids_[focus_cycle_index_]);
+    ESP_LOGI(kTag, "Focus moved to widget=0x%08lx", static_cast<unsigned long>(focus_cycle_ids_[focus_cycle_index_]));
     return true;
 }
 
@@ -649,12 +768,21 @@ bool DeviceSettingApp::HandleKeyboardButtons(const ButtonEvent &event) {
         return false;
     }
 
+    if (keyboard_ignore_activation_once_ &&
+        (event.id == AppButton::Start || event.id == AppButton::C) &&
+        (event.action == ButtonAction::PressDown || event.action == ButtonAction::Click)) {
+        keyboard_ignore_activation_once_ = false;
+        ESP_LOGI(kTag, "Ignore activation event after keyboard open: button=%d action=%d",
+                 static_cast<int>(event.id), static_cast<int>(event.action));
+        return true;
+    }
+
     if (event.id == AppButton::B) {
         DeletePasswordChar();
         return true;
     }
     if (event.id == AppButton::Select) {
-        HideKeyboard();
+        ConfirmPassword();
         return true;
     }
     if (event.id == AppButton::Start) {
@@ -701,7 +829,7 @@ bool DeviceSettingApp::HandleConfirmDialogButtons(const ButtonEvent &event) {
         return true;
     }
 
-    if (event.id == AppButton::C || event.id == AppButton::Start) {
+    if ((event.id == AppButton::C || event.id == AppButton::Start) && event.action == ButtonAction::Click) {
         if (button_cancel_ && button_cancel_->Focused()) {
             HideConfirmDialog();
             return true;
@@ -721,9 +849,38 @@ bool DeviceSettingApp::HandleConfirmDialogButtons(const ButtonEvent &event) {
 }
 
 bool DeviceSettingApp::HandleFocusedButtons(const ButtonEvent &event) {
-    const bool action = (event.id == AppButton::Start || event.id == AppButton::C);
+    const bool action = (event.action == ButtonAction::Click) &&
+                        (event.id == AppButton::Start || event.id == AppButton::C);
     if (!action) {
         return false;
+    }
+    if (user_phone_area_ && user_phone_area_->Focused()) {
+        ShowKeyboardForUserField(user_phone_area_);
+        return true;
+    }
+    if (user_password_area_ && user_password_area_->Focused()) {
+        ShowKeyboardForUserField(user_password_area_);
+        return true;
+    }
+    if (user_code_area_ && user_code_area_->Focused()) {
+        ShowKeyboardForUserField(user_code_area_);
+        return true;
+    }
+    if (user_send_code_button_ && user_send_code_button_->Focused()) {
+        TriggerSendVerificationCode();
+        return true;
+    }
+    if (user_login_button_ && user_login_button_->Focused()) {
+        TriggerCompleteLogin();
+        return true;
+    }
+    if (device_status_button_ && device_status_button_->Focused()) {
+        TriggerStatusCheck();
+        return true;
+    }
+    if (device_download_button_ && device_download_button_->Focused()) {
+        TriggerResourceDownload();
+        return true;
     }
     if (scan_button_ && scan_button_->Focused()) {
         PopulateScanResults();
@@ -733,7 +890,8 @@ bool DeviceSettingApp::HandleFocusedButtons(const ButtonEvent &event) {
 }
 
 bool DeviceSettingApp::HandleListViewActivate(const ButtonEvent &event) {
-    const bool action = (event.id == AppButton::Start || event.id == AppButton::C || event.id == AppButton::D);
+    const bool action = (event.action == ButtonAction::Click) &&
+                        (event.id == AppButton::Start || event.id == AppButton::C || event.id == AppButton::D);
     if (!action) {
         return false;
     }
@@ -789,7 +947,11 @@ void DeviceSettingApp::ShowKeyboardForSsid(const std::string& ssid) {
     HideConfirmDialog();
 
     keyboard_visible_ = true;
+    keyboard_mode_ = KeyboardMode::WifiPassword;
+    keyboard_ignore_activation_once_ = true;
     active_ssid_ = ssid;
+    active_user_input_ = nullptr;
+    keyboard_field_title_.clear();
     password_input_.clear();
 
     if (keyboard_) {
@@ -815,6 +977,52 @@ void DeviceSettingApp::ShowKeyboardForSsid(const std::string& ssid) {
         password_area_->SetVisible(true);
     }
     SetInputStatus(kInputInitStatus);
+    if (keyboard_) {
+        ui_engine_.RequestFocus(keyboard_->Id());
+    }
+}
+
+void DeviceSettingApp::ShowKeyboardForUserField(app_ui::TextAreaWidget* field) {
+    if (field == nullptr) {
+        return;
+    }
+
+    ESP_LOGI(kTag, "Open keyboard for user field: %s", UserFieldTitle(field).c_str());
+
+    StopAutoCloseDialog();
+    HideConfirmDialog();
+
+    keyboard_visible_ = true;
+    keyboard_mode_ = KeyboardMode::UserField;
+    keyboard_ignore_activation_once_ = true;
+    active_ssid_.clear();
+    active_user_input_ = field;
+    keyboard_field_title_ = UserFieldTitle(field);
+    password_input_ = TextAreaText(field);
+
+    if (keyboard_) {
+        auto profile = keyboard_->Profile();
+        profile.page = 0;
+        keyboard_->SetProfile(profile);
+        keyboard_->SetSelectedIndex(0);
+        keyboard_->SetVisible(true);
+    }
+    if (input_dialog_) {
+        input_dialog_->SetVisible(true);
+    }
+    if (ssid_label_) {
+        ssid_label_->SetText(keyboard_field_title_);
+        ssid_label_->SetVisible(true);
+    }
+    if (password_label_) {
+        password_label_->SetText("输入内容：");
+        password_label_->SetVisible(true);
+    }
+    if (password_area_) {
+        password_area_->SetText(password_input_);
+        password_area_->SetVisible(true);
+    }
+    SetInputStatus("方向键移动，按C输入字符，按Start退出");
     if (keyboard_) {
         ui_engine_.RequestFocus(keyboard_->Id());
     }
@@ -929,7 +1137,11 @@ void DeviceSettingApp::ConfirmPendingDialogAction() {
 
 void DeviceSettingApp::HideKeyboard() {
     keyboard_visible_ = false;
+    keyboard_mode_ = KeyboardMode::None;
+    keyboard_ignore_activation_once_ = false;
     active_ssid_.clear();
+    active_user_input_ = nullptr;
+    keyboard_field_title_.clear();
     password_input_.clear();
 
     if (keyboard_) {
@@ -954,6 +1166,7 @@ void DeviceSettingApp::AppendPassword(const char* value) {
         return;
     }
     password_input_ += value;
+    ESP_LOGI(kTag, "Keyboard append: value=%s current_len=%u", value, static_cast<unsigned>(password_input_.size()));
     UpdatePasswordText();
 }
 
@@ -966,6 +1179,7 @@ void DeviceSettingApp::DeletePasswordChar() {
         return;
     }
     password_input_.pop_back();
+    ESP_LOGI(kTag, "Keyboard delete: current_len=%u", static_cast<unsigned>(password_input_.size()));
     UpdatePasswordText();
 }
 
@@ -973,6 +1187,18 @@ void DeviceSettingApp::ConfirmPassword() {
     if (!keyboard_visible_) {
         return;
     }
+    if (keyboard_mode_ == KeyboardMode::UserField) {
+        if (active_user_input_ == nullptr) {
+            return;
+        }
+        ESP_LOGI(kTag, "Close user keyboard and commit text len=%u to %s",
+                 static_cast<unsigned>(password_input_.size()), UserFieldTitle(active_user_input_).c_str());
+        SetTextAreaText(active_user_input_, password_input_);
+        HideKeyboard();
+        RefreshUserSettingsPage();
+        return;
+    }
+
     if (active_ssid_.empty()) {
         return;
     }
@@ -1014,6 +1240,207 @@ void DeviceSettingApp::UpdatePasswordText() {
     if (password_area_) {
         password_area_->SetText(password_input_);
     }
+    if (keyboard_mode_ == KeyboardMode::UserField && active_user_input_ != nullptr) {
+        active_user_input_->SetText(password_input_);
+    }
+}
+
+bool DeviceSettingApp::IsUserSettingsScene() const {
+    return user_phone_area_ != nullptr || user_send_code_button_ != nullptr;
+}
+
+bool DeviceSettingApp::IsDeviceInfoScene() const {
+    return device_status_button_ != nullptr || device_download_button_ != nullptr;
+}
+
+std::string DeviceSettingApp::TextAreaText(app_ui::TextAreaWidget* widget) const {
+    if (widget == nullptr) {
+        return {};
+    }
+    std::string text = widget->Text();
+    while (!text.empty() && std::isspace(static_cast<unsigned char>(text.front()))) {
+        text.erase(text.begin());
+    }
+    while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back()))) {
+        text.pop_back();
+    }
+    if (IsUserFieldPlaceholder(text)) {
+        return {};
+    }
+    return text;
+}
+
+void DeviceSettingApp::SetTextAreaText(app_ui::TextAreaWidget* widget, const std::string& text) {
+    if (widget != nullptr) {
+        widget->SetText(text);
+        ESP_LOGI(kTag, "TextArea updated widget=0x%08lx text=%s",
+                 static_cast<unsigned long>(widget->Id()), text.c_str());
+    }
+}
+
+std::string DeviceSettingApp::UserFieldTitle(app_ui::TextAreaWidget* widget) const {
+    if (widget == user_phone_area_) {
+        return "手机号";
+    }
+    if (widget == user_password_area_) {
+        return "密码";
+    }
+    if (widget == user_code_area_) {
+        return "验证码";
+    }
+    return "输入内容";
+}
+
+void DeviceSettingApp::RefreshUserSettingsPage() {
+    if (!IsUserSettingsScene()) {
+        return;
+    }
+
+    if (user_status_label_) {
+        user_status_label_->SetText(et_server_client_.IsUserLoggedIn() ? "状态: 已登录" : "状态: 未登录");
+    }
+
+    std::string username = et_server_client_.Username();
+    if (username.empty()) {
+        username = et_server_client_.PendingAutoUsername();
+    }
+    if (user_name_label_) {
+        user_name_label_->SetText(std::string("用户: ") + (username.empty() ? "-" : username));
+    }
+
+    std::string phone = et_server_client_.Phone();
+    if (phone.empty()) {
+        phone = TextAreaText(user_phone_area_);
+    }
+    if (user_phone_label_) {
+        user_phone_label_->SetText(std::string("手机: ") + (phone.empty() ? "-" : phone));
+    }
+
+    if (user_mode_label_) {
+        const bool register_then_login =
+            et_server_client_.PendingFlowMode() == EtServerPendingFlowMode::RegisterThenLogin;
+        user_mode_label_->SetText(register_then_login ? "模式: 注册后再登录" : "模式: 登录验证码");
+    }
+}
+
+void DeviceSettingApp::RefreshDeviceInfoPage() {
+    if (!IsDeviceInfoScene()) {
+        return;
+    }
+
+    if (device_model_label_) {
+        device_model_label_->SetText("型号: " + Board::GetInstance().GetBoardType());
+    }
+    if (device_id_label_) {
+        const std::string device_id = et_server_client_.DeviceId();
+        device_id_label_->SetText(std::string("编号: ") + (device_id.empty() ? SystemInfo::GetMacAddress() : device_id));
+    }
+    if (device_resource_label_) {
+        std::string resource = et_server_client_.InstalledResourceName();
+        if (!et_server_client_.InstalledResourceVersion().empty()) {
+            if (!resource.empty()) {
+                resource += "@";
+            }
+            resource += et_server_client_.InstalledResourceVersion();
+        }
+        if (resource.empty()) {
+            resource = et_server_client_.ResourceName();
+            if (!et_server_client_.ResourceVersion().empty()) {
+                if (!resource.empty()) {
+                    resource += "@";
+                }
+                resource += et_server_client_.ResourceVersion();
+            }
+        }
+        device_resource_label_->SetText(std::string("资源: ") + (resource.empty() ? "-" : resource));
+    }
+    if (device_activation_label_) {
+        std::string activation = et_server_client_.ActivationStatus();
+        if (activation.empty()) {
+            activation = "未检查";
+        }
+        device_activation_label_->SetText(std::string("激活: ") + activation);
+    }
+}
+
+void DeviceSettingApp::RefreshClientUiState() {
+    RefreshUserSettingsPage();
+    RefreshDeviceInfoPage();
+}
+
+void DeviceSettingApp::TriggerStatusCheck() {
+    ESP_LOGI(kTag, "Trigger status check");
+    SetBottomBarHint("状态检查中...");
+    std::string message;
+    std::string error;
+    if (!et_server_client_.RefreshStatus(message, error)) {
+        SetBottomBarHint(error);
+    } else {
+        SetBottomBarHint(message.empty() ? "状态检查完成" : message);
+    }
+    RefreshClientUiState();
+}
+
+void DeviceSettingApp::TriggerSendVerificationCode() {
+    const std::string phone = TextAreaText(user_phone_area_);
+    ESP_LOGI(kTag, "Trigger send verification code, phone=%s", phone.c_str());
+    if (phone.empty()) {
+        ESP_LOGW(kTag, "Send verification code rejected: empty phone input");
+        SetBottomBarHint("请先输入手机号");
+        return;
+    }
+
+    SetBottomBarHint("验证码发送中...");
+    std::string message;
+    std::string error;
+    if (!et_server_client_.SendVerificationCode(phone, message, error)) {
+        SetBottomBarHint(error);
+    } else {
+        SetBottomBarHint(message.empty() ? "验证码已发送" : message);
+    }
+    RefreshUserSettingsPage();
+}
+
+void DeviceSettingApp::TriggerCompleteLogin() {
+    const std::string phone = TextAreaText(user_phone_area_);
+    const std::string password = TextAreaText(user_password_area_);
+    const std::string code = TextAreaText(user_code_area_);
+    ESP_LOGI(kTag, "Trigger login/register, phone=%s code_len=%u password_len=%u",
+             phone.c_str(), static_cast<unsigned>(code.size()), static_cast<unsigned>(password.size()));
+    if (phone.empty() || password.empty() || code.empty()) {
+        ESP_LOGW(kTag, "Login/register rejected: phone_empty=%d password_empty=%d code_empty=%d",
+                 phone.empty(), password.empty(), code.empty());
+        SetBottomBarHint("请先填写手机号、密码和验证码");
+        return;
+    }
+
+    SetBottomBarHint("提交中...");
+    EtServerLoginActionResult result = EtServerLoginActionResult::LoggedIn;
+    std::string message;
+    std::string error;
+    if (!et_server_client_.CompleteLoginOrRegister(phone, password, code, result, message, error)) {
+        SetBottomBarHint(error);
+    } else if (result == EtServerLoginActionResult::RegisteredNeedLoginCode) {
+        SetTextAreaText(user_code_area_, "");
+        SetBottomBarHint(message.empty() ? "注册成功，请输入新的登录验证码" : message);
+    } else {
+        SetTextAreaText(user_code_area_, "");
+        SetBottomBarHint(message.empty() ? "登录成功" : message);
+    }
+    RefreshClientUiState();
+}
+
+void DeviceSettingApp::TriggerResourceDownload() {
+    ESP_LOGI(kTag, "Trigger resource download");
+    SetBottomBarHint("资源下载中...");
+    std::string message;
+    std::string error;
+    if (!et_server_client_.DownloadCurrentResource(message, error)) {
+        SetBottomBarHint(error);
+    } else {
+        SetBottomBarHint(message.empty() ? "资源下载完成" : message);
+    }
+    RefreshDeviceInfoPage();
 }
 
 bool DeviceSettingApp::ConnectToSsidWithPassword(const std::string& ssid,
@@ -1335,6 +1762,7 @@ void DeviceSettingApp::OnKeyboardKey(app_ui::SoftKeyboardWidget* widget, const c
     if (!app) {
         return;
     }
+    ESP_LOGI(kTag, "Keyboard key callback value=%s", value ? value : "");
     app->AppendPassword(value);
 }
 

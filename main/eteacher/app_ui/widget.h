@@ -286,7 +286,9 @@ struct ButtonProfile {
 
 struct ImageProfile {
     bool draw_border = true;
+    bool draw_border_on_content = false;
     bool draw_fallback_text = true;
+    int16_t border_thickness = 1;
     int16_t content_inset = 1;
     int16_t text_offset_x = 2;
     int16_t text_offset_y = 2;

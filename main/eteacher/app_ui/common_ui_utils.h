@@ -23,6 +23,10 @@ const char* GetWordsAudioDir();
 const char* GetWordsAudioBundlePath();
 std::string BuildWordsAudioPath(const std::string& audio_filename);
 
+const char* GetExampleAudioDir();
+const char* GetExampleAudioBundlePath();
+std::string BuildExampleAudioPath(const std::string& audio_filename);
+
 bool LoadBinImage(const std::string& name, BinImage* out);
 bool LoadBinImageFallback(const std::vector<std::string>& names, BinImage* out);
 

@@ -27,6 +27,7 @@ struct ChoiceState {
 	std::vector<std::string> option_images;
 	std::vector<std::string> hints;
 	std::vector<std::string> pair_left;
+	std::vector<std::string> pair_left_audio;
 	std::vector<std::string> pair_right;
 	std::string expected;
 };

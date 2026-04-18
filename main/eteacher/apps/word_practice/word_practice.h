@@ -66,6 +66,7 @@ private:
 	void HandleSpeakAction(const ButtonEvent &event);
 	void HandleType56Action(AppButton button);
 	void RefreshType4Widgets();
+	void PlayType4FocusedWordAudioIfNeeded();
 	void RefreshType56Widgets();
 	void UpdateQuestionPromptPresentation(int question_type, const std::string &prompt);
 	void UpdateAsrResultPresentation(int question_type, const std::string &result_text);
@@ -92,8 +93,8 @@ private:
 	word_practice::LearnedSnapshot QueryLearned(sqlite3 *db, int question_id, const std::string &textbook) const;
 	void SaveAnswerStats(const QuestionData &q, bool correct);
 	bool PlayAudioFromSd(const std::string &audio_path);
-	bool EnsureAudioBundleIndexLoaded();
-	bool ReadAudioBundleEntry(const std::string &audio_name, std::string *ogg_data);
+	bool EnsureAudioBundleIndexLoaded(const std::string &audio_path);
+	bool ReadAudioBundleEntry(const std::string &audio_path, const std::string &audio_name, std::string *ogg_data);
 	std::string ResolveBundledImagePath(const std::string &image_name);
 	void ScheduleQuestionAudioAutoPlay();
 	void CancelQuestionAudioAutoPlay();
@@ -165,14 +166,19 @@ private:
 
 	int pass_target_questions_ = 12;
 	std::vector<std::string> type4_left_words_{};
+	std::vector<std::string> type4_left_audio_filenames_{};
 	std::vector<std::string> type4_right_words_{};
 	std::vector<int> type4_expected_right_index_{};
 	std::vector<int> type4_selected_right_by_left_{};
 	int type4_selected_left_index_ = 0;
+	int type4_last_spoken_left_index_ = -1;
 	std::vector<std::string> type56_words_{};
+	std::vector<std::string> type56_dialog_items_{};
 	int type56_selected_index_ = 0;
 	int type56_grid_cols_ = 1;
 	std::string type56_input_answer_;
+	bool type56_show_correct_answer_ = false;
+	std::string type56_correct_answer_display_{};
 	std::vector<std::string> learned_words_this_round_{};
 	std::vector<app_ui::LabelWidget *> settlement_learned_word_labels_{};
 	QuestionPromptProfile question_prompt_profile_{};
@@ -184,6 +190,7 @@ private:
 	std::unordered_map<std::string, AudioBundleEntry> audio_bundle_entries_{};
 	bool speak_recording_ = false;
 	QuestionSelectionStrategy question_selection_strategy_ = QuestionSelectionStrategy::TypeCycleRandom;
+	bool enable_speak_questions_ = false;
 };
 
 std::unique_ptr<AppBase> MakeWordPracticeApp();

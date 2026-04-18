@@ -209,34 +209,47 @@ bool ImageWidget::HasQrCode() const {
 
 void ImageWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
-
-    if (!text_.empty()) {
-        eteacher::app_ui::BinImage icon;
-        if (eteacher::app_ui::LoadBinImage(text_, &icon) && icon.data && icon.width > 0 && icon.height > 0) {
-            if (auto* ep = dynamic_cast<EpdPainter*>(&p)) {
-                auto& gfx = ep->Gfx();
-                const Point offset = ep->Offset();
-                const int16_t draw_x = static_cast<int16_t>(offset.x + std::max<int16_t>(0, (rect.w - static_cast<int16_t>(icon.width)) / 2));
-                const int16_t draw_y = static_cast<int16_t>(offset.y + std::max<int16_t>(0, (rect.h - static_cast<int16_t>(icon.height)) / 2));
-                gfx.drawBitmap(draw_x, draw_y, icon.data, static_cast<int16_t>(icon.width), static_cast<int16_t>(icon.height), GxEPD_BLACK);
-                return;
-            }
-        }
-    }
-
-    if (profile_.draw_border) {
-        p.SetDrawColor(Color::Black);
-        p.DrawRect(rect);
-    }
-    const int16_t inset = std::max<int16_t>(profile_.draw_border ? 1 : 0,
-                                            std::max<int16_t>(0, profile_.content_inset));
+    eteacher::app_ui::BinImage icon;
+    const bool has_bitmap = !text_.empty() && eteacher::app_ui::LoadBinImage(text_, &icon) && icon.data &&
+                            icon.width > 0 && icon.height > 0;
+    const bool draw_border = profile_.draw_border && (!has_bitmap || profile_.draw_border_on_content);
+    const int16_t border_thickness = draw_border ? std::max<int16_t>(1, profile_.border_thickness) : 0;
+    const int16_t inset = std::max<int16_t>(border_thickness, std::max<int16_t>(0, profile_.content_inset));
     Rect inner = {inset,
                   inset,
                   static_cast<int16_t>(std::max<int>(0, rect.w - inset * 2)),
                   static_cast<int16_t>(std::max<int>(0, rect.h - inset * 2))};
+
+    if (draw_border) {
+        p.SetDrawColor(Color::Black);
+        for (int16_t border = 0; border < border_thickness; ++border) {
+            const Rect border_rect = {border,
+                                      border,
+                                      static_cast<int16_t>(std::max<int>(0, rect.w - border * 2)),
+                                      static_cast<int16_t>(std::max<int>(0, rect.h - border * 2))};
+            if (border_rect.w <= 0 || border_rect.h <= 0) {
+                break;
+            }
+            p.DrawRect(border_rect);
+        }
+    }
+
     if (inner.w > 0 && inner.h > 0) {
         p.SetDrawColor(Color::White);
         p.FillRect(inner);
+    }
+
+    if (has_bitmap) {
+        if (auto* ep = dynamic_cast<EpdPainter*>(&p)) {
+            auto& gfx = ep->Gfx();
+            const Point offset = ep->Offset();
+            const int16_t draw_x = static_cast<int16_t>(offset.x + inner.x +
+                                                        std::max<int16_t>(0, (inner.w - static_cast<int16_t>(icon.width)) / 2));
+            const int16_t draw_y = static_cast<int16_t>(offset.y + inner.y +
+                                                        std::max<int16_t>(0, (inner.h - static_cast<int16_t>(icon.height)) / 2));
+            gfx.drawBitmap(draw_x, draw_y, icon.data, static_cast<int16_t>(icon.width), static_cast<int16_t>(icon.height), GxEPD_BLACK);
+        }
+        return;
     }
 
     if (HasQrCode() && inner.w > 0 && inner.h > 0) {
@@ -290,8 +303,11 @@ const TextAreaProfile& TextAreaWidget::Profile() const {
 
 void TextAreaWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
+    const bool focused = Focused();
+    p.SetDrawColor(focused ? Color::Black : Color::White);
+    p.FillRect(rect);
     p.SetDrawColor(Color::Black);
-    p.SetTextColor(Color::Black);
+    p.SetTextColor(focused ? Color::White : Color::Black);
 
     if (profile_.decoration_mode == TextAreaProfile::DecorationMode::Box) {
         p.DrawRect(rect);

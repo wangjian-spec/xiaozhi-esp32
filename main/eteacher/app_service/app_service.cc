@@ -894,7 +894,9 @@ void AppService::HandleStopListeningEvent() {
         if (protocol_) {
             protocol_->SendStopListening();
         }
-        SetDeviceState(kEteacherStateIdle);
+        if (listening_mode_ != kListeningModeManualStop) {
+            SetDeviceState(kEteacherStateIdle);
+        }
     }
 }
 

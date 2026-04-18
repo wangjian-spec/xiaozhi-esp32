@@ -113,7 +113,7 @@ int UserProgressDao::QueryCurrentLevel() const {
 		}
 		return 1;
 	}
-	esp_log_write(ESP_LOG_WARN, log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=QueryCurrentLevel", user_db.c_str());
+	DB_LOGI(log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=QueryCurrentLevel", user_db.c_str());
 
 	(void)EnsureStatsTables(db);
 	const int level = QueryCurrentLevel(db);
@@ -152,7 +152,7 @@ LearnedSnapshot UserProgressDao::QueryLearned(int question_id, const std::string
 		}
 		return {};
 	}
-	esp_log_write(ESP_LOG_WARN, log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=QueryLearned", user_db.c_str());
+	DB_LOGI(log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=QueryLearned", user_db.c_str());
 
 	(void)EnsureStatsTables(db);
 	const LearnedSnapshot snapshot = QueryLearned(db, question_id, textbook);
@@ -200,7 +200,7 @@ void UserProgressDao::SaveAnswerStats(const SessionModule &session,
 		}
 		return;
 	}
-	esp_log_write(ESP_LOG_WARN, log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=SaveAnswerStats", user_db.c_str());
+	DB_LOGI(log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=SaveAnswerStats", user_db.c_str());
 
 	if (!EnsureStatsTables(db) || !eteacher::database_manager::ConfigureWriteConnection(db, log_tag_)) {
 		sqlite3_close(db);

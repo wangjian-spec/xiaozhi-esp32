@@ -71,9 +71,10 @@ CREATE TABLE word_example (
     example_en TEXT,
     example_zh TEXT,
     difficulty INTEGER,
-  image TEXT,  
-    example_tag TEXT，
-    audio_path  TEXT
+    image TEXT,
+    example_tag TEXT,
+    selection_zh TEXT,
+    selection_en TEXT
 );
 
 

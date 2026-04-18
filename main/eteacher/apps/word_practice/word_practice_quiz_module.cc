@@ -165,6 +165,14 @@ std::string ExtractOptionTextForType(cJSON *obj, int question_type) {
 	return text;
 }
 
+std::string ExtractPairLeftText(cJSON *obj) {
+	std::string value = ExtractWordText(obj);
+	if (value.empty()) {
+		value = ExtractDefaultOptionText(obj);
+	}
+	return value;
+}
+
 std::string NormalizeComparableText(const std::string &value) {
 	std::string text = Trim(value);
 	std::transform(text.begin(), text.end(), text.begin(), [](unsigned char ch) {
@@ -350,6 +358,13 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 			cJSON *item = cJSON_GetArrayItem(left_obj, index);
 			if (cJSON_IsString(item) && item->valuestring) {
 				state.pair_left.push_back(item->valuestring);
+				state.pair_left_audio.emplace_back();
+			} else if (cJSON_IsObject(item)) {
+				std::string text = ExtractPairLeftText(item);
+				if (!text.empty()) {
+					state.pair_left.push_back(std::move(text));
+					state.pair_left_audio.push_back(Trim(JsonString(item, "audio")));
+				}
 			}
 		}
 	}
@@ -360,6 +375,14 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 			cJSON *item = cJSON_GetArrayItem(right_obj, index);
 			if (cJSON_IsString(item) && item->valuestring) {
 				state.pair_right.push_back(item->valuestring);
+			} else if (cJSON_IsObject(item)) {
+				std::string text = ExtractMeaningZhText(item);
+				if (text.empty()) {
+					text = ExtractDefaultOptionText(item);
+				}
+				if (!text.empty()) {
+					state.pair_right.push_back(std::move(text));
+				}
 			}
 		}
 	}
@@ -378,7 +401,7 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 	} else if (cJSON_IsString(hints_obj) && hints_obj->valuestring) {
 		state.hints = SplitHintWords(hints_obj->valuestring);
 	}
-	if (state.hints.empty()) {
+	if (state.hints.empty() && question.type != 5 && question.type != 6) {
 		state.hints = state.options;
 	}
 
@@ -460,7 +483,7 @@ std::string QuizModule::TypeTitle(int question_type) const {
 		case 5:
 			return "翻译成英文";
 		case 6:
-			return "翻译成中文";
+			return "输入听到的句子";
 		case 7:
 			return "朗读单词";
 		case 8:
@@ -481,7 +504,7 @@ std::string QuizModule::TypeTitle(int question_type) const {
 std::string QuizModule::TypeInstruction(int question_type) const {
 	switch (question_type) {
 		case 1:
-			return "请选择对应的图片(A/B/C/D)";
+				return "请选择对应的图片(A/B/C)";
 		case 2:
 			return "请选择正确英文翻译(A/B/C/D)";
 		case 3:
@@ -489,9 +512,9 @@ std::string QuizModule::TypeInstruction(int question_type) const {
 		case 4:
 			return "请选择正确配对(A/B/C/D)";
 		case 5:
-			return "选择词语并翻译成英文";
+			return "Start播放音频，C选词，B删除，D确认英文";
 		case 6:
-			return "选择词语并翻译成中文";
+			return "Start播放音频，C选词，B删除，D确认句子";
 		case 7:
 			return "按住Start录音，朗读单词，D跳过";
 		case 8:

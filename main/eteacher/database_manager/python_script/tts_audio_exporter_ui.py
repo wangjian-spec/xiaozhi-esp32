@@ -348,12 +348,12 @@ def build_export_items(config: ExportConfig) -> tuple[list[ExportItem], list[str
         if config.export_examples:
             example_rows = conn.execute(
                 """
-                SELECT we.id, we.meaning_id, w.id AS word_id, w.word, we.example_en
+                SELECT we.id, w.id AS word_id, w.word, we.example_en
                 FROM word_example AS we
                 JOIN word_meaning AS wm ON wm.id = we.meaning_id
                 JOIN word AS w ON w.id = wm.word_id
                 WHERE TRIM(COALESCE(we.example_en, '')) <> ''
-                ORDER BY w.id, we.meaning_id, we.id
+                ORDER BY w.id, we.id
                 """
             ).fetchall()
             for row in example_rows:
@@ -362,7 +362,7 @@ def build_export_items(config: ExportConfig) -> tuple[list[ExportItem], list[str
                     [
                         str(int(row["word_id"])),
                         sanitize_stem_part(word_text),
-                        str(int(row["meaning_id"])),
+                        str(int(row["id"])),
                     ]
                 )
                 output_path = allocate_path(
@@ -593,7 +593,7 @@ class MainWindow(QMainWindow):
         hint_label = QLabel(
             "默认声音为 en-US-AriaNeural（女生，美音），默认语速 -10%。\n"
             "单词音频默认导出到 audio\\word，文件名格式保持不变：word_id_word.ogg。\n"
-            "例句音频默认导出到 audio\\example，文件名格式为：word_id_word_meaning_id.ogg。\n"
+            "例句音频默认导出到 audio\\example，文件名格式为：word_id_word_example_id.ogg。\n"
             "打包功能独立于导出功能。BIN 包会写入固定长度索引，每条索引包含文件名、偏移、长度、类型和源 ID，便于 ESP32-S3 直接按索引定位读取。"
         )
         hint_label.setWordWrap(True)

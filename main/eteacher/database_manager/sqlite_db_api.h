@@ -24,6 +24,12 @@ void RollbackTransaction(sqlite3 *db, const char *log_tag);
 
 bool EnsureTasksTable(sqlite3 *db, const char *log_tag);
 
+bool OpenReadonlyDbFile(const std::string &discovered_path,
+                        sqlite3 **out_db,
+                        std::string *out_path,
+                        const char *log_tag,
+                        const char *scope = "db");
+
 bool OpenValidatedDictionaryDbReadonly(const std::string &discovered_path,
                                        sqlite3 **out_db,
                                        std::string *out_path,

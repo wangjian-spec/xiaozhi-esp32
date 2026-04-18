@@ -260,7 +260,7 @@ bool EnsureSqliteSdMounted(const char *log_tag) {
 std::string DiscoverDictionaryDbPath(const char *log_tag) {
     if (FileExists(kDbPathPrimary)) {
         DB_LOGI(SafeTag(log_tag), "dict db discovered by fixed path: %s", kDbPathPrimary);
-        esp_log_write(ESP_LOG_WARN, SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=discover path=%s method=FileExists(fixed)", kDbPathPrimary);
+        DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=discover path=%s method=FileExists(fixed)", kDbPathPrimary);
         return std::string(kDbPathPrimary);
     }
     return {};
@@ -269,10 +269,9 @@ std::string DiscoverDictionaryDbPath(const char *log_tag) {
 std::string DiscoverQuestionDbPath(const char *log_tag) {
     if (FileExists(kQuestionDbPathPrimary)) {
         DB_LOGI(SafeTag(log_tag), "question db discovered by fixed path: %s", kQuestionDbPathPrimary);
-        esp_log_write(ESP_LOG_WARN,
-                      SafeTag(log_tag),
-                      "RESOURCE_OK kind=db scope=question action=discover path=%s method=FileExists(fixed)",
-                      kQuestionDbPathPrimary);
+        DB_LOGI(SafeTag(log_tag),
+                "RESOURCE_OK kind=db scope=question action=discover path=%s method=FileExists(fixed)",
+                kQuestionDbPathPrimary);
         return std::string(kQuestionDbPathPrimary);
     }
     return {};
@@ -281,7 +280,7 @@ std::string DiscoverQuestionDbPath(const char *log_tag) {
 std::string DiscoverUserDataDbPath(const char *log_tag, const char *required_table) {
     if (ValidateUserDataDbFile(kUserDbPathPrimary, required_table, log_tag)) {
         DB_LOGI(SafeTag(log_tag), "user db discovered by fixed path: %s", kUserDbPathPrimary);
-        esp_log_write(ESP_LOG_WARN, SafeTag(log_tag), "RESOURCE_OK kind=db scope=user action=discover path=%s method=ValidateUserDataDbFile(fixed)", kUserDbPathPrimary);
+        DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=user action=discover path=%s method=ValidateUserDataDbFile(fixed)", kUserDbPathPrimary);
         return std::string(kUserDbPathPrimary);
     }
     return {};
@@ -384,6 +383,45 @@ bool EnsureTasksTable(sqlite3 *db, const char *log_tag) {
     return true;
 }
 
+bool OpenReadonlyDbFile(const std::string &discovered_path,
+                        sqlite3 **out_db,
+                        std::string *out_path,
+                        const char *log_tag,
+                        const char *scope) {
+    if (!out_db || !out_path) {
+        return false;
+    }
+    *out_db = nullptr;
+    out_path->clear();
+
+    const std::string path = discovered_path.empty() ? std::string(kDbPathPrimary) : discovered_path;
+    if (!FileExists(path.c_str())) {
+        return false;
+    }
+    if (!HasSqliteMagicHeader(path.c_str()) || !ValidateSqliteFileLayout(path.c_str())) {
+        DB_LOGW(SafeTag(log_tag), "skip invalid sqlite db file: %s", path.c_str());
+        return false;
+    }
+
+    sqlite3 *db = nullptr;
+    const int rc = sqlite3_open_v2(path.c_str(), &db, SQLITE_OPEN_READONLY, nullptr);
+    if (rc != SQLITE_OK || !db) {
+        DB_LOGW(SafeTag(log_tag), "open readonly db failed path=%s rc=%d msg=%s", path.c_str(), rc, db ? sqlite3_errmsg(db) : "null");
+        if (db) {
+            sqlite3_close(db);
+        }
+        return false;
+    }
+
+    *out_db = db;
+    *out_path = path;
+    DB_LOGI(SafeTag(log_tag),
+            "RESOURCE_OK kind=db scope=%s action=open path=%s method=sqlite3_open_v2(READONLY)",
+            scope && scope[0] ? scope : "db",
+            path.c_str());
+    return true;
+}
+
 bool OpenValidatedDictionaryDbReadonly(const std::string &discovered_path,
                                        sqlite3 **out_db,
                                        std::string *out_path,
@@ -420,7 +458,7 @@ bool OpenValidatedDictionaryDbReadonly(const std::string &discovered_path,
 
     *out_db = db;
     *out_path = path;
-    esp_log_write(ESP_LOG_WARN, SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=open path=%s method=sqlite3_open_v2(READONLY)", path.c_str());
+    DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=open path=%s method=sqlite3_open_v2(READONLY)", path.c_str());
     return true;
 }
 
@@ -476,7 +514,7 @@ bool AttachValidatedDictionaryDb(sqlite3 *db,
     }
 
     *attached_path = path;
-    esp_log_write(ESP_LOG_WARN, SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=attach path=%s method=ATTACH DATABASE alias=%s", path.c_str(), alias);
+    DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=attach path=%s method=ATTACH DATABASE alias=%s", path.c_str(), alias);
     return true;
 }
 
