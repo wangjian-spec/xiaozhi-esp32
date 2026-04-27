@@ -29,11 +29,6 @@
       "TEXT_RADIO_847F39": "慢速",
       "TEXT_RADIO_B5ED3E": "快速",
       "TEXT_LABEL_290F0D": "登陆你的学习账户",
-      "TEXT_LABEL_A7787B": "学习进度",
-      "TEXT_FRAME_91B350": "Frame",
-      "TEXT_LABEL_667A92": "掌握单词数量",
-      "TEXT_LABEL_643532": "完成对话",
-      "TEXT_LABEL_EB4A64": "英语水平",
       "TEXT_TEXTAREA_2085DF": "Phone",
       "TEXT_LABEL_CBA6F3": "手机号",
       "TEXT_LABEL_B86B7C": "密码",
@@ -42,7 +37,12 @@
       "TEXT_TEXTAREA_7FE3DC": "code",
       "TEXT_BUTTON_141FA4": "发送验证码",
       "TEXT_BUTTON_2DC293": "登陆",
-      "TEXT_LABEL_688A8F": "Label",
+      "TEXT_RADIO_NO_READ": "Radio",
+      "TEXT_LABEL_1EB700": "学习进度",
+      "TEXT_LABEL_74F923": "英语水平",
+      "TEXT_LABEL_58F17F": "完成对话",
+      "TEXT_BUTTON_MISSION_SETTING": "Button",
+      "TEXT_LABEL_B867E3": "掌握单词数量",
       "TEXT_LABEL_6A175C": "自动关机时间",
       "TEXT_LABEL_77B11D": "待机时间",
       "TEXT_RADIO_F39191": "30分钟",
@@ -342,94 +342,6 @@
         "textId": "TEXT_LABEL_290F0D"
       }
     },
-    "label_a7787b": {
-      "type": "Label",
-      "rect": {
-        "x": 99,
-        "y": 204,
-        "w": 100,
-        "h": 25
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1e8a",
-      "properties": {
-        "textId": "TEXT_LABEL_A7787B"
-      }
-    },
-    "frame_dd16a9": {
-      "type": "Frame",
-      "rect": {
-        "x": 5,
-        "y": 45,
-        "w": 380,
-        "h": 130
-      },
-      "style": null,
-      "z": -1,
-      "parent": "root_page_1e8a",
-      "properties": {}
-    },
-    "frame_91b350": {
-      "type": "Frame",
-      "rect": {
-        "x": 5,
-        "y": 179,
-        "w": 380,
-        "h": 100
-      },
-      "style": null,
-      "z": -1,
-      "parent": "root_page_1e8a",
-      "properties": {
-        "textId": "TEXT_FRAME_91B350"
-      }
-    },
-    "label_667a92": {
-      "type": "Label",
-      "rect": {
-        "x": 100,
-        "y": 241,
-        "w": 100,
-        "h": 25
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1e8a",
-      "properties": {
-        "textId": "TEXT_LABEL_667A92"
-      }
-    },
-    "label_643532": {
-      "type": "Label",
-      "rect": {
-        "x": 217,
-        "y": 203,
-        "w": 100,
-        "h": 25
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1e8a",
-      "properties": {
-        "textId": "TEXT_LABEL_643532"
-      }
-    },
-    "label_eb4a64": {
-      "type": "Label",
-      "rect": {
-        "x": 219,
-        "y": 240,
-        "w": 100,
-        "h": 25
-      },
-      "style": null,
-      "z": 0,
-      "parent": "root_page_1e8a",
-      "properties": {
-        "textId": "TEXT_LABEL_EB4A64"
-      }
-    },
     "textarea_2085df": {
       "type": "TextArea",
       "rect": {
@@ -559,19 +471,122 @@
         "h": 300
       }
     },
-    "label_688a8f": {
-      "type": "Label",
+    "button_stage_setting": {
+      "type": "Button",
       "rect": {
-        "x": 13,
-        "y": 84,
-        "w": 100,
-        "h": 40
+        "x": 29,
+        "y": 196,
+        "w": 60,
+        "h": 25
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {}
+    },
+    "radio_no_read": {
+      "type": "Radio",
+      "rect": {
+        "x": 97,
+        "y": 230,
+        "w": 60,
+        "h": 25
       },
       "style": null,
       "z": 0,
       "parent": "root_page_89db",
       "properties": {
-        "textId": "TEXT_LABEL_688A8F"
+        "textId": "TEXT_RADIO_NO_READ"
+      }
+    },
+    "label_1eb700": {
+      "type": "Label",
+      "rect": {
+        "x": 179,
+        "y": 194,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {
+        "textId": "TEXT_LABEL_1EB700"
+      }
+    },
+    "label_74f923": {
+      "type": "Label",
+      "rect": {
+        "x": 285,
+        "y": 227,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {
+        "textId": "TEXT_LABEL_74F923"
+      }
+    },
+    "label_58f17f": {
+      "type": "Label",
+      "rect": {
+        "x": 285,
+        "y": 194,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {
+        "textId": "TEXT_LABEL_58F17F"
+      }
+    },
+    "button_mission_setting": {
+      "type": "Button",
+      "rect": {
+        "x": 98,
+        "y": 196,
+        "w": 60,
+        "h": 25
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {
+        "textId": "TEXT_BUTTON_MISSION_SETTING"
+      }
+    },
+    "label_b867e3": {
+      "type": "Label",
+      "rect": {
+        "x": 177,
+        "y": 227,
+        "w": 100,
+        "h": 25
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {
+        "textId": "TEXT_LABEL_B867E3"
+      }
+    },
+    "radio__has_read": {
+      "type": "Radio",
+      "rect": {
+        "x": 29,
+        "y": 230,
+        "w": 60,
+        "h": 25
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_89db",
+      "properties": {
+        "textId": "TEXT_RADIO_NO_READ"
       }
     },
     "root_page_9b37": {

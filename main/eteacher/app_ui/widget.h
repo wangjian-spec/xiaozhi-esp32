@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "common_ui_utils.h"
 #include "types.h"
 #include "renderer.h"
 
@@ -434,12 +435,15 @@ public:
     bool HasQrCode() const;
 
 protected:
+    void OnTextChanged() override;
     void OnDraw(Painter& p) override;
 
 private:
     ImageProfile profile_{};
     int qr_size_ = 0;
     std::vector<uint8_t> qr_modules_{};
+    eteacher::app_ui::OwnedBinImage cached_bitmap_{};
+    bool cached_bitmap_available_ = false;
 };
 
 class TextAreaWidget : public TextWidget {

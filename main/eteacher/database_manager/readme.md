@@ -116,31 +116,16 @@ CREATE TABLE question_bank (
 
 #### A. 账号与设备
 
-```sql
-CREATE TABLE users (
-  id              INTEGER PRIMARY KEY,
-  nickname        TEXT,
-  avatar          TEXT,
-  level           INTEGER DEFAULT 1,
-  created_at      INTEGER,
-  last_active_at  INTEGER
-);
+账号与设备基础信息不再放在 `user.db`，统一迁移到 `/sdcard/user/user.json`：
 
-CREATE TABLE devices (
-  id              TEXT PRIMARY KEY,
-  name            TEXT,
-  model           TEXT,
-  firmware_ver    TEXT,
-  last_seen_at    INTEGER
-);
+- `users.name`
+- `users.current_stage`
+- `users.level`
+- `users.today_mission`
+- `devices.device_id`
+- `devices.firmware`
 
-CREATE TABLE user_device_bindings (
-  user_id     INTEGER,
-  device_id   TEXT,
-  bind_at     INTEGER,
-  PRIMARY KEY (user_id, device_id)
-);
-```
+`user.db` 仅保留单词学习、统计、任务与 AI 过程相关的动态表。
 
 #### B. 生词与记忆
 
@@ -160,35 +145,262 @@ CREATE TABLE vocab_items (
 上面生词表用户自己维护，用于用户把感兴趣的单词添加到生词表，用户可以对生词表单词做重点练习，可以标记为是否掌握，是否移除等；
 
 
-
-CREATE TABLE vocab_learning_state (
-  user_id         INTEGER,
-  vocab_id        INTEGER,
-  familiarity     REAL DEFAULT 0,
-  ease_factor     REAL DEFAULT 2.5,
-  interval_days   INTEGER DEFAULT 1,
-  repetition      INTEGER DEFAULT 0,
-  last_review_at  INTEGER,
-  next_review_at  INTEGER,
-  lapses          INTEGER DEFAULT 0,
-  stability       REAL DEFAULT 0,
-  PRIMARY KEY(user_id, vocab_id)
+CREATE TABLE word_learning_profile (
+  user_id               INTEGER NOT NULL,
+  word_id               INTEGER NOT NULL,
+  textbook_name         TEXT NOT NULL,
+  stage                 INTEGER DEFAULT 0,
+  familiarity           INTEGER DEFAULT 0,
+  stability             INTEGER DEFAULT 0,
+  recognition_score     INTEGER DEFAULT 0,
+  recall_score          INTEGER DEFAULT 0,
+  output_score          INTEGER DEFAULT 0,
+  next_review_at        INTEGER DEFAULT 0,
+  lapse_count           INTEGER DEFAULT 0,
+  last_practiced_at     INTEGER DEFAULT 0,
+  last_decay_at         INTEGER DEFAULT 0,
+  last_error_at         INTEGER DEFAULT 0,
+  consecutive_correct   INTEGER DEFAULT 0,
+  consecutive_wrong     INTEGER DEFAULT 0,
+  consecutive_recall_correct INTEGER DEFAULT 0,
+  recent_review_failed  INTEGER DEFAULT 0,
+  last_response_time_ms INTEGER DEFAULT 0,
+  mastered              INTEGER DEFAULT 0,
+  downgraded_from_stage INTEGER DEFAULT -1,
+  PRIMARY KEY(user_id, word_id, textbook_name)
 );
 
-上面表用于记录记忆曲线，
+字段说明：
 
-CREATE TABLE vocab_review_log (
+- **user_id**: 用户标识，整型，表示该记录所属用户。
+- **word_id**: 单词 ID，整型，对应静态词典 `word.id`。
+- **textbook_name**: 教材或来源名称，文本，用于区分同一单词在不同教材下的学习记录。
+- **stage**: 当前学习阶段，整型（默认 0），表示学习流程中的阶段索引。
+- **familiarity**: 熟悉度评分（内部算法），整型，数值越大表示越熟悉。
+- **stability**: 稳定性指数，整型，表示记忆的巩固程度。
+- **recognition_score**: 识别维度得分（被动识别），整型。
+- **recall_score**: 回忆维度得分（主动回忆），整型。
+- **output_score**: 输出维度得分（口语/书写输出能力），整型。
+- **next_review_at**: 下次复习时间戳，整型，Unix 时间（秒）。
+- **lapse_count**: 衰退/遗忘次数，整型。
+- **last_practiced_at**: 上次练习时间戳，整型，Unix 时间（秒）。
+- **last_decay_at**: 上次发生记忆衰减的时间戳，整型，Unix 时间（秒）。
+- **last_error_at**: 上次答题出错的时间戳，整型，Unix 时间（秒）。
+- **consecutive_correct**: 连续正确答题次数，整型。
+- **consecutive_wrong**: 连续错误答题次数，整型。
+- **consecutive_recall_correct**: 连续回忆题正确次数，整型（追踪回忆能力的短期趋势）。
+- **recent_review_failed**: 最近复习是否失败标志或计数，整型（0 表示无失败，>0 表示失败次数或标识）。
+- **last_response_time_ms**: 最近一次答题响应耗时，整型，单位毫秒。
+- **mastered**: 掌握标志，整型（0/1），表示是否被标记为已掌握。
+- **downgraded_from_stage**: 如果发生降级，记录原先阶段，默认 -1 表示无降级记录。
+
+上面表用于单词练习 App 的词级掌握状态，不再按 `question_id` 维护掌握度，而是按 `word_id` 维护 recognition / recall / output 三个维度分数、当前阶段、下次复习时间和降级恢复信息；
+
+其他表字段说明（根据代码实现整理）：
+
+- `word`:
+  - **id**: 单词主键。
+  - **word**: 单词文本，唯一。
+  - **phonetic**: 音标/发音文本。
+  - **word_type**: 单词类型（如单词/词组/缩写等）。
+  - **image**: 相关图片路径或资源标识。
+
+- `word_meaning`:
+  - **id**: 主键。
+  - **word_id**: 关联 `word.id`。
+  - **stage**: 难度/学习阶段索引。
+  - **pos**: 词性（part of speech）。
+  - **meaning_en**: 英文释义或释义示例。
+  - **meaning_zh**: 中文释义或说明。
+  - **source**: 释义来源或替代的图片字段（迁移兼容字段）。
+  - **word_tag**: 用于分类（如动物、动词、听力等）。
+
+- `word_form`:
+  - **id**: 主键。
+  - **word_id**: 关联 `word.id`。
+  - **form_type**: 词形类型（如复数、过去式等）。
+  - **form**: 对应词形文本。
+
+- `word_example`:
+  - **id**: 主键。
+  - **meaning_id**: 关联 `word_meaning.id`。
+  - **example_en**: 英文例句。
+  - **example_zh**: 中文释义/翻译/注释。
+  - **difficulty**: 难度等级。
+  - **image**: 示例相关图片路径/资源。
+  - **example_tag**: 例句分类标签（如听力/动画）。
+  - **selection_zh**: 多选/填空的中文选项文本（可选）。
+  - **selection_en**: 多选/填空的英文选项文本（可选）。
+
+- `question_bank`:
+  - **id**: 主键。
+  - **question_type**: 题型标识（数字）。
+  - **stage**: 适用学习阶段。
+  - **difficulty**: 难度等级。
+  - **content_json**: 题目内容的 JSON 序列化（包含音频/图片路径等）。
+
+- `vocab_items`:
+  - **id**: 主键。
+  - **user_id**: 用户 ID。
+  - **word_id**: 关联 `word.id`。
+  - **added_at**: 添加时间戳（Unix 秒）。
+  - **source**: 添加来源描述（如来自哪套题/手动添加）。
+  - **is_favorite**: 收藏标志（0/1）。
+  - **is_difficult**: 困难标志（0/1）。
+  - **is_mastered**: 已掌握标志（0/1）。
+  - **is_deleted**: 已删除/移除标志（0/1）。
+
+- `word_practice_history`:
+  - **id**: 主键。
+  - **user_id**: 用户 ID。
+  - **word_id**: 练习词 ID。
+  - **question_type**: 题型（数字）。
+  - **target_skill**: 本次训练目标（recognition/recall/output）。
+  - **review_type**: 出题类型（new_word/review_due/...）。
+  - **rating**: 评分或质量值（整型）。
+  - **response_time**: 答题耗时（整型，单位未强制，通常秒或毫秒）。
+  - **correct**: 是否正确（0/1）。
+  - **question_reason**: 出题原因描述。
+  - **practiced_at**: 练习时间戳（Unix 秒）。
+
+- `ai_sessions`:
+  - **id**: 主键。
+  - **user_id**: 用户 ID。
+  - **session_type**: 会话类型（文本/口语练习等）。
+  - **topic**: 会话主题。
+  - **started_at**: 会话开始时间戳。
+  - **ended_at**: 会话结束时间戳。
+  - **total_duration**: 会话总时长（秒）。
+  - **created_at**: 记录创建时间戳。
+
+- `ai_messages`:
+  - **id**: 主键。
+  - **session_id**: 关联 `ai_sessions.id`。
+  - **role**: 消息角色（user/assistant/system）。
+  - **content**: 文本内容。
+  - **audio_path**: 若有，消息对应的音频文件路径。
+  - **created_at**: 创建时间戳。
+
+- `ai_speech_evaluations`:
+  - **id**: 主键。
+  - **user_id**: 用户 ID（评估对象）。
+  - **session_id**: 会话 ID。
+  - **message_id**: 被评估的消息 ID（关联 `ai_messages`）。
+  - **pronunciation_score**: 发音评分（实数）。
+  - **fluency_score**: 流利度评分（实数）。
+  - **grammar_score**: 语法评分（实数）。
+  - **overall_score**: 综合评分（实数）。
+  - **feedback_text**: 文字反馈或建议。
+  - **created_at**: 创建时间戳。
+
+- `ai_detected_errors`:
+  - **id**: 主键。
+  - **user_id**: 用户 ID。
+  - **session_id**: 会话 ID。
+  - **message_id**: 关联消息 ID。
+  - **word_id**: 识别到错误的单词 ID（若有）。
+  - **error_type**: 错误类型（发音/语法/词汇等）。
+  - **severity**: 严重度等级（整数）。
+  - **created_at**: 创建时间戳。
+
+- `learning_stats_daily`:
+  - **user_id**: 用户 ID。
+  - **date**: 日期字符串 `YYYY-MM-DD`。
+  - **reviews**: 今日复习次数。
+  - **correct**: 今日正确数。
+  - **wrong**: 今日错误数。
+  - **new_words**: 今日新增单词数。
+  - **study_time_sec**: 今日学习时长（秒）。
+
+- `tasks`:
+  - **id**: 主键。
+  - **user_id**: 所属用户 ID。
+  - **task_type**: 任务类型标识。
+  - **target_id**: 目标关联 ID（如单词/题目等）。
+  - **title**: 标题。
+  - **description**: 任务描述。
+  - **start_at**: 开始时间戳。
+  - **due_at**: 到期时间戳。
+  - **is_completed**: 完成标志（0/1）。
+  - **is_deleted**: 删除标志（0/1）。
+  - **created_at**: 创建时间戳。
+
+- `game_profile`:
+  - **user_id**: 用户 ID（主键）。
+  - **level**: 等级。
+  - **exp**: 经验值。
+  - **coins**: 金币数。
+  - **streak_days**: 连续登录天数/连胜天数等。
+  - **last_play_at**: 上次游玩时间戳。
+
+- `game_rewards_log`:
+  - **id**: 主键。
+  - **user_id**: 用户 ID。
+  - **reward_type**: 奖励类型。
+  - **value**: 奖励数值（如金币数量）。
+  - **reason**: 奖励原因说明。
+  - **created_at**: 创建时间戳。
+
+- `sync_state`:
+  - **table_name**: 表名（主键，用于记录同步进度）。
+  - **last_sync_at**: 最近同步时间戳。
+  - **last_row_id**: 最近同步的行 ID（用于增量同步）。
+
+（下列为 `word_practice` 模块中运行态/统计表的字段）
+
+- `learned`:
+  - **user_id**: 用户 ID（主键的一部分）。
+  - **textbook_name**: 教材名（主键的一部分）。
+  - **word_id**: 单词 ID（主键的一部分）。
+  - **correct_count**: 正确次数计数。
+  - **wrong_count**: 错误次数计数。
+  - **last_seen_at**: 最近出现/见到时间戳。
+
+- `word_practice_stats_daily`:
+  - **user_id**: 用户 ID。
+  - **date**: 日期字符串（主键的一部分）。
+  - **textbook_name**: 教材名（主键的一部分）。
+  - **total_count**: 总答题数。
+  - **correct_count**: 正确数。
+  - **wrong_count**: 错误数。
+  - **pass_count**: 通过次数（或通过题目数）。
+  - **fail_count**: 失败次数。
+
+- `word_practice_daily_progress`:
+  - **user_id**: 用户 ID。
+  - **date**: 日期字符串。
+  - **textbook_name**: 教材名。
+  - **completed_words**: 当日已完成词数。
+  - **target_words**: 当日目标词数。
+  - **progress_percent**: 进度百分比（0-100）。
+  - **updated_at**: 最近更新时间戳。
+
+- `word_practice_runtime_state`:
+  - **user_id**: 用户 ID。
+  - **textbook_name**: 教材名。
+  - **completed_rounds**: 已完成回合数。
+  - **last_round_passed**: 上一回合是否通过（0/1）。
+  - **last_round_at**: 上一回合时间戳。
+
+上述字段说明基于仓库中 `DatabaseCreate.py`、迁移脚本与 C++ 建表 SQL（如 `word_practice_learning_module.cc`、`word_practice_result_module.cc`）的实现，如需我把这些字段说明插入到 README 的对应位置（或生成变更日志），我可以继续同步修改或生成 PR 注记。
+
+CREATE TABLE word_practice_history (
   id              INTEGER PRIMARY KEY,
-  user_id         INTEGER,
-  vocab_id        INTEGER,
+  user_id         INTEGER NOT NULL,
+  word_id         INTEGER NOT NULL,
+  question_type   INTEGER DEFAULT 0,
+  target_skill    TEXT,
   review_type     TEXT,
-  rating          INTEGER,
-  response_time   INTEGER,
-  is_correct      INTEGER,
-  created_at      INTEGER
+  rating          INTEGER DEFAULT 0,
+  response_time   INTEGER DEFAULT 0,
+  correct         INTEGER DEFAULT 0,
+  question_reason TEXT,
+  practiced_at    INTEGER DEFAULT 0
 );
 
-上面表用于记录单词的学习记录，每做一次题，做一次记录，记录到数据库，用于后面做学习统计；
+上面表是单词练习 app 的统一历史表，合并了原先的 `vocab_review_log` 与 `word_question_history`。它同时保存答题结果、训练目标（recognition / recall / output）、出题原因（new_word / review_due / mistake_followup / weak_reinforce / batch_target）以及统计字段；
+
+单词练习 app 的回合推进状态不再放在数据库，改为写入 `/sdcard/user/user.json` 的 `word_practice_runtime_state` 节点；
 
 #### C. AI 学习过程
 
@@ -315,9 +527,8 @@ CREATE TABLE sync_state (
 | ---------------------- | ------------------------------- | ---------------------------- | ---------------- |
 | `vocab_items`          | `user_id`                       | `idx_vocab_user`             | 查询某个用户的生词本       |
 | `vocab_items`          | `word_id`                       | `idx_vocab_word`             | 查询单词在某用户生词本情况    |
-| `vocab_learning_state` | `(user_id, vocab_id)`           | 主键                           | 已经是联合主键，不需要额外索引  |
-| `vocab_review_log`     | `user_id`                       | `idx_review_user`            | 查询用户复习记录         |
-| `vocab_review_log`     | `vocab_id`                      | `idx_review_vocab`           | 查询单词复习记录         |
+| `word_learning_profile`| `(user_id, next_review_at)`     | `idx_word_learning_profile_user_next_review` | 单词练习按用户和到期时间筛选待复习词 |
+| `word_practice_history`| `(user_id, word_id, practiced_at)` | `idx_word_practice_history_user_word` | 查询某词在单词练习中的历史轨迹 |
 | `tasks`                | `(user_id, is_deleted, due_at)` | `idx_tasks_user_deleted_due` | 按用户、未删除任务、到期时间筛选 |
 | `tasks`                | `(is_deleted, is_completed)`    | `idx_tasks_deleted_done`     | 筛选完成/删除状态任务      |
 | `learning_stats_daily` | `(user_id, date)`               | 主键                           | 已经是联合主键，不需要额外索引  |

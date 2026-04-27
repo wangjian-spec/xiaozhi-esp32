@@ -17,9 +17,15 @@
 #include "eteacher/database_manager/database_debug.h"
 
 namespace {
-constexpr const char *kDbPathPrimary = "/sdcard/resource/database/words.db";
+constexpr const char *kDefaultDictionaryDbPath = "/sdcard/resource/database/stage_1.db";
+constexpr const char *kStageDbDir = "/sdcard/resource/database/";
 constexpr const char *kQuestionDbPathPrimary = "/sdcard/resource/database/question.db";
 constexpr const char *kUserDbPathPrimary = "/sdcard/user/user.db";
+
+std::string BuildStageDictionaryDbPath(int stage_index) {
+    const int normalized_stage = std::max(1, stage_index);
+    return std::string(kStageDbDir) + "stage_" + std::to_string(normalized_stage) + ".db";
+}
 
 const char *SafeTag(const char *log_tag) {
     return (log_tag && log_tag[0]) ? log_tag : "DbApi";
@@ -209,7 +215,7 @@ std::string EscapeSqlLiteral(const std::string &text) {
 namespace eteacher::database_manager {
 
 const char *GetDictionaryDbFixedPath() {
-    return kDbPathPrimary;
+    return kDefaultDictionaryDbPath;
 }
 
 const char *GetQuestionDbFixedPath() {
@@ -258,11 +264,24 @@ bool EnsureSqliteSdMounted(const char *log_tag) {
 }
 
 std::string DiscoverDictionaryDbPath(const char *log_tag) {
-    if (FileExists(kDbPathPrimary)) {
-        DB_LOGI(SafeTag(log_tag), "dict db discovered by fixed path: %s", kDbPathPrimary);
-        DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=discover path=%s method=FileExists(fixed)", kDbPathPrimary);
-        return std::string(kDbPathPrimary);
+    const std::string stage1_path = BuildStageDictionaryDbPath(1);
+    if (FileExists(stage1_path.c_str())) {
+        DB_LOGI(SafeTag(log_tag), "dict db discovered by stage path: %s", stage1_path.c_str());
+        DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=discover path=%s method=FileExists(stage)", stage1_path.c_str());
+        return stage1_path;
     }
+    DB_LOGW(SafeTag(log_tag), "dict db not found at default stage path: %s", stage1_path.c_str());
+    return {};
+}
+
+std::string DiscoverDictionaryDbPath(const char *log_tag, int stage_index) {
+    const std::string stage_path = BuildStageDictionaryDbPath(stage_index);
+    if (FileExists(stage_path.c_str())) {
+        DB_LOGI(SafeTag(log_tag), "dict db discovered by stage path: %s", stage_path.c_str());
+        DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=dictionary action=discover path=%s method=FileExists(stage)", stage_path.c_str());
+        return stage_path;
+    }
+    DB_LOGW(SafeTag(log_tag), "dict db not found for stage=%d path=%s", std::max(1, stage_index), stage_path.c_str());
     return {};
 }
 
@@ -383,6 +402,27 @@ bool EnsureTasksTable(sqlite3 *db, const char *log_tag) {
     return true;
 }
 
+bool ConfigureReadonlyConnection(sqlite3 *db, const char *log_tag) {
+    if (!db) {
+        return false;
+    }
+
+    const char *sqls[] = {
+        "PRAGMA temp_store=MEMORY;",
+        "PRAGMA cache_size=-4096;",
+        "PRAGMA busy_timeout=3000;",
+    };
+
+    for (const char *sql : sqls) {
+        const int rc = sqlite3_exec(db, sql, nullptr, nullptr, nullptr);
+        if (rc != SQLITE_OK) {
+            DB_LOGW(SafeTag(log_tag), "apply readonly pragma failed rc=%d sql=%s msg=%s", rc, sql, sqlite3_errmsg(db));
+            return false;
+        }
+    }
+    return true;
+}
+
 bool OpenReadonlyDbFile(const std::string &discovered_path,
                         sqlite3 **out_db,
                         std::string *out_path,
@@ -394,7 +434,11 @@ bool OpenReadonlyDbFile(const std::string &discovered_path,
     *out_db = nullptr;
     out_path->clear();
 
-    const std::string path = discovered_path.empty() ? std::string(kDbPathPrimary) : discovered_path;
+    if (discovered_path.empty()) {
+        DB_LOGW(SafeTag(log_tag), "open readonly db skipped: discovered path is empty scope=%s", scope && scope[0] ? scope : "db");
+        return false;
+    }
+    const std::string path = discovered_path;
     if (!FileExists(path.c_str())) {
         return false;
     }
@@ -410,6 +454,10 @@ bool OpenReadonlyDbFile(const std::string &discovered_path,
         if (db) {
             sqlite3_close(db);
         }
+        return false;
+    }
+    if (!ConfigureReadonlyConnection(db, log_tag)) {
+        sqlite3_close(db);
         return false;
     }
 
@@ -432,7 +480,11 @@ bool OpenValidatedDictionaryDbReadonly(const std::string &discovered_path,
     *out_db = nullptr;
     out_path->clear();
 
-    const std::string path = discovered_path.empty() ? std::string(kDbPathPrimary) : discovered_path;
+    if (discovered_path.empty()) {
+        DB_LOGW(SafeTag(log_tag), "open validated dictionary db skipped: discovered path is empty");
+        return false;
+    }
+    const std::string path = discovered_path;
     if (!FileExists(path.c_str())) {
         return false;
     }
@@ -448,6 +500,10 @@ bool OpenValidatedDictionaryDbReadonly(const std::string &discovered_path,
         if (db) {
             sqlite3_close(db);
         }
+        return false;
+    }
+    if (!ConfigureReadonlyConnection(db, log_tag)) {
+        sqlite3_close(db);
         return false;
     }
 
@@ -475,7 +531,11 @@ bool AttachValidatedDictionaryDb(sqlite3 *db,
     const std::string alias_text(alias);
     const std::string validate_sql = "SELECT 1 FROM " + alias_text + ".word_dictionary LIMIT 1;";
 
-    const std::string path = discovered_path.empty() ? std::string(kDbPathPrimary) : discovered_path;
+    if (discovered_path.empty()) {
+        DB_LOGW(SafeTag(log_tag), "attach validated dictionary db skipped: discovered path is empty alias=%s", alias);
+        return false;
+    }
+    const std::string path = discovered_path;
     if (!FileExists(path.c_str())) {
         return false;
     }

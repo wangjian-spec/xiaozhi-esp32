@@ -2,9 +2,15 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <cstdio>
+#include <string>
+
+#include <cJSON.h>
 
 #include "esp_timer.h"
+#include "eteacher/apps/word_practice/word_practice_db_utils.h"
+#include "eteacher/apps/word_practice/word_practice_time_utils.h"
 #include "eteacher/database_manager/database_debug.h"
 #include "eteacher/database_manager/sqlite_db_api.h"
 
@@ -17,37 +23,77 @@
 #define ESP_LOGI DB_LOGI
 #define ESP_LOGD DB_LOGD
 
+#define WP_RESULT_LOGI(tag, format, ...) esp_log_write(ESP_LOG_INFO, tag, format, ##__VA_ARGS__)
+#define WP_RESULT_LOGW(tag, format, ...) esp_log_write(ESP_LOG_WARN, tag, format, ##__VA_ARGS__)
+
 namespace word_practice {
 namespace {
 
-constexpr int kDefaultUserId = 0;
-
 int64_t NowSec() {
-	return static_cast<int64_t>(esp_timer_get_time() / 1000000ULL);
+	return CurrentPersistentEpochSeconds();
 }
 
 std::string TodayDate() {
-	const int64_t now = NowSec();
-	const int day = static_cast<int>((now / 86400) % 3650);
-	const int year = 2024 + day / 365;
-	const int rem = day % 365;
-	const int month = 1 + (rem / 30);
-	const int d = 1 + (rem % 30);
-
-	char buf[16] = {0};
-	std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d", year, month, d);
-	return buf;
+	return CurrentCalendarDateString();
 }
 
-bool StepDone(sqlite3_stmt *stmt) {
-	const int rc = sqlite3_step(stmt);
-	return rc == SQLITE_DONE || rc == SQLITE_ROW;
+std::string ReadFileToString(const char *path) {
+	if (path == nullptr || path[0] == '\0') {
+		return {};
+	}
+	FILE *fp = std::fopen(path, "rb");
+	if (!fp) {
+		return {};
+	}
+	if (std::fseek(fp, 0, SEEK_END) != 0) {
+		std::fclose(fp);
+		return {};
+	}
+	const long size = std::ftell(fp);
+	if (size <= 0) {
+		std::fclose(fp);
+		return {};
+	}
+	std::rewind(fp);
+	std::string content(static_cast<size_t>(size), '\0');
+	if (std::fread(content.data(), 1, static_cast<size_t>(size), fp) != static_cast<size_t>(size)) {
+		std::fclose(fp);
+		return {};
+	}
+	std::fclose(fp);
+	return content;
+}
+
+int ReadLevelFromUserJson() {
+	const std::string content = ReadFileToString("/sdcard/user/user.json");
+	if (content.empty()) {
+		return 1;
+	}
+	cJSON *root = cJSON_Parse(content.c_str());
+	if (!root) {
+		return 1;
+	}
+	int level = 1;
+	cJSON *users = cJSON_GetObjectItemCaseSensitive(root, "users");
+	if (cJSON_IsObject(users)) {
+		cJSON *item = cJSON_GetObjectItemCaseSensitive(users, "level");
+		if (cJSON_IsNumber(item)) {
+			level = item->valueint;
+		}
+	}
+	cJSON_Delete(root);
+	return std::max(1, level);
 }
 
 }  // namespace
 
-UserProgressDao::UserProgressDao(const char *log_tag)
-	: log_tag_(log_tag) {
+UserProgressDao::UserProgressDao(const char *log_tag, int user_id)
+	: log_tag_(log_tag),
+	  user_id_(std::max(0, user_id)) {
+}
+
+void UserProgressDao::SetUserId(int user_id) {
+	user_id_ = std::max(0, user_id);
 }
 
 std::string UserProgressDao::DiscoverUserDbPath() const {
@@ -62,11 +108,11 @@ bool UserProgressDao::EnsureStatsTables(sqlite3 *db) const {
 		"CREATE TABLE IF NOT EXISTS learned ("
 		"user_id INTEGER NOT NULL,"
 		"textbook_name TEXT NOT NULL,"
-		"question_index INTEGER NOT NULL,"
+		"word_id INTEGER NOT NULL,"
 		"correct_count INTEGER DEFAULT 0,"
 		"wrong_count INTEGER DEFAULT 0,"
 		"last_seen_at INTEGER DEFAULT 0,"
-		"PRIMARY KEY (user_id, textbook_name, question_index)"
+		"PRIMARY KEY (user_id, textbook_name, word_id)"
 		");";
 
 	const char *sql_stats =
@@ -80,6 +126,28 @@ bool UserProgressDao::EnsureStatsTables(sqlite3 *db) const {
 		"pass_count INTEGER DEFAULT 0,"
 		"fail_count INTEGER DEFAULT 0,"
 		"PRIMARY KEY (user_id, date, textbook_name)"
+		");";
+
+	const char *sql_daily_progress =
+		"CREATE TABLE IF NOT EXISTS word_practice_daily_progress ("
+		"user_id INTEGER NOT NULL,"
+		"date TEXT NOT NULL,"
+		"textbook_name TEXT NOT NULL,"
+		"completed_words INTEGER DEFAULT 0,"
+		"target_words INTEGER DEFAULT 0,"
+		"progress_percent INTEGER DEFAULT 0,"
+		"updated_at INTEGER DEFAULT 0,"
+		"PRIMARY KEY (user_id, date, textbook_name)"
+		");";
+
+	const char *sql_runtime_state =
+		"CREATE TABLE IF NOT EXISTS word_practice_runtime_state ("
+		"user_id INTEGER NOT NULL,"
+		"textbook_name TEXT NOT NULL,"
+		"completed_rounds INTEGER DEFAULT 0,"
+		"last_round_passed INTEGER DEFAULT 0,"
+		"last_round_at INTEGER DEFAULT 0,"
+		"PRIMARY KEY (user_id, textbook_name)"
 		");";
 
 	char *err = nullptr;
@@ -97,52 +165,38 @@ bool UserProgressDao::EnsureStatsTables(sqlite3 *db) const {
 		}
 		return false;
 	}
+	if (sqlite3_exec(db, sql_daily_progress, nullptr, nullptr, &err) != SQLITE_OK) {
+		ESP_LOGE(log_tag_, "create word_practice_daily_progress failed: %s", err ? err : "unknown");
+		if (err) {
+			sqlite3_free(err);
+		}
+		return false;
+	}
+	if (sqlite3_exec(db, sql_runtime_state, nullptr, nullptr, &err) != SQLITE_OK) {
+		ESP_LOGE(log_tag_, "create word_practice_runtime_state failed: %s", err ? err : "unknown");
+		if (err) {
+			sqlite3_free(err);
+		}
+		return false;
+	}
 	return true;
 }
 
 int UserProgressDao::QueryCurrentLevel() const {
-	const std::string user_db = DiscoverUserDbPath();
-	if (user_db.empty()) {
-		return 1;
-	}
-
-	sqlite3 *db = nullptr;
-	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || !db) {
-		if (db) {
-			sqlite3_close(db);
-		}
-		return 1;
-	}
-	DB_LOGI(log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=QueryCurrentLevel", user_db.c_str());
-
-	(void)EnsureStatsTables(db);
-	const int level = QueryCurrentLevel(db);
-	sqlite3_close(db);
-	return level;
+	return ReadLevelFromUserJson();
 }
 
 int UserProgressDao::QueryCurrentLevel(sqlite3 *db) const {
-	if (!db) {
-		return 1;
-	}
-	const char *sql = "SELECT level FROM users WHERE id=? LIMIT 1;";
-	sqlite3_stmt *stmt = nullptr;
-	if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
-		return 1;
-	}
-	sqlite3_bind_int(stmt, 1, kDefaultUserId);
-	int level = 1;
-	if (sqlite3_step(stmt) == SQLITE_ROW) {
-		level = sqlite3_column_int(stmt, 0);
-	}
-	sqlite3_finalize(stmt);
-	return (level <= 0) ? 1 : level;
+	(void)db;
+	return ReadLevelFromUserJson();
 }
 
-LearnedSnapshot UserProgressDao::QueryLearned(int question_id, const std::string &textbook) const {
+DailyProgressState UserProgressDao::QueryDailyProgress(const std::string &textbook_name, int target_words) const {
 	const std::string user_db = DiscoverUserDbPath();
 	if (user_db.empty()) {
-		return {};
+		DailyProgressState state;
+		state.target_words = std::max(0, target_words);
+		return state;
 	}
 
 	sqlite3 *db = nullptr;
@@ -150,156 +204,566 @@ LearnedSnapshot UserProgressDao::QueryLearned(int question_id, const std::string
 		if (db) {
 			sqlite3_close(db);
 		}
-		return {};
+		DailyProgressState state;
+		state.target_words = std::max(0, target_words);
+		return state;
 	}
-	DB_LOGI(log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=QueryLearned", user_db.c_str());
-
 	(void)EnsureStatsTables(db);
-	const LearnedSnapshot snapshot = QueryLearned(db, question_id, textbook);
+	const DailyProgressState state = QueryDailyProgress(db, textbook_name, target_words);
 	sqlite3_close(db);
-	return snapshot;
+	return state;
 }
 
-LearnedSnapshot UserProgressDao::QueryLearned(sqlite3 *db, int question_id, const std::string &textbook) const {
-	LearnedSnapshot snapshot;
+DailyProgressState UserProgressDao::QueryDailyProgress(sqlite3 *db, const std::string &textbook_name, int target_words) const {
+	DailyProgressState state;
+	state.target_words = std::max(0, target_words);
 	if (!db) {
-		return snapshot;
+		return state;
 	}
 	const char *sql =
-		"SELECT correct_count, wrong_count, last_seen_at FROM learned "
-		"WHERE user_id=? AND textbook_name=? AND question_index=? LIMIT 1;";
+		"SELECT completed_words, target_words, progress_percent FROM word_practice_daily_progress "
+		"WHERE user_id=? AND date=? AND textbook_name=? LIMIT 1;";
 	sqlite3_stmt *stmt = nullptr;
 	if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
-		return snapshot;
+		return state;
 	}
-	sqlite3_bind_int(stmt, 1, kDefaultUserId);
-	sqlite3_bind_text(stmt, 2, textbook.c_str(), -1, SQLITE_TRANSIENT);
-	sqlite3_bind_int(stmt, 3, question_id);
+	const std::string date = TodayDate();
+	sqlite3_bind_int(stmt, 1, user_id_);
+	sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 3, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
 	if (sqlite3_step(stmt) == SQLITE_ROW) {
-		snapshot.correct = sqlite3_column_int(stmt, 0);
-		snapshot.wrong = sqlite3_column_int(stmt, 1);
-		snapshot.last_seen_at = sqlite3_column_int64(stmt, 2);
+		state.completed_words = std::max(0, sqlite3_column_int(stmt, 0));
+		state.target_words = std::max(state.target_words, sqlite3_column_int(stmt, 1));
+		state.progress_percent = std::max(0, sqlite3_column_int(stmt, 2));
 	}
 	sqlite3_finalize(stmt);
-	return snapshot;
+	if (state.target_words > 0) {
+		state.completed_words = std::min(state.completed_words, state.target_words);
+		state.progress_percent = std::min(100, std::max(state.progress_percent, (state.completed_words * 100) / state.target_words));
+	}
+	return state;
+}
+
+bool UserProgressDao::UpdateDailyProgress(const std::string &textbook_name, int completed_words, int target_words) const {
+	const std::string user_db = DiscoverUserDbPath();
+	if (user_db.empty()) {
+		WP_RESULT_LOGW(log_tag_, "update daily progress skipped: user db path missing textbook=%s", textbook_name.c_str());
+		return false;
+	}
+
+	sqlite3 *db = nullptr;
+	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || !db) {
+		WP_RESULT_LOGW(log_tag_, "update daily progress open db failed path=%s msg=%s", user_db.c_str(), db ? sqlite3_errmsg(db) : "null");
+		if (db) {
+			sqlite3_close(db);
+		}
+		return false;
+	}
+	if (!EnsureStatsTables(db)) {
+		WP_RESULT_LOGW(log_tag_, "update daily progress ensure tables failed path=%s", user_db.c_str());
+		sqlite3_close(db);
+		return false;
+	}
+	const bool ok = UpdateDailyProgress(db, textbook_name, completed_words, target_words);
+	WP_RESULT_LOGI(log_tag_,
+		"update daily progress path=%s textbook=%s completed=%d target=%d ok=%d",
+		user_db.c_str(),
+		textbook_name.c_str(),
+		completed_words,
+		target_words,
+		ok ? 1 : 0);
+	sqlite3_close(db);
+	return ok;
+}
+
+bool UserProgressDao::UpdateDailyProgress(sqlite3 *db, const std::string &textbook_name, int completed_words, int target_words) const {
+	if (!db) {
+		return false;
+	}
+	const std::string date = TodayDate();
+	const DailyProgressState existing = QueryDailyProgress(db, textbook_name, target_words);
+	const int normalized_target = std::max(existing.target_words, std::max(0, target_words));
+	const int normalized_completed = normalized_target > 0
+		? std::min(normalized_target, std::max(existing.completed_words, std::max(0, completed_words)))
+		: std::max(existing.completed_words, std::max(0, completed_words));
+	const int progress_percent = normalized_target <= 0 ? 0 : std::min(100, (normalized_completed * 100) / normalized_target);
+	const int64_t now_sec = NowSec();
+
+	const char *update_sql =
+		"UPDATE word_practice_daily_progress SET completed_words=?, target_words=?, progress_percent=?, updated_at=? "
+		"WHERE user_id=? AND date=? AND textbook_name=?;";
+	sqlite3_stmt *stmt = nullptr;
+	if (sqlite3_prepare_v2(db, update_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_, "update daily progress prepare update failed textbook=%s msg=%s", textbook_name.c_str(), sqlite3_errmsg(db));
+		return false;
+	}
+	sqlite3_bind_int(stmt, 1, normalized_completed);
+	sqlite3_bind_int(stmt, 2, normalized_target);
+	sqlite3_bind_int(stmt, 3, progress_percent);
+	sqlite3_bind_int64(stmt, 4, now_sec);
+	sqlite3_bind_int(stmt, 5, user_id_);
+	sqlite3_bind_text(stmt, 6, date.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 7, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	if (!word_practice::db::StepDone(stmt)) {
+		WP_RESULT_LOGW(log_tag_, "update daily progress update failed textbook=%s msg=%s", textbook_name.c_str(), sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return false;
+	}
+	sqlite3_finalize(stmt);
+	if (sqlite3_changes(db) > 0) {
+		return true;
+	}
+
+	const char *insert_sql =
+		"INSERT INTO word_practice_daily_progress(user_id, date, textbook_name, completed_words, target_words, progress_percent, updated_at) "
+		"VALUES(?, ?, ?, ?, ?, ?, ?);";
+	if (sqlite3_prepare_v2(db, insert_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_, "update daily progress prepare insert failed textbook=%s msg=%s", textbook_name.c_str(), sqlite3_errmsg(db));
+		return false;
+	}
+	sqlite3_bind_int(stmt, 1, user_id_);
+	sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 3, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 4, normalized_completed);
+	sqlite3_bind_int(stmt, 5, normalized_target);
+	sqlite3_bind_int(stmt, 6, progress_percent);
+	sqlite3_bind_int64(stmt, 7, now_sec);
+	const bool ok = word_practice::db::StepDone(stmt);
+	if (!ok) {
+		WP_RESULT_LOGW(log_tag_, "update daily progress insert failed textbook=%s msg=%s", textbook_name.c_str(), sqlite3_errmsg(db));
+	}
+	sqlite3_finalize(stmt);
+	return ok;
+}
+
+int UserProgressDao::QueryCompletedRounds(const std::string &textbook_name) const {
+	const std::string user_db = DiscoverUserDbPath();
+	if (user_db.empty()) {
+		return 0;
+	}
+
+	sqlite3 *db = nullptr;
+	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || !db) {
+		if (db) {
+			sqlite3_close(db);
+		}
+		return 0;
+	}
+	(void)EnsureStatsTables(db);
+	const int rounds = QueryCompletedRounds(db, textbook_name);
+	sqlite3_close(db);
+	return rounds;
+}
+
+int UserProgressDao::QueryCompletedRounds(sqlite3 *db, const std::string &textbook_name) const {
+	if (!db) {
+		return 0;
+	}
+	const char *sql =
+		"SELECT completed_rounds FROM word_practice_runtime_state WHERE user_id=? AND textbook_name=? LIMIT 1;";
+	sqlite3_stmt *stmt = nullptr;
+	int completed_rounds = 0;
+	if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK && stmt) {
+		sqlite3_bind_int(stmt, 1, user_id_);
+		sqlite3_bind_text(stmt, 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+		if (sqlite3_step(stmt) == SQLITE_ROW) {
+			completed_rounds = std::max(0, sqlite3_column_int(stmt, 0));
+		}
+	}
+	if (stmt) {
+		sqlite3_finalize(stmt);
+	}
+	return completed_rounds;
+}
+
+bool UserProgressDao::RecordRoundCompletion(const std::string &textbook_name, bool passed) const {
+	const std::string user_db = DiscoverUserDbPath();
+	if (user_db.empty()) {
+		return false;
+	}
+
+	sqlite3 *db = nullptr;
+	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || !db) {
+		if (db) {
+			sqlite3_close(db);
+		}
+		return false;
+	}
+	if (!EnsureStatsTables(db)) {
+		sqlite3_close(db);
+		return false;
+	}
+	const bool ok = RecordRoundCompletion(db, textbook_name, passed);
+	sqlite3_close(db);
+	return ok;
+}
+
+bool UserProgressDao::RecordRoundCompletion(sqlite3 *db, const std::string &textbook_name, bool passed) const {
+	if (!db) {
+		return false;
+	}
+	const int64_t now_sec = NowSec();
+	sqlite3_stmt *stmt = nullptr;
+	const char *update_sql =
+		"UPDATE word_practice_runtime_state SET completed_rounds = completed_rounds + 1, last_round_passed = ?, last_round_at = ? "
+		"WHERE user_id = ? AND textbook_name = ?;";
+	if (sqlite3_prepare_v2(db, update_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_,
+			"record round completion prepare update failed textbook=%s passed=%d msg=%s",
+			textbook_name.c_str(),
+			passed ? 1 : 0,
+			sqlite3_errmsg(db));
+		return false;
+	}
+	sqlite3_bind_int(stmt, 1, passed ? 1 : 0);
+	sqlite3_bind_int64(stmt, 2, now_sec);
+	sqlite3_bind_int(stmt, 3, user_id_);
+	sqlite3_bind_text(stmt, 4, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	if (!word_practice::db::StepDone(stmt)) {
+		WP_RESULT_LOGW(log_tag_,
+			"record round completion update failed textbook=%s passed=%d msg=%s",
+			textbook_name.c_str(),
+			passed ? 1 : 0,
+			sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return false;
+	}
+	sqlite3_finalize(stmt);
+	if (sqlite3_changes(db) > 0) {
+		WP_RESULT_LOGI(log_tag_,
+			"record round completion updated textbook=%s passed=%d",
+			textbook_name.c_str(),
+			passed ? 1 : 0);
+		return true;
+	}
+
+	const char *insert_sql =
+		"INSERT INTO word_practice_runtime_state(user_id, textbook_name, completed_rounds, last_round_passed, last_round_at) "
+		"VALUES(?, ?, 1, ?, ?);";
+	if (sqlite3_prepare_v2(db, insert_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_,
+			"record round completion prepare insert failed textbook=%s passed=%d msg=%s",
+			textbook_name.c_str(),
+			passed ? 1 : 0,
+			sqlite3_errmsg(db));
+		return false;
+	}
+	sqlite3_bind_int(stmt, 1, user_id_);
+	sqlite3_bind_text(stmt, 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 3, passed ? 1 : 0);
+	sqlite3_bind_int64(stmt, 4, now_sec);
+	if (!word_practice::db::StepDone(stmt)) {
+		WP_RESULT_LOGW(log_tag_,
+			"record round completion insert failed textbook=%s passed=%d msg=%s",
+			textbook_name.c_str(),
+			passed ? 1 : 0,
+			sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return false;
+	}
+	sqlite3_finalize(stmt);
+	WP_RESULT_LOGI(log_tag_,
+		"record round completion inserted textbook=%s passed=%d",
+		textbook_name.c_str(),
+		passed ? 1 : 0);
+	return true;
+}
+
+bool UserProgressDao::SaveAnswerStats(sqlite3 *db,
+			      const SessionModule &session,
+			      int word_id,
+			      const QuestionData &question,
+			      const std::string &textbook_name,
+			      bool correct,
+			      bool round_finished,
+			      bool round_passed) const {
+	(void)session;
+	if (!db) {
+		return false;
+	}
+	if (!EnsureStatsTables(db)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats setup failed word_id=%d textbook=%s", word_id, textbook_name.c_str());
+		return false;
+	}
+
+	const int64_t now_sec = NowSec();
+	sqlite3_stmt *stmt = nullptr;
+	const char *sql_learned =
+		"UPDATE learned SET correct_count = correct_count + ?, wrong_count = wrong_count + ?, last_seen_at = ? "
+		"WHERE user_id = ? AND textbook_name = ? AND word_id = ?;";
+	if (sqlite3_prepare_v2(db, sql_learned, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats prepare learned failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+		return false;
+	}
+	sqlite3_bind_int(stmt, 1, correct ? 1 : 0);
+	sqlite3_bind_int(stmt, 2, correct ? 0 : 1);
+	sqlite3_bind_int64(stmt, 3, now_sec);
+	sqlite3_bind_int(stmt, 4, user_id_);
+	sqlite3_bind_text(stmt, 5, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 6, word_id);
+	if (!word_practice::db::StepDone(stmt)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats step learned failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return false;
+	}
+	sqlite3_finalize(stmt);
+	if (sqlite3_changes(db) == 0) {
+		const char *insert_learned_sql =
+			"INSERT INTO learned(user_id, textbook_name, word_id, correct_count, wrong_count, last_seen_at) "
+			"VALUES(?, ?, ?, ?, ?, ?);";
+		if (sqlite3_prepare_v2(db, insert_learned_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats prepare learned insert failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			return false;
+		}
+		sqlite3_bind_int(stmt, 1, user_id_);
+		sqlite3_bind_text(stmt, 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+		sqlite3_bind_int(stmt, 3, word_id);
+		sqlite3_bind_int(stmt, 4, correct ? 1 : 0);
+		sqlite3_bind_int(stmt, 5, correct ? 0 : 1);
+		sqlite3_bind_int64(stmt, 6, now_sec);
+		if (!word_practice::db::StepDone(stmt)) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats step learned insert failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			return false;
+		}
+		sqlite3_finalize(stmt);
+	}
+
+	const char *sql_daily =
+		"UPDATE word_practice_stats_daily SET total_count = total_count + 1, correct_count = correct_count + ?, wrong_count = wrong_count + ?, pass_count = pass_count + ?, fail_count = fail_count + ? "
+		"WHERE user_id = ? AND date = ? AND textbook_name = ?;";
+	if (sqlite3_prepare_v2(db, sql_daily, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats prepare daily failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+		return false;
+	}
+	const std::string date = TodayDate();
+	const int pass_flag = round_finished && round_passed ? 1 : 0;
+	const int fail_flag = round_finished && !round_passed ? 1 : 0;
+	sqlite3_bind_int(stmt, 1, correct ? 1 : 0);
+	sqlite3_bind_int(stmt, 2, correct ? 0 : 1);
+	sqlite3_bind_int(stmt, 3, pass_flag);
+	sqlite3_bind_int(stmt, 4, fail_flag);
+	sqlite3_bind_int(stmt, 5, user_id_);
+	sqlite3_bind_text(stmt, 6, date.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 7, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	if (!word_practice::db::StepDone(stmt)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats step daily failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+		sqlite3_finalize(stmt);
+		return false;
+	}
+	sqlite3_finalize(stmt);
+	if (sqlite3_changes(db) == 0) {
+		const char *insert_daily_sql =
+			"INSERT INTO word_practice_stats_daily(user_id, date, textbook_name, total_count, correct_count, wrong_count, pass_count, fail_count) "
+			"VALUES(?, ?, ?, 1, ?, ?, ?, ?);";
+		if (sqlite3_prepare_v2(db, insert_daily_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats prepare daily insert failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			return false;
+		}
+		sqlite3_bind_int(stmt, 1, user_id_);
+		sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_TRANSIENT);
+		sqlite3_bind_text(stmt, 3, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+		sqlite3_bind_int(stmt, 4, correct ? 1 : 0);
+		sqlite3_bind_int(stmt, 5, correct ? 0 : 1);
+		sqlite3_bind_int(stmt, 6, pass_flag);
+		sqlite3_bind_int(stmt, 7, fail_flag);
+		if (!word_practice::db::StepDone(stmt)) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats step daily insert failed word_id=%d textbook=%s msg=%s", word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			return false;
+		}
+		sqlite3_finalize(stmt);
+	}
+
+	WP_RESULT_LOGI(log_tag_,
+		"save answer stats staged word_id=%d textbook=%s qtype=%d correct=%d round_finished=%d round_passed=%d",
+		word_id,
+		textbook_name.c_str(),
+		question.type,
+		correct ? 1 : 0,
+		round_finished ? 1 : 0,
+		round_passed ? 1 : 0);
+	return true;
 }
 
 void UserProgressDao::SaveAnswerStats(const SessionModule &session,
+				   int word_id,
 						   const QuestionData &question,
 						   const std::string &textbook_name,
-						   bool correct) const {
+						   bool correct,
+						   bool round_finished,
+						   bool round_passed) const {
+	(void)session;
 	const std::string user_db = DiscoverUserDbPath();
 	if (user_db.empty()) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats skipped: user db path missing word_id=%d textbook=%s", word_id, textbook_name.c_str());
 		return;
 	}
 
 	sqlite3 *db = nullptr;
 	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || !db) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats open db failed path=%s msg=%s", user_db.c_str(), db ? sqlite3_errmsg(db) : "null");
 		if (db) {
 			sqlite3_close(db);
 		}
 		return;
 	}
 	DB_LOGI(log_tag_, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=SaveAnswerStats", user_db.c_str());
+	const int total_changes_before = sqlite3_total_changes(db);
 
 	if (!EnsureStatsTables(db) || !eteacher::database_manager::ConfigureWriteConnection(db, log_tag_)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats setup failed path=%s word_id=%d textbook=%s", user_db.c_str(), word_id, textbook_name.c_str());
 		sqlite3_close(db);
 		return;
 	}
 
 	if (!eteacher::database_manager::BeginTransaction(db, log_tag_)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats begin transaction failed path=%s word_id=%d textbook=%s", user_db.c_str(), word_id, textbook_name.c_str());
 		sqlite3_close(db);
 		return;
 	}
 
 	const char *sql_learned =
-		"INSERT INTO learned(user_id, textbook_name, question_index, correct_count, wrong_count, last_seen_at) "
-		"VALUES(?, ?, ?, ?, ?, ?) "
-		"ON CONFLICT(user_id, textbook_name, question_index) DO UPDATE SET "
-		"correct_count = correct_count + excluded.correct_count, "
-		"wrong_count = wrong_count + excluded.wrong_count, "
-		"last_seen_at = excluded.last_seen_at;";
+		"UPDATE learned SET correct_count = correct_count + ?, wrong_count = wrong_count + ?, last_seen_at = ? "
+		"WHERE user_id = ? AND textbook_name = ? AND word_id = ?;";
 
 	sqlite3_stmt *stmt = nullptr;
 	if (sqlite3_prepare_v2(db, sql_learned, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats prepare learned failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
 		eteacher::database_manager::RollbackTransaction(db, log_tag_);
 		sqlite3_close(db);
 		return;
 	}
-	sqlite3_bind_int(stmt, 1, kDefaultUserId);
-	sqlite3_bind_text(stmt, 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
-	sqlite3_bind_int(stmt, 3, question.id);
-	sqlite3_bind_int(stmt, 4, correct ? 1 : 0);
-	sqlite3_bind_int(stmt, 5, correct ? 0 : 1);
-	sqlite3_bind_int64(stmt, 6, NowSec());
-	if (!StepDone(stmt)) {
+	const int64_t now_sec = NowSec();
+	sqlite3_bind_int(stmt, 1, correct ? 1 : 0);
+	sqlite3_bind_int(stmt, 2, correct ? 0 : 1);
+	sqlite3_bind_int64(stmt, 3, now_sec);
+	sqlite3_bind_int(stmt, 4, user_id_);
+	sqlite3_bind_text(stmt, 5, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 6, word_id);
+	if (!word_practice::db::StepDone(stmt)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats step learned failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
 		eteacher::database_manager::RollbackTransaction(db, log_tag_);
 		sqlite3_close(db);
 		return;
 	}
 	sqlite3_finalize(stmt);
+	if (sqlite3_changes(db) == 0) {
+		const char *insert_learned_sql =
+			"INSERT INTO learned(user_id, textbook_name, word_id, correct_count, wrong_count, last_seen_at) "
+			"VALUES(?, ?, ?, ?, ?, ?);";
+		if (sqlite3_prepare_v2(db, insert_learned_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats prepare learned insert failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			eteacher::database_manager::RollbackTransaction(db, log_tag_);
+			sqlite3_close(db);
+			return;
+		}
+		sqlite3_bind_int(stmt, 1, user_id_);
+		sqlite3_bind_text(stmt, 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+		sqlite3_bind_int(stmt, 3, word_id);
+		sqlite3_bind_int(stmt, 4, correct ? 1 : 0);
+		sqlite3_bind_int(stmt, 5, correct ? 0 : 1);
+		sqlite3_bind_int64(stmt, 6, now_sec);
+		if (!word_practice::db::StepDone(stmt)) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats step learned insert failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			eteacher::database_manager::RollbackTransaction(db, log_tag_);
+			sqlite3_close(db);
+			return;
+		}
+		sqlite3_finalize(stmt);
+	}
 
 	const char *sql_daily =
-		"INSERT INTO word_practice_stats_daily(user_id, date, textbook_name, total_count, correct_count, wrong_count, pass_count, fail_count) "
-		"VALUES(?, ?, ?, 1, ?, ?, ?, ?) "
-		"ON CONFLICT(user_id, date, textbook_name) DO UPDATE SET "
-		"total_count = total_count + 1, "
-		"correct_count = correct_count + excluded.correct_count, "
-		"wrong_count = wrong_count + excluded.wrong_count, "
-		"pass_count = pass_count + excluded.pass_count, "
-		"fail_count = fail_count + excluded.fail_count;";
+		"UPDATE word_practice_stats_daily SET total_count = total_count + 1, correct_count = correct_count + ?, wrong_count = wrong_count + ?, pass_count = pass_count + ?, fail_count = fail_count + ? "
+		"WHERE user_id = ? AND date = ? AND textbook_name = ?;";
 
 	if (sqlite3_prepare_v2(db, sql_daily, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats prepare daily failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
 		eteacher::database_manager::RollbackTransaction(db, log_tag_);
 		sqlite3_close(db);
 		return;
 	}
 	const std::string date = TodayDate();
-	const bool passed = ResultModule(log_tag_).IsPassed(session);
-	const int pass_flag = passed ? 1 : 0;
-	const int fail_flag = passed ? 0 : 1;
-	sqlite3_bind_int(stmt, 1, kDefaultUserId);
-	sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_TRANSIENT);
-	sqlite3_bind_text(stmt, 3, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
-	sqlite3_bind_int(stmt, 4, correct ? 1 : 0);
-	sqlite3_bind_int(stmt, 5, correct ? 0 : 1);
-	sqlite3_bind_int(stmt, 6, pass_flag);
-	sqlite3_bind_int(stmt, 7, fail_flag);
-	if (!StepDone(stmt)) {
+	const int pass_flag = round_finished && round_passed ? 1 : 0;
+	const int fail_flag = round_finished && !round_passed ? 1 : 0;
+	sqlite3_bind_int(stmt, 1, correct ? 1 : 0);
+	sqlite3_bind_int(stmt, 2, correct ? 0 : 1);
+	sqlite3_bind_int(stmt, 3, pass_flag);
+	sqlite3_bind_int(stmt, 4, fail_flag);
+	sqlite3_bind_int(stmt, 5, user_id_);
+	sqlite3_bind_text(stmt, 6, date.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 7, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+	if (!word_practice::db::StepDone(stmt)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats step daily failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
 		sqlite3_finalize(stmt);
 		eteacher::database_manager::RollbackTransaction(db, log_tag_);
 		sqlite3_close(db);
 		return;
 	}
 	sqlite3_finalize(stmt);
+	if (sqlite3_changes(db) == 0) {
+		const char *insert_daily_sql =
+			"INSERT INTO word_practice_stats_daily(user_id, date, textbook_name, total_count, correct_count, wrong_count, pass_count, fail_count) "
+			"VALUES(?, ?, ?, 1, ?, ?, ?, ?);";
+		if (sqlite3_prepare_v2(db, insert_daily_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats prepare daily insert failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			eteacher::database_manager::RollbackTransaction(db, log_tag_);
+			sqlite3_close(db);
+			return;
+		}
+		sqlite3_bind_int(stmt, 1, user_id_);
+		sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_TRANSIENT);
+		sqlite3_bind_text(stmt, 3, textbook_name.c_str(), -1, SQLITE_TRANSIENT);
+		sqlite3_bind_int(stmt, 4, correct ? 1 : 0);
+		sqlite3_bind_int(stmt, 5, correct ? 0 : 1);
+		sqlite3_bind_int(stmt, 6, pass_flag);
+		sqlite3_bind_int(stmt, 7, fail_flag);
+		if (!word_practice::db::StepDone(stmt)) {
+			WP_RESULT_LOGW(log_tag_, "save answer stats step daily insert failed path=%s word_id=%d textbook=%s msg=%s", user_db.c_str(), word_id, textbook_name.c_str(), sqlite3_errmsg(db));
+			sqlite3_finalize(stmt);
+			eteacher::database_manager::RollbackTransaction(db, log_tag_);
+			sqlite3_close(db);
+			return;
+		}
+		sqlite3_finalize(stmt);
+	}
 
 	if (!eteacher::database_manager::CommitTransaction(db, log_tag_)) {
+		WP_RESULT_LOGW(log_tag_, "save answer stats commit failed path=%s word_id=%d textbook=%s", user_db.c_str(), word_id, textbook_name.c_str());
 		eteacher::database_manager::RollbackTransaction(db, log_tag_);
+	} else {
+		WP_RESULT_LOGI(log_tag_,
+			"save answer stats committed path=%s word_id=%d textbook=%s qtype=%d correct=%d round_finished=%d round_passed=%d total_changes=%d",
+			user_db.c_str(),
+			word_id,
+			textbook_name.c_str(),
+			question.type,
+			correct ? 1 : 0,
+			round_finished ? 1 : 0,
+			round_passed ? 1 : 0,
+			sqlite3_total_changes(db) - total_changes_before);
 	}
 	sqlite3_close(db);
 }
 
-ResultModule::ResultModule(const char *log_tag)
-	: progress_dao_(log_tag) {
+ResultModule::ResultModule(const char *log_tag, int user_id)
+	: progress_dao_(log_tag, user_id) {
 }
 
-bool ResultModule::IsPassed(const SessionModule &session) const {
-	if (session.TotalAnswered() <= 0) {
-		return false;
-	}
-	const float accuracy = static_cast<float>(session.CorrectCount()) / static_cast<float>(session.TotalAnswered());
-	return session.TotalAnswered() >= session.PassTargetQuestions() && accuracy >= 0.8f && session.Score() >= 60;
+void ResultModule::SetUserId(int user_id) {
+	progress_dao_.SetUserId(user_id);
 }
 
-Summary ResultModule::BuildSummary(const SessionModule &session) const {
+bool ResultModule::IsPassed(const SessionPassContext &context) const {
+	return session_pass_policy_.IsPassed(context);
+}
+
+Summary ResultModule::BuildSummary(const SessionPassContext &context) const {
 	Summary summary;
-	summary.passed = IsPassed(session);
-	summary.summary_text =
-		(summary.passed ? "本轮结算 恭喜过关 " : "本轮结算 未过关 ") +
-		(std::string("分数:") + std::to_string(session.Score()) +
-		" 正确:" + std::to_string(session.CorrectCount()) +
-		" 错误:" + std::to_string(session.WrongCount()));
+	summary.passed = IsPassed(context);
+	summary.summary_text = session_pass_policy_.BuildSummaryText(context);
 	return summary;
 }
 

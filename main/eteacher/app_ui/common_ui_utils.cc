@@ -18,25 +18,32 @@ namespace {
 
 constexpr char kTag[] = "CommonUiUtils";
 constexpr char kImagePackageMagic[] = {'I', 'P', 'K', '1'};
-constexpr const char* kWordsImagePackagePath = "/sdcard/resource/image/words/stage_1.bin";
 constexpr const char* kWordsImageProxyDir = "/resource/image/words/";
 constexpr const char* kWordsAudioDir = "/resource/audio/words/";
-constexpr const char* kWordsAudioBundlePath = "/resource/audio/words/stage_1.bin";
 constexpr const char* kExampleAudioDir = "/resource/audio/example/";
-constexpr const char* kExampleAudioBundlePath = "/resource/audio/example/stage_1.bin";
+int g_word_resource_stage = 1;
 
 struct ImagePackageEntry {
     uint32_t offset = 0;
     uint32_t size = 0;
 };
 
-bool g_stage1_package_loaded = false;
-bool g_stage1_package_available = false;
-std::string g_stage1_package_path;
-std::unordered_map<std::string, ImagePackageEntry> g_stage1_package_entries;
+bool g_word_image_package_loaded = false;
+bool g_word_image_package_available = false;
+std::string g_word_image_package_path;
+std::unordered_map<std::string, ImagePackageEntry> g_word_image_package_entries;
 
 static inline uint16_t ReadLE16(const uint8_t* p) {
     return static_cast<uint16_t>(static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8));
+}
+
+std::string BuildStageBundleName(int stage_index) {
+    const int normalized_stage = std::max(1, stage_index);
+    return "stage_" + std::to_string(normalized_stage) + ".bin";
+}
+
+std::string BuildStagePackagePath(const char* directory) {
+    return std::string(directory ? directory : "") + BuildStageBundleName(g_word_resource_stage);
 }
 
 std::string BasenameFromPath(const std::string& path) {
@@ -93,16 +100,17 @@ std::string NormalizePackageEntryName(const std::string& path) {
     return normalized;
 }
 
-bool EnsureStage1ImagePackageLoaded() {
-    if (g_stage1_package_loaded) {
-        return g_stage1_package_available;
+bool EnsureWordImagePackageLoaded() {
+    const std::string expected_package_path = BuildStagePackagePath("/sdcard/resource/image/words/");
+    if (g_word_image_package_loaded && g_word_image_package_path == expected_package_path) {
+        return g_word_image_package_available;
     }
-    g_stage1_package_loaded = true;
-    g_stage1_package_available = false;
-    g_stage1_package_entries.clear();
+    g_word_image_package_loaded = true;
+    g_word_image_package_available = false;
+    g_word_image_package_entries.clear();
+    g_word_image_package_path = expected_package_path;
 
-    std::FILE* fp = std::fopen(kWordsImagePackagePath, "rb");
-    g_stage1_package_path = kWordsImagePackagePath;
+    std::FILE* fp = std::fopen(g_word_image_package_path.c_str(), "rb");
     if (fp == nullptr) {
         return false;
     }
@@ -119,7 +127,7 @@ bool EnsureStage1ImagePackageLoaded() {
     std::array<uint8_t, 14> entry_header{};
     for (uint32_t index = 0; index < entry_count; ++index) {
         if (std::fread(entry_header.data(), 1, entry_header.size(), fp) != entry_header.size()) {
-            g_stage1_package_entries.clear();
+            g_word_image_package_entries.clear();
             std::fclose(fp);
             return false;
         }
@@ -130,34 +138,34 @@ bool EnsureStage1ImagePackageLoaded() {
         std::memcpy(&entry.size, entry_header.data() + 6, sizeof(entry.size));
         std::string entry_name(name_length, '\0');
         if (name_length > 0 && std::fread(entry_name.data(), 1, entry_name.size(), fp) != entry_name.size()) {
-            g_stage1_package_entries.clear();
+            g_word_image_package_entries.clear();
             std::fclose(fp);
             return false;
         }
         if (!entry_name.empty()) {
-            g_stage1_package_entries.emplace(std::move(entry_name), entry);
+            g_word_image_package_entries.emplace(std::move(entry_name), entry);
         }
     }
 
     std::fclose(fp);
-    g_stage1_package_available = !g_stage1_package_entries.empty();
-    return g_stage1_package_available;
+    g_word_image_package_available = !g_word_image_package_entries.empty();
+    return g_word_image_package_available;
 }
 
-bool LoadStage1PackagedImage(const std::string& name, BinImage* out) {
-    if (!out || !EnsureStage1ImagePackageLoaded()) {
+bool LoadPackagedImage(const std::string& name, BinImage* out) {
+    if (!out || !EnsureWordImagePackageLoaded()) {
         return false;
     }
     const std::string normalized_name = NormalizePackageEntryName(name);
     if (normalized_name.empty()) {
         return false;
     }
-    const auto it = g_stage1_package_entries.find(normalized_name);
-    if (it == g_stage1_package_entries.end() || it->second.size < 4) {
+    const auto it = g_word_image_package_entries.find(normalized_name);
+    if (it == g_word_image_package_entries.end() || it->second.size < 4) {
         return false;
     }
 
-    std::FILE* fp = std::fopen(g_stage1_package_path.c_str(), "rb");
+    std::FILE* fp = std::fopen(g_word_image_package_path.c_str(), "rb");
     if (fp == nullptr) {
         return false;
     }
@@ -192,8 +200,18 @@ bool LoadStage1PackagedImage(const std::string& name, BinImage* out) {
 
 } // namespace
 
+void SetWordResourceStage(int stage_index) {
+    g_word_resource_stage = std::max(1, stage_index);
+}
+
+int GetWordResourceStage() {
+    return g_word_resource_stage;
+}
+
 const char* GetWordsImagePackagePath() {
-    return kWordsImagePackagePath;
+    static std::string path;
+    path = BuildStagePackagePath("/sdcard/resource/image/words/");
+    return path.c_str();
 }
 
 const char* GetWordsImageProxyDir() {
@@ -210,7 +228,9 @@ const char* GetWordsAudioDir() {
 }
 
 const char* GetWordsAudioBundlePath() {
-    return kWordsAudioBundlePath;
+    static std::string path;
+    path = BuildStagePackagePath(kWordsAudioDir);
+    return path.c_str();
 }
 
 std::string BuildWordsAudioPath(const std::string& audio_filename) {
@@ -222,7 +242,9 @@ const char* GetExampleAudioDir() {
 }
 
 const char* GetExampleAudioBundlePath() {
-    return kExampleAudioBundlePath;
+    static std::string path;
+    path = BuildStagePackagePath(kExampleAudioDir);
+    return path.c_str();
 }
 
 std::string BuildExampleAudioPath(const std::string& audio_filename) {
@@ -236,7 +258,7 @@ bool LoadBinImage(const std::string& name, BinImage* out) {
     void* ptr = nullptr;
     size_t size = 0;
     if (!Assets::GetInstance().GetAssetData(name, ptr, size) || !ptr || size < 4) {
-        if (LoadStage1PackagedImage(name, out)) {
+        if (LoadPackagedImage(name, out)) {
             return true;
         }
 
@@ -355,6 +377,23 @@ bool LoadBinImage(const std::string& name, BinImage* out) {
     out->width = w;
     out->height = h;
     out->data_size = bytes;
+    return true;
+}
+
+bool LoadBinImageOwned(const std::string& name, OwnedBinImage* out) {
+    if (!out) {
+        return false;
+    }
+
+    BinImage image;
+    if (!LoadBinImage(name, &image) || !image.data || image.width == 0 || image.height == 0 || image.data_size == 0) {
+        out->Clear();
+        return false;
+    }
+
+    out->storage.assign(image.data, image.data + image.data_size);
+    out->width = image.width;
+    out->height = image.height;
     return true;
 }
 

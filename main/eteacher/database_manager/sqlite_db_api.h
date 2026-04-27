@@ -14,6 +14,7 @@ bool EnsureSqliteRuntimeReady(const char *log_tag);
 bool EnsureSqliteSdMounted(const char *log_tag);
 
 std::string DiscoverDictionaryDbPath(const char *log_tag);
+std::string DiscoverDictionaryDbPath(const char *log_tag, int stage_index);
 std::string DiscoverQuestionDbPath(const char *log_tag);
 std::string DiscoverUserDataDbPath(const char *log_tag, const char *required_table = "vocab_items");
 

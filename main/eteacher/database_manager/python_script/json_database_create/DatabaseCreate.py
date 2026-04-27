@@ -653,12 +653,11 @@ class DatabaseService:
 			return [table_name] if table_name is not None else ["question_bank"]
 
 		user_tables = [
-			"user_device_bindings",
-			"vocab_learning_state",
 			"learning_stats_daily",
 			"game_profile",
 			"sync_state",
-			"vocab_review_log",
+			"word_learning_profile",
+			"word_practice_history",
 			"ai_speech_evaluations",
 			"ai_detected_errors",
 			"ai_messages",
@@ -666,8 +665,6 @@ class DatabaseService:
 			"game_rewards_log",
 			"tasks",
 			"vocab_items",
-			"devices",
-			"users",
 		]
 		if database_name == "user.db":
 			return [table_name] if table_name is not None else user_tables
@@ -1639,30 +1636,6 @@ class DatabaseService:
 			conn.execute("PRAGMA foreign_keys = ON")
 			conn.executescript(
 				"""
-				CREATE TABLE IF NOT EXISTS users (
-					id INTEGER PRIMARY KEY,
-					nickname TEXT,
-					avatar TEXT,
-					level INTEGER DEFAULT 1,
-					created_at INTEGER,
-					last_active_at INTEGER
-				);
-
-				CREATE TABLE IF NOT EXISTS devices (
-					id TEXT PRIMARY KEY,
-					name TEXT,
-					model TEXT,
-					firmware_ver TEXT,
-					last_seen_at INTEGER
-				);
-
-				CREATE TABLE IF NOT EXISTS user_device_bindings (
-					user_id INTEGER,
-					device_id TEXT,
-					bind_at INTEGER,
-					PRIMARY KEY (user_id, device_id)
-				);
-
 				CREATE TABLE IF NOT EXISTS vocab_items (
 					id INTEGER PRIMARY KEY,
 					user_id INTEGER,
@@ -1675,29 +1648,36 @@ class DatabaseService:
 					is_deleted INTEGER DEFAULT 0
 				);
 
-				CREATE TABLE IF NOT EXISTS vocab_learning_state (
-					user_id INTEGER,
-					vocab_id INTEGER,
-					familiarity REAL DEFAULT 0,
-					ease_factor REAL DEFAULT 2.5,
-					interval_days INTEGER DEFAULT 1,
-					repetition INTEGER DEFAULT 0,
-					last_review_at INTEGER,
-					next_review_at INTEGER,
-					lapses INTEGER DEFAULT 0,
-					stability REAL DEFAULT 0,
-					PRIMARY KEY(user_id, vocab_id)
+				CREATE TABLE IF NOT EXISTS word_learning_profile (
+					user_id INTEGER NOT NULL,
+					word_id INTEGER NOT NULL,
+					textbook_name TEXT NOT NULL,
+					stage INTEGER DEFAULT 0,
+					recognition_score INTEGER DEFAULT 0,
+					recall_score INTEGER DEFAULT 0,
+					output_score INTEGER DEFAULT 0,
+					next_review_at INTEGER DEFAULT 0,
+					lapse_count INTEGER DEFAULT 0,
+					last_practiced_at INTEGER DEFAULT 0,
+					last_decay_at INTEGER DEFAULT 0,
+					consecutive_correct INTEGER DEFAULT 0,
+					consecutive_wrong INTEGER DEFAULT 0,
+					downgraded_from_stage INTEGER DEFAULT -1,
+					PRIMARY KEY(user_id, word_id, textbook_name)
 				);
 
-				CREATE TABLE IF NOT EXISTS vocab_review_log (
+				CREATE TABLE IF NOT EXISTS word_practice_history (
 					id INTEGER PRIMARY KEY,
-					user_id INTEGER,
-					vocab_id INTEGER,
+					user_id INTEGER NOT NULL,
+					word_id INTEGER NOT NULL,
+					question_type INTEGER DEFAULT 0,
+					target_skill TEXT,
 					review_type TEXT,
-					rating INTEGER,
-					response_time INTEGER,
-					is_correct INTEGER,
-					created_at INTEGER
+					rating INTEGER DEFAULT 0,
+					response_time INTEGER DEFAULT 0,
+					correct INTEGER DEFAULT 0,
+					question_reason TEXT,
+					practiced_at INTEGER DEFAULT 0
 				);
 
 				CREATE TABLE IF NOT EXISTS ai_sessions (
@@ -1795,8 +1775,8 @@ class DatabaseService:
 
 				CREATE INDEX IF NOT EXISTS idx_vocab_user ON vocab_items(user_id);
 				CREATE INDEX IF NOT EXISTS idx_vocab_word ON vocab_items(word_id);
-				CREATE INDEX IF NOT EXISTS idx_review_user ON vocab_review_log(user_id);
-				CREATE INDEX IF NOT EXISTS idx_review_vocab ON vocab_review_log(vocab_id);
+				CREATE INDEX IF NOT EXISTS idx_word_learning_profile_user_next_review ON word_learning_profile(user_id, next_review_at);
+				CREATE INDEX IF NOT EXISTS idx_word_practice_history_user_word ON word_practice_history(user_id, word_id, practiced_at);
 				CREATE INDEX IF NOT EXISTS idx_tasks_user_deleted_due ON tasks(user_id, is_deleted, due_at);
 				CREATE INDEX IF NOT EXISTS idx_tasks_deleted_done ON tasks(is_deleted, is_completed);
 				CREATE INDEX IF NOT EXISTS idx_game_reward_user ON game_rewards_log(user_id);

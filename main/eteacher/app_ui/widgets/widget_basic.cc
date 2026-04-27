@@ -187,6 +187,15 @@ const ImageProfile& ImageWidget::Profile() const {
     return profile_;
 }
 
+void ImageWidget::OnTextChanged() {
+    cached_bitmap_available_ = false;
+    cached_bitmap_.Clear();
+    if (text_.empty()) {
+        return;
+    }
+    cached_bitmap_available_ = eteacher::app_ui::LoadBinImageOwned(text_, &cached_bitmap_);
+}
+
 void ImageWidget::SetQrCode(int size, const std::vector<uint8_t>& modules) {
     if (size <= 0 || static_cast<size_t>(size * size) != modules.size()) {
         ClearQrCode();
@@ -209,9 +218,8 @@ bool ImageWidget::HasQrCode() const {
 
 void ImageWidget::OnDraw(Painter& p) {
     Rect rect = LocalRect();
-    eteacher::app_ui::BinImage icon;
-    const bool has_bitmap = !text_.empty() && eteacher::app_ui::LoadBinImage(text_, &icon) && icon.data &&
-                            icon.width > 0 && icon.height > 0;
+    const bool has_bitmap = cached_bitmap_available_ && cached_bitmap_.data() != nullptr &&
+                            cached_bitmap_.width > 0 && cached_bitmap_.height > 0;
     const bool draw_border = profile_.draw_border && (!has_bitmap || profile_.draw_border_on_content);
     const int16_t border_thickness = draw_border ? std::max<int16_t>(1, profile_.border_thickness) : 0;
     const int16_t inset = std::max<int16_t>(border_thickness, std::max<int16_t>(0, profile_.content_inset));
@@ -244,10 +252,15 @@ void ImageWidget::OnDraw(Painter& p) {
             auto& gfx = ep->Gfx();
             const Point offset = ep->Offset();
             const int16_t draw_x = static_cast<int16_t>(offset.x + inner.x +
-                                                        std::max<int16_t>(0, (inner.w - static_cast<int16_t>(icon.width)) / 2));
+                                                        std::max<int16_t>(0, (inner.w - static_cast<int16_t>(cached_bitmap_.width)) / 2));
             const int16_t draw_y = static_cast<int16_t>(offset.y + inner.y +
-                                                        std::max<int16_t>(0, (inner.h - static_cast<int16_t>(icon.height)) / 2));
-            gfx.drawBitmap(draw_x, draw_y, icon.data, static_cast<int16_t>(icon.width), static_cast<int16_t>(icon.height), GxEPD_BLACK);
+                                                        std::max<int16_t>(0, (inner.h - static_cast<int16_t>(cached_bitmap_.height)) / 2));
+            gfx.drawBitmap(draw_x,
+                           draw_y,
+                           cached_bitmap_.data(),
+                           static_cast<int16_t>(cached_bitmap_.width),
+                           static_cast<int16_t>(cached_bitmap_.height),
+                           GxEPD_BLACK);
         }
         return;
     }

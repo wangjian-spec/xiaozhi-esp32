@@ -16,7 +16,8 @@
   },
   "resources": {
     "texts": {
-      "TEXT_IMAGE_WRITE": "Image",
+      "TEXT_LABEL_MY_LEVEL": "Label",
+      "TEXT_PROGRESS_TODAY_MISSION": "Progress",
       "TEXT_TOPBAR_408ADC": "TopBar",
       "TEXT_BOTTOMBAR_AABB85": "BottomBar"
     },
@@ -46,6 +47,10 @@
     "page_5d74": {
       "name": "题型_口语词句",
       "root": "root_page_5d74"
+    },
+    "page_9abe": {
+      "name": "首页_预览及设置",
+      "root": "root_page_9abe"
     }
   },
   "widgets": {
@@ -408,9 +413,7 @@
       "style": null,
       "z": 0,
       "parent": "root_page_d55e",
-      "properties": {
-        "textId": "TEXT_IMAGE_WRITE"
-      }
+      "properties": {}
     },
     "root_page_5d74": {
       "type": "Container",
@@ -484,8 +487,157 @@
       "style": null,
       "z": 0,
       "parent": "root_page_5d74",
+      "properties": {}
+    },
+    "root_page_9abe": {
+      "type": "Container",
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 400,
+        "h": 300
+      }
+    },
+    "label_my_stage": {
+      "type": "Label",
+      "rect": {
+        "x": 146,
+        "y": 39,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
+      "properties": {}
+    },
+    "label_my_level": {
+      "type": "Label",
+      "rect": {
+        "x": 18,
+        "y": 25,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
       "properties": {
-        "textId": "TEXT_IMAGE_WRITE"
+        "textId": "TEXT_LABEL_MY_LEVEL"
+      }
+    },
+    "frame_979067": {
+      "type": "Frame",
+      "rect": {
+        "x": 12,
+        "y": 24,
+        "w": 380,
+        "h": 125
+      },
+      "style": null,
+      "z": -1,
+      "parent": "root_page_9abe",
+      "properties": {}
+    },
+    "image_sun_moon_star": {
+      "type": "Image",
+      "rect": {
+        "x": 18,
+        "y": 47,
+        "w": 100,
+        "h": 100
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
+      "properties": {}
+    },
+    "label_read_setting": {
+      "type": "Label",
+      "rect": {
+        "x": 146,
+        "y": 74,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
+      "properties": {
+        "textId": "TEXT_LABEL_MY_LEVEL"
+      }
+    },
+    "frame_589564": {
+      "type": "Frame",
+      "rect": {
+        "x": 12,
+        "y": 155,
+        "w": 380,
+        "h": 125
+      },
+      "style": null,
+      "z": -1,
+      "parent": "root_page_9abe",
+      "properties": {}
+    },
+    "label_today_mission": {
+      "type": "Label",
+      "rect": {
+        "x": 134,
+        "y": 158,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
+      "properties": {
+        "textId": "TEXT_LABEL_MY_LEVEL"
+      }
+    },
+    "progress_today_mission": {
+      "type": "Progress",
+      "rect": {
+        "x": 19,
+        "y": 178,
+        "w": 100,
+        "h": 100
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
+      "properties": {
+        "textId": "TEXT_PROGRESS_TODAY_MISSION"
+      }
+    },
+    "label_word_preview": {
+      "type": "Label",
+      "rect": {
+        "x": 133,
+        "y": 194,
+        "w": 250,
+        "h": 80
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
+      "properties": {
+        "textId": "TEXT_LABEL_MY_LEVEL"
+      }
+    },
+    "label_mission_progress": {
+      "type": "Label",
+      "rect": {
+        "x": 19,
+        "y": 156,
+        "w": 100,
+        "h": 20
+      },
+      "style": null,
+      "z": 0,
+      "parent": "root_page_9abe",
+      "properties": {
+        "textId": "TEXT_LABEL_MY_LEVEL"
       }
     }
   },

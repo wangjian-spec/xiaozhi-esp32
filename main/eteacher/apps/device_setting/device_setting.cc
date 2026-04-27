@@ -1,10 +1,16 @@
 #include "eteacher/apps/device_setting/device_setting.h"
 
 #include <algorithm>
+#include <array>
+#include <cctype>
+#include <cstdio>
+#include <cstdlib>
+#include <sys/stat.h>
 
 #include <ssid_manager.h>
 #include <wifi_manager.h>
 
+#include <cJSON.h>
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
@@ -50,6 +56,16 @@ constexpr uint32_t kWidgetUserPassword = 0xA49D920Au;
 constexpr uint32_t kWidgetUserCode = 0x5F18D61Cu;
 constexpr uint32_t kWidgetUserSendCode = 0x57562AC1u;
 constexpr uint32_t kWidgetUserLogin = 0xB563EFF5u;
+constexpr uint32_t kWidgetUserTitle = 0x47A9CC25u;
+constexpr uint32_t kWidgetUserPhoneCaption = 0xD5DD31D7u;
+constexpr uint32_t kWidgetUserPasswordCaption = 0xACD863CEu;
+constexpr uint32_t kWidgetUserCodeCaption = 0x9395F213u;
+constexpr uint32_t kWidgetUserTopFrame = 0x54827056u;
+constexpr uint32_t kWidgetUserBottomFrame = 0x9AEA792Fu;
+constexpr uint32_t kWidgetUserStageSetting = 0xA2491E37u;
+constexpr uint32_t kWidgetUserNoReadRadio = 0x30A954EFu;
+constexpr uint32_t kWidgetUserHasReadRadio = 0x8A8DA96Bu;
+constexpr uint32_t kWidgetUserMissionSetting = 0xA7B12F6Fu;
 constexpr uint32_t kWidgetUserStatus = 0x4BA45650u;
 constexpr uint32_t kWidgetUserName = 0x113D6751u;
 constexpr uint32_t kWidgetUserPhoneLabel = 0x80F9AF09u;
@@ -63,9 +79,180 @@ constexpr uint32_t kWidgetDeviceStatusButton = 0xBC786763u;
 constexpr uint32_t kWidgetDeviceDownloadButton = 0xCD89E678u;
 
 constexpr const char* kInputInitStatus = "请输入WIFI密码,按Start退出键盘";
+constexpr const char* kUserJsonPath = "/sdcard/user/user.json";
+constexpr std::array<int, 12> kDefaultStageLevelupCount = {10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48};
+constexpr std::array<std::pair<int, int>, 7> kMissionPresets = {
+    std::pair<int, int>{5, 10},
+    std::pair<int, int>{8, 12},
+    std::pair<int, int>{10, 15},
+    std::pair<int, int>{12, 18},
+    std::pair<int, int>{15, 20},
+    std::pair<int, int>{20, 20},
+    std::pair<int, int>{20, 30},
+};
 
 bool IsClickLike(const ButtonEvent& event) {
     return event.action == ButtonAction::Click || event.action == ButtonAction::LongPress;
+}
+
+std::string ReadFileToString(const char* path) {
+    if (path == nullptr || path[0] == '\0') {
+        return {};
+    }
+    FILE* fp = std::fopen(path, "rb");
+    if (!fp) {
+        return {};
+    }
+    if (std::fseek(fp, 0, SEEK_END) != 0) {
+        std::fclose(fp);
+        return {};
+    }
+    const long size = std::ftell(fp);
+    if (size < 0) {
+        std::fclose(fp);
+        return {};
+    }
+    std::rewind(fp);
+    std::string content(static_cast<size_t>(size), '\0');
+    const size_t read_size = size > 0 ? std::fread(content.data(), 1, static_cast<size_t>(size), fp) : 0;
+    std::fclose(fp);
+    if (read_size != static_cast<size_t>(size)) {
+        return {};
+    }
+    return content;
+}
+
+bool EnsureDirectoryExists(const char* path) {
+    if (path == nullptr || path[0] == '\0') {
+        return false;
+    }
+    std::string partial;
+    for (const char ch : std::string(path)) {
+        partial.push_back(ch);
+        if (ch == '/') {
+            if (partial.size() <= 1) {
+                continue;
+            }
+            struct stat info = {};
+            if (stat(partial.c_str(), &info) != 0) {
+                if (mkdir(partial.c_str(), 0777) != 0) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+bool WriteStringToFile(const char* path, const std::string& content) {
+    if (path == nullptr || path[0] == '\0') {
+        return false;
+    }
+    std::string parent(path);
+    const size_t slash = parent.find_last_of('/');
+    if (slash != std::string::npos) {
+        parent.resize(slash + 1);
+        if (!EnsureDirectoryExists(parent.c_str())) {
+            return false;
+        }
+    }
+    FILE* fp = std::fopen(path, "wb");
+    if (!fp) {
+        return false;
+    }
+    const size_t written = content.empty() ? 0 : std::fwrite(content.data(), 1, content.size(), fp);
+    std::fclose(fp);
+    return written == content.size();
+}
+
+int JsonIntOrDefault(const cJSON* obj, const char* key, int fallback) {
+    const cJSON* item = cJSON_GetObjectItemCaseSensitive(const_cast<cJSON*>(obj), key);
+    return cJSON_IsNumber(item) ? item->valueint : fallback;
+}
+
+bool JsonBoolOrDefault(const cJSON* obj, const char* key, bool fallback) {
+    const cJSON* item = cJSON_GetObjectItemCaseSensitive(const_cast<cJSON*>(obj), key);
+    return cJSON_IsBool(item) ? cJSON_IsTrue(item) : fallback;
+}
+
+std::string JsonStringOrDefault(const cJSON* obj, const char* key, const std::string& fallback = {}) {
+    const cJSON* item = cJSON_GetObjectItemCaseSensitive(const_cast<cJSON*>(obj), key);
+    return cJSON_IsString(item) && item->valuestring ? item->valuestring : fallback;
+}
+
+void LoadIntArrayFromJson(cJSON* root, const char* key, std::vector<int>* values, int fallback) {
+    if (values == nullptr) {
+        return;
+    }
+    const cJSON* array = cJSON_GetObjectItemCaseSensitive(root, key);
+    if (!cJSON_IsArray(array)) {
+        return;
+    }
+    values->clear();
+    cJSON* item = nullptr;
+    cJSON_ArrayForEach(item, const_cast<cJSON*>(array)) {
+        values->push_back(cJSON_IsNumber(item) ? item->valueint : fallback);
+    }
+}
+
+void EnsureIntVectorSize(std::vector<int>* values, size_t size, int fallback) {
+    if (values == nullptr) {
+        return;
+    }
+    if (values->size() < size) {
+        values->resize(size, fallback);
+    }
+    for (auto& value : *values) {
+        if (value <= 0) {
+            value = fallback;
+        }
+    }
+}
+
+int ParseStageIndex(const std::string& value) {
+    std::string lower = value;
+    while (!lower.empty() && std::isspace(static_cast<unsigned char>(lower.front())) != 0) {
+        lower.erase(lower.begin());
+    }
+    while (!lower.empty() && std::isspace(static_cast<unsigned char>(lower.back())) != 0) {
+        lower.pop_back();
+    }
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    if (lower.rfind("stage", 0) == 0) {
+        const int parsed = std::atoi(lower.substr(5).c_str());
+        return std::max(1, std::min(12, parsed));
+    }
+    const int parsed = std::atoi(lower.c_str());
+    return std::max(1, std::min(12, parsed <= 0 ? 1 : parsed));
+}
+
+std::string StageKey(int stage_index) {
+    return "stage" + std::to_string(std::max(1, std::min(12, stage_index)));
+}
+
+std::string BuildMissionLabel(int new_word_count, int review_word_count) {
+    return "新" + std::to_string(new_word_count) + " / 复" + std::to_string(review_word_count);
+}
+
+std::string BuildJsonLogPreview(const std::string& content, size_t max_length = 160) {
+    std::string preview;
+    preview.reserve(std::min(max_length, content.size()));
+    for (char ch : content) {
+        if (preview.size() >= max_length) {
+            break;
+        }
+        if (ch == '\r' || ch == '\n' || ch == '\t') {
+            preview.push_back(' ');
+        } else {
+            preview.push_back(ch);
+        }
+    }
+    if (content.size() > preview.size()) {
+        preview += "...";
+    }
+    return preview;
 }
 
 void AppendIfValid(const app_ui::Widget* widget, std::vector<uint32_t>& out) {
@@ -149,9 +336,11 @@ void DeviceSettingApp::OnEnter(AppContext &ctx) {
     last_alert_text_.clear();
     last_connected_ssid_.clear();
     active_user_input_ = nullptr;
+    user_json_ = {};
     router_.Reset();
     scene_load_id_ = 0;
     epd_ = dynamic_cast<CustomEpdDisplay*>(ctx.board.GetDisplay());
+    LoadUserJson();
 
     if (!LoadUi(ctx)) {
         return;
@@ -281,8 +470,8 @@ bool DeviceSettingApp::LoadScene(AppContext &ctx, const std::string& scene_id, u
     UpdateTabSelection();
     BuildFocusCycle(scene_id);
     SyncFocusCycleIndex();
-    if (scene_id == "page_1e8a" && user_phone_area_) {
-        ui_engine_.RequestFocus(user_phone_area_->Id());
+    if (scene_id == "page_1e8a" && user_stage_setting_button_) {
+        ui_engine_.RequestFocus(user_stage_setting_button_->Id());
     } else if (scene_id == "page_9b37" && device_status_button_) {
         ui_engine_.RequestFocus(device_status_button_->Id());
     } else if (tabview_) {
@@ -356,12 +545,22 @@ void DeviceSettingApp::BindWidgets(app_ui::Widget* root) {
         user_phone_area_ = nullptr;
         user_password_area_ = nullptr;
         user_code_area_ = nullptr;
+        user_title_label_ = nullptr;
+        user_phone_caption_label_ = nullptr;
+        user_password_caption_label_ = nullptr;
+        user_code_caption_label_ = nullptr;
         user_send_code_button_ = nullptr;
         user_login_button_ = nullptr;
+        user_stage_setting_button_ = nullptr;
+        user_mission_setting_button_ = nullptr;
         user_status_label_ = nullptr;
         user_name_label_ = nullptr;
         user_phone_label_ = nullptr;
         user_mode_label_ = nullptr;
+        user_has_read_radio_ = nullptr;
+        user_no_read_radio_ = nullptr;
+        user_top_frame_ = nullptr;
+        user_bottom_frame_ = nullptr;
         device_status_button_ = nullptr;
         device_download_button_ = nullptr;
         device_model_label_ = nullptr;
@@ -391,15 +590,25 @@ void DeviceSettingApp::BindWidgets(app_ui::Widget* root) {
     password_area_ = input_dialog_ ? dynamic_cast<app_ui::TextAreaWidget*>(input_dialog_->FindById(kWidgetTextAreaPassword)) : nullptr;
     hint_alert_label_ = hint_dialog_ ? dynamic_cast<app_ui::LabelWidget*>(hint_dialog_->FindById(kWidgetHintAlert)) : nullptr;
 
+    user_title_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserTitle));
+    user_phone_caption_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserPhoneCaption));
+    user_password_caption_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserPasswordCaption));
+    user_code_caption_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserCodeCaption));
+    user_top_frame_ = dynamic_cast<app_ui::FrameWidget*>(root->FindById(kWidgetUserTopFrame));
+    user_bottom_frame_ = dynamic_cast<app_ui::FrameWidget*>(root->FindById(kWidgetUserBottomFrame));
     user_phone_area_ = dynamic_cast<app_ui::TextAreaWidget*>(root->FindById(kWidgetUserPhone));
     user_password_area_ = dynamic_cast<app_ui::TextAreaWidget*>(root->FindById(kWidgetUserPassword));
     user_code_area_ = dynamic_cast<app_ui::TextAreaWidget*>(root->FindById(kWidgetUserCode));
     user_send_code_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetUserSendCode));
     user_login_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetUserLogin));
+    user_stage_setting_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetUserStageSetting));
+    user_mission_setting_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetUserMissionSetting));
     user_status_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserStatus));
     user_name_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserName));
     user_phone_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserPhoneLabel));
     user_mode_label_ = dynamic_cast<app_ui::LabelWidget*>(root->FindById(kWidgetUserMode));
+    user_has_read_radio_ = dynamic_cast<app_ui::RadioWidget*>(root->FindById(kWidgetUserHasReadRadio));
+    user_no_read_radio_ = dynamic_cast<app_ui::RadioWidget*>(root->FindById(kWidgetUserNoReadRadio));
 
     device_status_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetDeviceStatusButton));
     device_download_button_ = dynamic_cast<app_ui::ButtonWidget*>(root->FindById(kWidgetDeviceDownloadButton));
@@ -656,6 +865,18 @@ void DeviceSettingApp::UpdateBottomBarHintByFocus() {
         SetBottomBarHint("按Start/C键编辑");
         return;
     }
+    if (user_stage_setting_button_ && user_stage_setting_button_->Focused()) {
+        SetBottomBarHint("按Start/C切换学习阶段");
+        return;
+    }
+    if ((user_has_read_radio_ && user_has_read_radio_->Focused()) || (user_no_read_radio_ && user_no_read_radio_->Focused())) {
+        SetBottomBarHint("按Start/C切换口语题开关");
+        return;
+    }
+    if (user_mission_setting_button_ && user_mission_setting_button_->Focused()) {
+        SetBottomBarHint("按Start/C切换今日任务");
+        return;
+    }
     if (user_send_code_button_ && user_send_code_button_->Focused()) {
         SetBottomBarHint("按Start/C发送验证码");
         return;
@@ -687,11 +908,10 @@ void DeviceSettingApp::BuildFocusCycle(const std::string& scene_id) {
         return;
     }
     if (scene_id == "page_1e8a") {
-        AppendIfValid(user_phone_area_, focus_cycle_ids_);
-        AppendIfValid(user_password_area_, focus_cycle_ids_);
-        AppendIfValid(user_code_area_, focus_cycle_ids_);
-        AppendIfValid(user_send_code_button_, focus_cycle_ids_);
-        AppendIfValid(user_login_button_, focus_cycle_ids_);
+        AppendIfValid(user_stage_setting_button_, focus_cycle_ids_);
+        AppendIfValid(user_has_read_radio_, focus_cycle_ids_);
+        AppendIfValid(user_no_read_radio_, focus_cycle_ids_);
+        AppendIfValid(user_mission_setting_button_, focus_cycle_ids_);
         return;
     }
     if (scene_id == "page_9b37") {
@@ -853,6 +1073,22 @@ bool DeviceSettingApp::HandleFocusedButtons(const ButtonEvent &event) {
                         (event.id == AppButton::Start || event.id == AppButton::C);
     if (!action) {
         return false;
+    }
+    if (user_stage_setting_button_ && user_stage_setting_button_->Focused()) {
+        CycleStageSetting();
+        return true;
+    }
+    if (user_has_read_radio_ && user_has_read_radio_->Focused()) {
+        SetReadQuestionEnabled(true);
+        return true;
+    }
+    if (user_no_read_radio_ && user_no_read_radio_->Focused()) {
+        SetReadQuestionEnabled(false);
+        return true;
+    }
+    if (user_mission_setting_button_ && user_mission_setting_button_->Focused()) {
+        CycleMissionSetting();
+        return true;
     }
     if (user_phone_area_ && user_phone_area_->Focused()) {
         ShowKeyboardForUserField(user_phone_area_);
@@ -1246,7 +1482,7 @@ void DeviceSettingApp::UpdatePasswordText() {
 }
 
 bool DeviceSettingApp::IsUserSettingsScene() const {
-    return user_phone_area_ != nullptr || user_send_code_button_ != nullptr;
+    return user_stage_setting_button_ != nullptr || user_mission_setting_button_ != nullptr;
 }
 
 bool DeviceSettingApp::IsDeviceInfoScene() const {
@@ -1296,30 +1532,80 @@ void DeviceSettingApp::RefreshUserSettingsPage() {
         return;
     }
 
-    if (user_status_label_) {
-        user_status_label_->SetText(et_server_client_.IsUserLoggedIn() ? "状态: 已登录" : "状态: 未登录");
+    if (user_title_label_) {
+        user_title_label_->SetText("学习设置");
     }
-
-    std::string username = et_server_client_.Username();
-    if (username.empty()) {
-        username = et_server_client_.PendingAutoUsername();
+    if (user_top_frame_) {
+        user_top_frame_->SetText("");
+    }
+    if (user_bottom_frame_) {
+        user_bottom_frame_->SetText("");
+    }
+    if (user_phone_caption_label_) {
+        user_phone_caption_label_->SetVisible(false);
+    }
+    if (user_password_caption_label_) {
+        user_password_caption_label_->SetVisible(false);
+    }
+    if (user_code_caption_label_) {
+        user_code_caption_label_->SetVisible(false);
+    }
+    if (user_phone_area_) {
+        user_phone_area_->SetVisible(false);
+    }
+    if (user_password_area_) {
+        user_password_area_->SetVisible(false);
+    }
+    if (user_code_area_) {
+        user_code_area_->SetVisible(false);
+    }
+    if (user_send_code_button_) {
+        user_send_code_button_->SetVisible(false);
+    }
+    if (user_login_button_) {
+        user_login_button_->SetVisible(false);
+    }
+    if (user_status_label_) {
+        user_status_label_->SetText("当前阶段: " + StageKey(CurrentStageIndex()));
     }
     if (user_name_label_) {
-        user_name_label_->SetText(std::string("用户: ") + (username.empty() ? "-" : username));
-    }
-
-    std::string phone = et_server_client_.Phone();
-    if (phone.empty()) {
-        phone = TextAreaText(user_phone_area_);
+        user_name_label_->SetText(std::string("口语题: ") + (user_json_.enable_read_questions ? "开启" : "关闭"));
     }
     if (user_phone_label_) {
-        user_phone_label_->SetText(std::string("手机: ") + (phone.empty() ? "-" : phone));
+        user_phone_label_->SetText("今日任务: " + BuildMissionLabel(user_json_.today_mission.new_word_count, user_json_.today_mission.review_word_count));
     }
-
     if (user_mode_label_) {
-        const bool register_then_login =
-            et_server_client_.PendingFlowMode() == EtServerPendingFlowMode::RegisterThenLogin;
-        user_mode_label_->SetText(register_then_login ? "模式: 注册后再登录" : "模式: 登录验证码");
+        user_mode_label_->SetText("按 C 切换当前焦点项");
+    }
+    if (user_stage_setting_button_) {
+        user_stage_setting_button_->SetVisible(true);
+        user_stage_setting_button_->SetText("阶段 " + StageKey(CurrentStageIndex()));
+        auto profile = user_stage_setting_button_->Profile();
+        profile.focus_invert = true;
+        user_stage_setting_button_->SetProfile(profile);
+    }
+    if (user_mission_setting_button_) {
+        user_mission_setting_button_->SetVisible(true);
+        user_mission_setting_button_->SetText(BuildMissionLabel(user_json_.today_mission.new_word_count, user_json_.today_mission.review_word_count));
+        auto profile = user_mission_setting_button_->Profile();
+        profile.focus_invert = true;
+        user_mission_setting_button_->SetProfile(profile);
+    }
+    if (user_has_read_radio_) {
+        user_has_read_radio_->SetVisible(true);
+        user_has_read_radio_->SetText("口语开");
+        auto profile = user_has_read_radio_->Profile();
+        profile.checked = user_json_.enable_read_questions;
+        profile.focus_invert = true;
+        user_has_read_radio_->SetProfile(profile);
+    }
+    if (user_no_read_radio_) {
+        user_no_read_radio_->SetVisible(true);
+        user_no_read_radio_->SetText("口语关");
+        auto profile = user_no_read_radio_->Profile();
+        profile.checked = !user_json_.enable_read_questions;
+        profile.focus_invert = true;
+        user_no_read_radio_->SetProfile(profile);
     }
 }
 
@@ -1366,6 +1652,225 @@ void DeviceSettingApp::RefreshDeviceInfoPage() {
 void DeviceSettingApp::RefreshClientUiState() {
     RefreshUserSettingsPage();
     RefreshDeviceInfoPage();
+}
+
+bool DeviceSettingApp::LoadUserJson() {
+    user_json_ = {};
+    user_json_.stage_levelup_count.assign(kDefaultStageLevelupCount.begin(), kDefaultStageLevelupCount.end());
+    user_json_.stage_words_quantity.assign(12, 0);
+    user_json_.stage_new_word_cursor.assign(12, 0);
+    const std::string content = ReadFileToString(kUserJsonPath);
+    if (content.empty()) {
+        user_json_.today_mission.target_words = user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count;
+        return SaveUserJson();
+    }
+
+    cJSON* root = cJSON_Parse(content.c_str());
+    if (!root) {
+        user_json_.today_mission.target_words = user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count;
+        return SaveUserJson();
+    }
+
+    cJSON* users = cJSON_GetObjectItemCaseSensitive(root, "users");
+    if (cJSON_IsObject(users)) {
+        user_json_.name = JsonStringOrDefault(users, "name", user_json_.name);
+        user_json_.current_stage = JsonStringOrDefault(users, "current_stage", user_json_.current_stage);
+        user_json_.level = std::max(0, JsonIntOrDefault(users, "level", user_json_.level));
+        cJSON* today_mission = cJSON_GetObjectItemCaseSensitive(users, "today_mission");
+        if (cJSON_IsObject(today_mission)) {
+            user_json_.today_mission.new_word_count = std::max(1, JsonIntOrDefault(today_mission, "new_word_count", user_json_.today_mission.new_word_count));
+            user_json_.today_mission.review_word_count = std::max(1, JsonIntOrDefault(today_mission, "review_word_count", user_json_.today_mission.review_word_count));
+            user_json_.today_mission.completed_words = std::max(0, JsonIntOrDefault(today_mission, "completed_words", user_json_.today_mission.completed_words));
+            user_json_.today_mission.target_words = std::max(1, JsonIntOrDefault(today_mission, "target_words", user_json_.today_mission.target_words));
+        }
+    }
+
+    cJSON* learning_preferences = cJSON_GetObjectItemCaseSensitive(root, "learning_preferences");
+    if (cJSON_IsObject(learning_preferences)) {
+        user_json_.enable_read_questions = JsonBoolOrDefault(
+            learning_preferences,
+            "enable_read_questions",
+            user_json_.enable_read_questions);
+        user_json_.today_mission.new_word_count = std::max(
+            1,
+            JsonIntOrDefault(learning_preferences, "new_word_count", user_json_.today_mission.new_word_count));
+        user_json_.today_mission.review_word_count = std::max(
+            1,
+            JsonIntOrDefault(learning_preferences, "review_word_count", user_json_.today_mission.review_word_count));
+        user_json_.today_mission.completed_words = std::max(
+            0,
+            JsonIntOrDefault(learning_preferences, "completed_words", user_json_.today_mission.completed_words));
+        user_json_.today_mission.target_words = std::max(
+            1,
+            JsonIntOrDefault(learning_preferences, "target_words", user_json_.today_mission.target_words));
+
+        cJSON* preference_mission = cJSON_GetObjectItemCaseSensitive(learning_preferences, "today_mission");
+        if (cJSON_IsObject(preference_mission)) {
+            user_json_.today_mission.new_word_count = std::max(
+                1,
+                JsonIntOrDefault(preference_mission, "new_word_count", user_json_.today_mission.new_word_count));
+            user_json_.today_mission.review_word_count = std::max(
+                1,
+                JsonIntOrDefault(preference_mission, "review_word_count", user_json_.today_mission.review_word_count));
+            user_json_.today_mission.completed_words = std::max(
+                0,
+                JsonIntOrDefault(preference_mission, "completed_words", user_json_.today_mission.completed_words));
+            user_json_.today_mission.target_words = std::max(
+                1,
+                JsonIntOrDefault(preference_mission, "target_words", user_json_.today_mission.target_words));
+        }
+    }
+
+    cJSON* settings = cJSON_GetObjectItemCaseSensitive(root, "settings");
+    if (cJSON_IsObject(settings)) {
+        user_json_.enable_read_questions = JsonBoolOrDefault(settings, "enable_read_questions", user_json_.enable_read_questions);
+    }
+
+    cJSON* practice_stats = cJSON_GetObjectItemCaseSensitive(root, "practice_stats");
+    if (cJSON_IsObject(practice_stats)) {
+        user_json_.today_progress_percent = std::max(0, JsonIntOrDefault(practice_stats, "today_progress_percent", user_json_.today_progress_percent));
+        user_json_.mastered_words = std::max(0, JsonIntOrDefault(practice_stats, "mastered_words", user_json_.mastered_words));
+        user_json_.practice_stats.continuous_days = std::max(1, JsonIntOrDefault(practice_stats, "continuous_days", user_json_.practice_stats.continuous_days));
+        user_json_.practice_stats.last_practice_date = JsonStringOrDefault(practice_stats, "last_practice_date", user_json_.practice_stats.last_practice_date);
+    }
+
+    LoadIntArrayFromJson(root, "stage_levelup_count", &user_json_.stage_levelup_count, 20);
+    LoadIntArrayFromJson(root, "stage_words_quantity", &user_json_.stage_words_quantity, 0);
+    LoadIntArrayFromJson(root, "stage_new_word_cursor", &user_json_.stage_new_word_cursor, 0);
+    EnsureIntVectorSize(&user_json_.stage_levelup_count, 12, 20);
+    EnsureIntVectorSize(&user_json_.stage_words_quantity, 12, 0);
+    EnsureIntVectorSize(&user_json_.stage_new_word_cursor, 12, 0);
+    user_json_.today_mission.target_words = std::max(1, user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count);
+    ESP_LOGI(kTag,
+             "device_setting user.json loaded path=%s stage=%s mission=%d/%d completed=%d target=%d speak=%d preview=%s",
+             kUserJsonPath,
+             user_json_.current_stage.c_str(),
+             user_json_.today_mission.new_word_count,
+             user_json_.today_mission.review_word_count,
+             user_json_.today_mission.completed_words,
+             user_json_.today_mission.target_words,
+             user_json_.enable_read_questions ? 1 : 0,
+             BuildJsonLogPreview(content).c_str());
+    cJSON_Delete(root);
+    return true;
+}
+
+bool DeviceSettingApp::SaveUserJson() const {
+    cJSON* root = cJSON_CreateObject();
+    if (!root) {
+        return false;
+    }
+    cJSON* users = cJSON_CreateObject();
+    cJSON_AddStringToObject(users, "name", user_json_.name.c_str());
+    cJSON_AddStringToObject(users, "current_stage", user_json_.current_stage.c_str());
+    cJSON_AddNumberToObject(users, "level", user_json_.level);
+    cJSON* today_mission = cJSON_CreateObject();
+    cJSON_AddNumberToObject(today_mission, "new_word_count", user_json_.today_mission.new_word_count);
+    cJSON_AddNumberToObject(today_mission, "review_word_count", user_json_.today_mission.review_word_count);
+    cJSON_AddNumberToObject(today_mission, "completed_words", user_json_.today_mission.completed_words);
+    cJSON_AddNumberToObject(today_mission, "target_words", std::max(1, user_json_.today_mission.target_words));
+    cJSON_AddItemToObject(users, "today_mission", today_mission);
+    cJSON_AddItemToObject(root, "users", users);
+
+    cJSON* settings = cJSON_CreateObject();
+    cJSON_AddBoolToObject(settings, "enable_read_questions", user_json_.enable_read_questions);
+    cJSON_AddItemToObject(root, "settings", settings);
+
+    cJSON* learning_preferences = cJSON_CreateObject();
+    cJSON_AddBoolToObject(learning_preferences, "enable_read_questions", user_json_.enable_read_questions);
+    cJSON_AddNumberToObject(learning_preferences, "new_word_count", user_json_.today_mission.new_word_count);
+    cJSON_AddNumberToObject(learning_preferences, "review_word_count", user_json_.today_mission.review_word_count);
+    cJSON_AddNumberToObject(learning_preferences, "completed_words", user_json_.today_mission.completed_words);
+    cJSON_AddNumberToObject(learning_preferences, "target_words", std::max(1, user_json_.today_mission.target_words));
+    cJSON* learning_mission = cJSON_CreateObject();
+    cJSON_AddNumberToObject(learning_mission, "new_word_count", user_json_.today_mission.new_word_count);
+    cJSON_AddNumberToObject(learning_mission, "review_word_count", user_json_.today_mission.review_word_count);
+    cJSON_AddNumberToObject(learning_mission, "completed_words", user_json_.today_mission.completed_words);
+    cJSON_AddNumberToObject(learning_mission, "target_words", std::max(1, user_json_.today_mission.target_words));
+    cJSON_AddItemToObject(learning_preferences, "today_mission", learning_mission);
+    cJSON_AddItemToObject(root, "learning_preferences", learning_preferences);
+
+    cJSON* devices = cJSON_CreateObject();
+    cJSON_AddStringToObject(devices, "device_id", user_json_.device.device_id.c_str());
+    cJSON_AddStringToObject(devices, "firmware", user_json_.device.firmware.c_str());
+    cJSON_AddItemToObject(root, "devices", devices);
+
+    cJSON* practice_stats = cJSON_CreateObject();
+    cJSON_AddNumberToObject(practice_stats, "today_progress_percent", user_json_.today_progress_percent);
+    cJSON_AddNumberToObject(practice_stats, "mastered_words", user_json_.mastered_words);
+    cJSON_AddNumberToObject(practice_stats, "continuous_days", user_json_.practice_stats.continuous_days);
+    cJSON_AddStringToObject(practice_stats, "last_practice_date", user_json_.practice_stats.last_practice_date.c_str());
+    cJSON_AddItemToObject(root, "practice_stats", practice_stats);
+
+    cJSON* levelup_array = cJSON_CreateArray();
+    for (int value : user_json_.stage_levelup_count) {
+        cJSON_AddItemToArray(levelup_array, cJSON_CreateNumber(value));
+    }
+    cJSON_AddItemToObject(root, "stage_levelup_count", levelup_array);
+
+    cJSON* quantity_array = cJSON_CreateArray();
+    for (int value : user_json_.stage_words_quantity) {
+        cJSON_AddItemToArray(quantity_array, cJSON_CreateNumber(value));
+    }
+    cJSON_AddItemToObject(root, "stage_words_quantity", quantity_array);
+
+    cJSON* cursor_array = cJSON_CreateArray();
+    for (int value : user_json_.stage_new_word_cursor) {
+        cJSON_AddItemToArray(cursor_array, cJSON_CreateNumber(value));
+    }
+    cJSON_AddItemToObject(root, "stage_new_word_cursor", cursor_array);
+
+    char* printed = cJSON_Print(root);
+    const std::string output = printed ? printed : "{}";
+    if (printed) {
+        cJSON_free(printed);
+    }
+    cJSON_Delete(root);
+    const bool ok = WriteStringToFile(kUserJsonPath, output);
+    ESP_LOGI(kTag,
+             "device_setting user.json save %s path=%s stage=%s mission=%d/%d completed=%d target=%d speak=%d preview=%s",
+             ok ? "ok" : "failed",
+             kUserJsonPath,
+             user_json_.current_stage.c_str(),
+             user_json_.today_mission.new_word_count,
+             user_json_.today_mission.review_word_count,
+             user_json_.today_mission.completed_words,
+             user_json_.today_mission.target_words,
+             user_json_.enable_read_questions ? 1 : 0,
+             BuildJsonLogPreview(output).c_str());
+    return ok;
+}
+
+int DeviceSettingApp::CurrentStageIndex() const {
+    return ParseStageIndex(user_json_.current_stage);
+}
+
+void DeviceSettingApp::CycleStageSetting() {
+    user_json_.current_stage = StageKey(CurrentStageIndex() % 12 + 1);
+    (void)SaveUserJson();
+    RefreshUserSettingsPage();
+}
+
+void DeviceSettingApp::CycleMissionSetting() {
+    int next_index = 0;
+    for (size_t i = 0; i < kMissionPresets.size(); ++i) {
+        if (user_json_.today_mission.new_word_count == kMissionPresets[i].first &&
+            user_json_.today_mission.review_word_count == kMissionPresets[i].second) {
+            next_index = static_cast<int>((i + 1) % kMissionPresets.size());
+            break;
+        }
+    }
+    user_json_.today_mission.new_word_count = kMissionPresets[static_cast<size_t>(next_index)].first;
+    user_json_.today_mission.review_word_count = kMissionPresets[static_cast<size_t>(next_index)].second;
+    user_json_.today_mission.target_words = user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count;
+    (void)SaveUserJson();
+    RefreshUserSettingsPage();
+}
+
+void DeviceSettingApp::SetReadQuestionEnabled(bool enabled) {
+    user_json_.enable_read_questions = enabled;
+    (void)SaveUserJson();
+    RefreshUserSettingsPage();
 }
 
 void DeviceSettingApp::TriggerStatusCheck() {

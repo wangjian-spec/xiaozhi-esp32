@@ -29,6 +29,38 @@ public:
 	bool ShouldInterceptSelectExit() const override;
 
 private:
+	struct TodayMissionData {
+		int new_word_count = 5;
+		int review_word_count = 10;
+		int completed_words = 0;
+		int target_words = 15;
+	};
+
+	struct DeviceJsonData {
+		std::string device_id;
+		std::string firmware;
+	};
+
+	struct PracticeStatsData {
+		int continuous_days = 1;
+		std::string last_practice_date;
+	};
+
+	struct UserJsonData {
+		std::string name = "student";
+		std::string current_stage = "stage1";
+		int level = 0;
+		TodayMissionData today_mission{};
+		bool enable_read_questions = true;
+		int today_progress_percent = 0;
+		int mastered_words = 0;
+		std::vector<int> stage_levelup_count = std::vector<int>(12, 20);
+		std::vector<int> stage_words_quantity = std::vector<int>(12, 0);
+		std::vector<int> stage_new_word_cursor = std::vector<int>(12, 0);
+		DeviceJsonData device{};
+		PracticeStatsData practice_stats{};
+	};
+
 	bool LoadUi(AppContext &ctx);
 	bool LoadScene(AppContext &ctx, const std::string& scene_id, uint16_t scene_index);
 	void InitUiEngine();
@@ -68,6 +100,12 @@ private:
 	void RefreshUserSettingsPage();
 	void RefreshDeviceInfoPage();
 	void RefreshClientUiState();
+	bool LoadUserJson();
+	bool SaveUserJson() const;
+	void CycleStageSetting();
+	void CycleMissionSetting();
+	void SetReadQuestionEnabled(bool enabled);
+	int CurrentStageIndex() const;
 	void TriggerStatusCheck();
 	void TriggerSendVerificationCode();
 	void TriggerCompleteLogin();
@@ -173,12 +211,22 @@ private:
 	app_ui::TextAreaWidget* user_password_area_ = nullptr;
 	app_ui::TextAreaWidget* user_code_area_ = nullptr;
 	app_ui::TextAreaWidget* active_user_input_ = nullptr;
+	app_ui::LabelWidget* user_title_label_ = nullptr;
+	app_ui::LabelWidget* user_phone_caption_label_ = nullptr;
+	app_ui::LabelWidget* user_password_caption_label_ = nullptr;
+	app_ui::LabelWidget* user_code_caption_label_ = nullptr;
 	app_ui::ButtonWidget* user_send_code_button_ = nullptr;
 	app_ui::ButtonWidget* user_login_button_ = nullptr;
+	app_ui::ButtonWidget* user_stage_setting_button_ = nullptr;
+	app_ui::ButtonWidget* user_mission_setting_button_ = nullptr;
 	app_ui::LabelWidget* user_status_label_ = nullptr;
 	app_ui::LabelWidget* user_name_label_ = nullptr;
 	app_ui::LabelWidget* user_phone_label_ = nullptr;
 	app_ui::LabelWidget* user_mode_label_ = nullptr;
+	app_ui::RadioWidget* user_has_read_radio_ = nullptr;
+	app_ui::RadioWidget* user_no_read_radio_ = nullptr;
+	app_ui::FrameWidget* user_top_frame_ = nullptr;
+	app_ui::FrameWidget* user_bottom_frame_ = nullptr;
 	app_ui::ButtonWidget* device_status_button_ = nullptr;
 	app_ui::ButtonWidget* device_download_button_ = nullptr;
 	app_ui::LabelWidget* device_model_label_ = nullptr;
@@ -186,6 +234,7 @@ private:
 	app_ui::LabelWidget* device_resource_label_ = nullptr;
 	app_ui::LabelWidget* device_activation_label_ = nullptr;
 	EtServerClient et_server_client_{};
+	UserJsonData user_json_{};
 
 	esp_event_handler_instance_t connect_disconnected_handler_ = nullptr;
 	esp_event_handler_instance_t connect_got_ip_handler_ = nullptr;

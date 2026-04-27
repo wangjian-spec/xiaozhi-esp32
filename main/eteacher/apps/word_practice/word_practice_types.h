@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -32,15 +31,33 @@ struct ChoiceState {
 	std::string expected;
 };
 
-struct LearnedSnapshot {
-	int correct = 0;
-	int wrong = 0;
-	int64_t last_seen_at = 0;
+enum class TrainingSkill {
+	Recognition,
+	Recall,
+	Output,
+	AdvancedSpeak,
+	Unknown,
 };
 
-enum class QuestionSelectionStrategy {
-	LegacyAdaptive,
-	TypeCycleRandom,
+enum class BatchWordKind {
+	NewWord,
+	ReviewWord,
+	WeakWord,
+};
+
+enum class WordProgressState {
+	NotStarted,
+	InProgress,
+	Completed,
+};
+
+enum class QuestionReasonType {
+	NewWord,
+	ReviewDue,
+	MistakeFollowup,
+	WeakReinforce,
+	BatchTarget,
+	Unknown,
 };
 
 enum class QuizType {
@@ -51,15 +68,6 @@ enum class QuizType {
 	Speak,
 	Unknown,
 };
-
-using LearnedSnapshotProvider = std::function<LearnedSnapshot(const QuestionData &, const std::string &)>;
-
-struct SelectionResult {
-	bool has_value = false;
-	size_t selected_index = 0;
-	QuestionSelectionStrategy used_strategy = QuestionSelectionStrategy::TypeCycleRandom;
-};
-
 struct WordSelectionConfig {
 	int review_word_count = 10;
 	int new_word_count = 5;
@@ -74,6 +82,105 @@ struct SelectedWord {
 	std::string word;
 	std::string image;
 	bool is_review = false;
+};
+
+struct VocabularySeed {
+	int word_id = 0;
+	int meaning_id = 0;
+	int example_id = 0;
+	int meaning_count = 0;
+	int meaning_with_example_count = 0;
+	int word_example_count = 0;
+	int selected_meaning_example_count = 0;
+	std::string word;
+	std::string meaning_zh;
+	std::string meaning_en;
+	std::string image;
+	std::string example_en;
+	std::string example_zh;
+	std::string selection_zh;
+	std::string selection_en;
+	int stage = 1;
+	bool is_review = false;
+};
+
+struct WordMasteryProfile {
+	int user_id = 0;
+	int word_id = 0;
+	std::string textbook_name;
+	int stage = 0;
+	int familiarity = 0;
+	int stability = 0;
+	int recognition_score = 0;
+	int recall_score = 0;
+	int output_score = 0;
+	int64_t next_review_at = 0;
+	int lapse_count = 0;
+	int64_t last_practiced_at = 0;
+	int64_t last_decay_at = 0;
+	int64_t last_error_at = 0;
+	int consecutive_correct = 0;
+	int consecutive_wrong = 0;
+	int consecutive_recall_correct = 0;
+	bool recent_review_failed = false;
+	int last_response_time_ms = 0;
+	bool mastered = false;
+	int downgraded_from_stage = -1;
+};
+
+struct BatchWordPlan {
+	SelectedWord selected_word;
+	BatchWordKind kind = BatchWordKind::ReviewWord;
+	WordProgressState progress_state = WordProgressState::NotStarted;
+	bool recognition_done = false;
+	bool recall_done = false;
+	int shown_count = 0;
+	int correct_count = 0;
+};
+
+struct LearningBatch {
+	std::vector<BatchWordPlan> items;
+	int planned_new_words = 0;
+	int planned_review_words = 0;
+	int planned_weak_words = 0;
+};
+
+struct ScheduledQuestion {
+	bool has_value = false;
+	int word_id = 0;
+	int question_type = 0;
+	TrainingSkill target_skill = TrainingSkill::Unknown;
+	QuestionReasonType reason_type = QuestionReasonType::Unknown;
+	std::string reason_text;
+};
+
+struct CurrentQuestionSlot {
+	bool has_value = false;
+	QuestionData current{};
+};
+
+struct BatchProgressSummary {
+	int total_items = 0;
+	int completed_items = 0;
+	int new_total = 0;
+	int new_completed = 0;
+	int review_total = 0;
+	int review_completed = 0;
+	int weak_total = 0;
+	int weak_completed = 0;
+	bool batch_completed = false;
+};
+
+struct QuestionAttemptRecord {
+	int word_id = 0;
+	int question_type = 0;
+	TrainingSkill target_skill = TrainingSkill::Unknown;
+	QuestionReasonType reason_type = QuestionReasonType::Unknown;
+	std::string textbook_name;
+	std::string question_reason;
+	bool correct = false;
+	int response_time_ms = 0;
+	int64_t practiced_at = 0;
 };
 
 }  // namespace word_practice
