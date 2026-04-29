@@ -9,7 +9,6 @@ namespace word_practice {
 
 class SelectionModule {
 public:
-	void ResetProgress();
 	std::vector<SelectedWord> SelectWordsFromVocabulary(const WordSelectionConfig &config,
 						 int user_id = 0,
 						 int stage_index = 1,

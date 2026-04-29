@@ -16,7 +16,9 @@
 #include <sqlite3.h>
 
 #include "eteacher/app_ui/common_ui_utils.h"
+#include "eteacher/apps/word_practice/word_practice_config.h"
 #include "eteacher/apps/word_practice/word_practice_db_utils.h"
+#include "eteacher/apps/word_practice/word_practice_time_utils.h"
 #include "eteacher/database_manager/database_debug.h"
 #include "eteacher/database_manager/sqlite_db_api.h"
 
@@ -291,21 +293,6 @@ struct OptionSeed {
 using word_practice::db::PrepareStatement;
 using word_practice::db::StatementPtr;
 
-bool TableExists(sqlite3 *db, const char *table_name) {
-	if (db == nullptr || table_name == nullptr) {
-		return false;
-	}
-	const char *sql = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1;";
-	StatementPtr stmt;
-	if (!PrepareStatement(db, sql, &stmt)) {
-		return false;
-	}
-	if (sqlite3_bind_text(stmt.get(), 1, table_name, -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-		return false;
-	}
-	return sqlite3_step(stmt.get()) == SQLITE_ROW;
-}
-
 void ResetStatement(sqlite3_stmt *stmt) {
 	if (stmt == nullptr) {
 		return;
@@ -315,17 +302,12 @@ void ResetStatement(sqlite3_stmt *stmt) {
 }
 
 struct SeedQueryContext {
-	StatementPtr resolve_word_id_by_word_stmt;
 	StatementPtr meaning_by_word_id_stmt;
 	StatementPtr example_by_meaning_id_stmt;
 };
 
 bool PrepareSeedQueryContext(sqlite3 *db, SeedQueryContext *context) {
 	if (db == nullptr || context == nullptr) {
-		return false;
-	}
-	if (!PrepareStatement(db, "SELECT id FROM word WHERE word = ? LIMIT 1;", &context->resolve_word_id_by_word_stmt)) {
-		ESP_LOGW(kTag, "prepare resolve word id failed msg=%s", sqlite3_errmsg(db));
 		return false;
 	}
 	if (!PrepareStatement(db,
@@ -341,66 +323,6 @@ bool PrepareSeedQueryContext(sqlite3 *db, SeedQueryContext *context) {
 		return false;
 	}
 	return true;
-}
-
-int QueryTableRowCount(sqlite3 *db, const char *table_name) {
-	if (db == nullptr || table_name == nullptr || !TableExists(db, table_name)) {
-		return -1;
-	}
-	const std::string sql = "SELECT COUNT(1) FROM \"" + std::string(table_name) + "\";";
-	StatementPtr stmt;
-	if (!PrepareStatement(db, sql, &stmt)) {
-		return -1;
-	}
-	if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
-		return -1;
-	}
-	return sqlite3_column_int(stmt.get(), 0);
-}
-
-void LogSeedDatabaseSummary(sqlite3 *db, const std::vector<word_practice::SelectedWord> &selected_words) {
-	if (db == nullptr) {
-		return;
-	}
-	const int word_count = QueryTableRowCount(db, "word");
-	const int meaning_count = QueryTableRowCount(db, "word_meaning");
-	const int example_count = QueryTableRowCount(db, "word_example");
-	ESP_LOGW(kTag,
-		"seed db summary word_rows=%d meaning_rows=%d example_rows=%d has_word=%d has_meaning=%d has_example=%d",
-		word_count,
-		meaning_count,
-		example_count,
-		TableExists(db, "word") ? 1 : 0,
-		TableExists(db, "word_meaning") ? 1 : 0,
-		TableExists(db, "word_example") ? 1 : 0);
-	if (selected_words.empty() || !TableExists(db, "word_meaning")) {
-		return;
-	}
-	const word_practice::SelectedWord &sample_word = selected_words.front();
-	StatementPtr meaning_stmt;
-	StatementPtr example_stmt;
-	int sample_meaning_count = -1;
-	int sample_example_count = -1;
-	if (PrepareStatement(db, "SELECT COUNT(1) FROM word_meaning WHERE word_id=?;", &meaning_stmt)) {
-		sqlite3_bind_int(meaning_stmt.get(), 1, sample_word.word_id);
-		if (sqlite3_step(meaning_stmt.get()) == SQLITE_ROW) {
-			sample_meaning_count = sqlite3_column_int(meaning_stmt.get(), 0);
-		}
-	}
-	if (PrepareStatement(db,
-			"SELECT COUNT(1) FROM word_example WHERE meaning_id IN (SELECT id FROM word_meaning WHERE word_id=?);",
-			&example_stmt)) {
-		sqlite3_bind_int(example_stmt.get(), 1, sample_word.word_id);
-		if (sqlite3_step(example_stmt.get()) == SQLITE_ROW) {
-			sample_example_count = sqlite3_column_int(example_stmt.get(), 0);
-		}
-	}
-	ESP_LOGW(kTag,
-		"seed db sample word_id=%d word=%s meaning_count=%d example_count=%d",
-		sample_word.word_id,
-		sample_word.word.c_str(),
-		sample_meaning_count,
-		sample_example_count);
 }
 
 void ClearVocabularyExample(VocabularySeed *seed) {
@@ -433,21 +355,6 @@ bool OpenSeedDictionaryDb(int stage_index, sqlite3 **out_db, std::string *opened
 	}
 	LogResolvedDbAccess("word_practice_dictionary", *opened_db_path, "sqlite_db_api::OpenReadonlyDbFile");
 	return true;
-}
-
-bool ResolveWordIdByWord(sqlite3_stmt *stmt, const std::string &word, int *word_id) {
-	if (stmt == nullptr || word_id == nullptr) {
-		return false;
-	}
-	ResetStatement(stmt);
-	if (sqlite3_bind_text(stmt, 1, word.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
-		return false;
-	}
-	if (sqlite3_step(stmt) != SQLITE_ROW) {
-		return false;
-	}
-	*word_id = sqlite3_column_int(stmt, 0);
-	return *word_id > 0;
 }
 
 bool PopulateMeaningForWord(sqlite3_stmt *stmt, int word_id, VocabularySeed *seed) {
@@ -491,46 +398,6 @@ bool PopulateExampleForMeaning(sqlite3_stmt *stmt, int meaning_id, VocabularySee
 	seed->selection_zh = selection_zh_text != nullptr ? reinterpret_cast<const char *>(selection_zh_text) : "";
 	seed->selection_en = selection_en_text != nullptr ? reinterpret_cast<const char *>(selection_en_text) : "";
 	return seed->example_id > 0;
-}
-
-std::unordered_map<int, VocabularySeed> LoadVocabularySeedBatch(
-	sqlite3 *db,
-	const std::vector<word_practice::SelectedWord> &selected_words) {
-	std::unordered_map<int, VocabularySeed> seeds_by_word_id;
-	if (db == nullptr || selected_words.empty()) {
-		return seeds_by_word_id;
-	}
-	SeedQueryContext query_context;
-	if (!PrepareSeedQueryContext(db, &query_context)) {
-		ESP_LOGW(kTag, "prepare batch seed query context failed msg=%s", sqlite3_errmsg(db));
-		return seeds_by_word_id;
-	}
-	seeds_by_word_id.reserve(selected_words.size());
-	for (const auto &selected_word : selected_words) {
-		VocabularySeed seed;
-		seed.word_id = selected_word.word_id;
-		seed.word = Trim(selected_word.word);
-		seed.image = Trim(selected_word.image);
-		seed.stage = 1;
-		seed.is_review = selected_word.is_review;
-		ClearVocabularyExample(&seed);
-		if (seed.word.empty()) {
-			continue;
-		}
-		int resolved_word_id = selected_word.word_id;
-		if (resolved_word_id <= 0 && !ResolveWordIdByWord(query_context.resolve_word_id_by_word_stmt.get(), seed.word, &resolved_word_id)) {
-			continue;
-		}
-		seed.word_id = resolved_word_id;
-		if (!PopulateMeaningForWord(query_context.meaning_by_word_id_stmt.get(), resolved_word_id, &seed)) {
-			continue;
-		}
-		if (!PopulateExampleForMeaning(query_context.example_by_meaning_id_stmt.get(), seed.meaning_id, &seed)) {
-			continue;
-		}
-		seeds_by_word_id.emplace(seed.word_id, std::move(seed));
-	}
-	return seeds_by_word_id;
 }
 
 std::string StageNumberToTag(int stage) {
@@ -581,7 +448,7 @@ std::string BuildSentenceQuestionJson(const VocabularySeed &seed,
 				      const std::string &audio_path);
 
 int ComposeQuestionId(int word_id, int question_type) {
-	return word_id > 0 ? word_id * 100 + question_type : question_type;
+	return word_id > 0 ? ((word_id << 8) | (question_type & 0xFF)) : (question_type & 0xFF);
 }
 
 void ShuffleOptionArray(std::array<OptionSeed, 4> *options) {
@@ -1150,21 +1017,18 @@ bool LoadVocabularySeed(sqlite3 *db,
 	if (seed->word.empty()) {
 		return false;
 	}
-	int resolved_word_id = selected_word.word_id;
-	const bool loaded_by_id = resolved_word_id > 0 &&
-		PopulateMeaningForWord(query_context.meaning_by_word_id_stmt.get(), resolved_word_id, seed);
-	const bool loaded_by_word = !loaded_by_id &&
-		ResolveWordIdByWord(query_context.resolve_word_id_by_word_stmt.get(), seed->word, &resolved_word_id) &&
-		PopulateMeaningForWord(query_context.meaning_by_word_id_stmt.get(), resolved_word_id, seed);
-	if (loaded_by_word) {
-		WP_SEED_LOGW(kTag,
-			"load seed fallback hit by word word_id=%d word=%s meaning_id=%d",
-			selected_word.word_id,
-			seed->word.c_str(),
-			seed->meaning_id);
+	if (selected_word.word_id <= 0) {
+		return false;
 	}
-	seed->word_id = resolved_word_id > 0 ? resolved_word_id : selected_word.word_id;
-	const bool loaded = loaded_by_id || loaded_by_word;
+	const int resolved_word_id = selected_word.word_id;
+	seed->word_id = resolved_word_id;
+	const bool loaded = PopulateMeaningForWord(query_context.meaning_by_word_id_stmt.get(), resolved_word_id, seed);
+	if (!loaded) {
+		WP_SEED_LOGW(kTag,
+			"seed load aborted due to missing meaning by word_id=%d word=%s",
+			selected_word.word_id,
+			seed->word.c_str());
+	}
 	const bool has_example = loaded && PopulateExampleForMeaning(query_context.example_by_meaning_id_stmt.get(), seed->meaning_id, seed);
 	const bool loaded_with_example = loaded && has_example;
 	const int64_t seed_total_ms = NowMs() - seed_start_ms;
@@ -1177,7 +1041,7 @@ bool LoadVocabularySeed(sqlite3 *db,
 			seed->meaning_id,
 			seed->example_id,
 			has_example ? 1 : 0,
-			loaded_by_id ? 1 : 0,
+			loaded ? 1 : 0,
 			loaded ? 1 : 0,
 			loaded_with_example ? 1 : 0);
 	}
@@ -1207,7 +1071,7 @@ struct QuestionBuildPolicy {
 QuestionBuildPolicy BuildQuestionBuildPolicy(const VocabularySeed &seed,
 						   const word_practice::WordMasteryProfile *profile,
 						   bool include_speak_questions,
-						   bool cold_start_mode) {
+					   word_practice::LearningMode learning_mode) {
 	QuestionBuildPolicy policy;
 	if (!seed.is_review) {
 		policy.recognition = true;
@@ -1218,62 +1082,51 @@ QuestionBuildPolicy BuildQuestionBuildPolicy(const VocabularySeed &seed,
 		return policy;
 	}
 
-	const int familiarity = profile != nullptr ? profile->familiarity : 0;
-	const int stability = profile != nullptr ? profile->stability : 0;
 	const int recall_score = profile != nullptr ? profile->recall_score : 0;
 	const int output_score = profile != nullptr ? profile->output_score : 0;
-	const int consecutive_recall_correct = profile != nullptr ? profile->consecutive_recall_correct : 0;
-	const bool recent_review_failed = profile != nullptr && profile->recent_review_failed;
-
-	policy.recognition = cold_start_mode || profile == nullptr || familiarity < 45 || stability < 35 || recent_review_failed;
-	policy.recall = cold_start_mode || profile == nullptr || familiarity >= 20 || recall_score < 3 ||
-		consecutive_recall_correct < 2 || recent_review_failed;
-	policy.output = !cold_start_mode && profile != nullptr && familiarity >= 35 && stability >= 30 &&
-		recall_score >= 3 && consecutive_recall_correct >= 2;
-	policy.recall = policy.recall || policy.output;
+	policy.recognition = learning_mode == word_practice::LearningMode::ColdStart && seed.is_review;
+	policy.recall = profile == nullptr || recall_score < word_practice::config::kRecallToOutputThreshold;
+	policy.output = profile != nullptr && recall_score >= word_practice::config::kRecallToOutputThreshold;
 	policy.speak = include_speak_questions && policy.output;
-	policy.advanced_speak = policy.speak && output_score >= 4 && stability >= 45;
+	policy.advanced_speak = policy.speak && output_score >= word_practice::config::kOutputToAdvancedSpeakThreshold;
 
 	if (!policy.recognition && !policy.recall && !policy.output) {
-		policy.recognition = true;
+		policy.recall = true;
 	}
 	return policy;
 }
 
-bool ShouldUseColdStartMode(const std::vector<word_practice::SelectedWord> &selected_words,
-					 const std::vector<word_practice::WordMasteryProfile> &profiles) {
+word_practice::LearningMode DetermineLearningMode(const std::vector<word_practice::SelectedWord> &selected_words,
+						  const std::vector<word_practice::WordMasteryProfile> &profiles) {
 	if (selected_words.empty()) {
-		return false;
+		return word_practice::LearningMode::Normal;
 	}
-	int review_count = 0;
-	int new_count = 0;
+	int real_new_word_count = 0;
 	int profile_count = 0;
-	int familiarity_sum = 0;
-	int stability_sum = 0;
+	int weak_or_due_count = 0;
+	const int64_t now_sec = word_practice::CurrentPersistentEpochSeconds();
 	for (const auto &selected_word : selected_words) {
-		if (selected_word.is_review) {
-			++review_count;
-		} else {
-			++new_count;
-		}
 		if (const auto *profile = FindQuestionBuildProfile(profiles, selected_word.word_id)) {
-			familiarity_sum += profile->familiarity;
-			stability_sum += profile->stability;
 			++profile_count;
+			if (profile->last_practiced_at <= 0) {
+				++real_new_word_count;
+			}
+			if (profile->persistent_boost > 0 || profile->lapse_count >= 3 ||
+				(profile->next_review_at > 0 && profile->next_review_at <= now_sec)) {
+				++weak_or_due_count;
+			}
+		} else {
+			++real_new_word_count;
 		}
 	}
-	if (review_count == 0) {
-		return true;
+	const float selected_count = static_cast<float>(std::max(1, static_cast<int>(selected_words.size())));
+	if (profile_count == 0 || (static_cast<float>(real_new_word_count) / selected_count) > word_practice::config::kColdStartNewWordRatioThreshold) {
+		return word_practice::LearningMode::ColdStart;
 	}
-	if ((new_count * 100) / std::max(1, static_cast<int>(selected_words.size())) >= 50) {
-		return true;
+	if ((static_cast<float>(weak_or_due_count) / selected_count) > word_practice::config::kIntensiveReviewWeakOrDueRatioThreshold) {
+		return word_practice::LearningMode::IntensiveReview;
 	}
-	if (profile_count == 0) {
-		return true;
-	}
-	const int avg_familiarity = familiarity_sum / std::max(1, profile_count);
-	const int avg_stability = stability_sum / std::max(1, profile_count);
-	return avg_familiarity < 30 || avg_stability < 25;
+	return word_practice::LearningMode::Normal;
 }
 
 const VocabularySeed *FindVocabularySeed(const std::vector<VocabularySeed> &loaded_seeds, int word_id) {
@@ -1283,75 +1136,6 @@ const VocabularySeed *FindVocabularySeed(const std::vector<VocabularySeed> &load
 		}
 	}
 	return nullptr;
-}
-
-std::vector<VocabularySeed> LoadVocabularySeedPool(const std::vector<word_practice::SelectedWord> &selected_words,
-						 int stage_index) {
-	std::vector<VocabularySeed> loaded_seeds;
-	if (selected_words.empty()) {
-		return loaded_seeds;
-	}
-	const int64_t pool_start_ms = NowMs();
-	sqlite3 *db = nullptr;
-	std::string opened_db_path;
-	if (!OpenSeedDictionaryDb(stage_index, &db, &opened_db_path)) {
-		return loaded_seeds;
-	}
-	loaded_seeds.reserve(selected_words.size());
-	const int64_t batch_load_start_ms = NowMs();
-	std::unordered_map<int, VocabularySeed> batch_loaded_seeds = LoadVocabularySeedBatch(db, selected_words);
-	const int64_t batch_load_ms = NowMs() - batch_load_start_ms;
-	const int batch_success_count = static_cast<int>(batch_loaded_seeds.size());
-	const int expected_count = static_cast<int>(selected_words.size());
-	WP_SEED_LOGW(kTag,
-		"batch seed query loaded=%d expected=%d missing=%d batch_ms=%d",
-		batch_success_count,
-		expected_count,
-		std::max(0, expected_count - batch_success_count),
-		static_cast<int>(batch_load_ms));
-	if (batch_success_count == 0 && expected_count > 0) {
-		LogSeedDatabaseSummary(db, selected_words);
-	}
-	SeedQueryContext fallback_query_context;
-	bool fallback_context_ready = false;
-	bool fallback_prepare_failed = false;
-	int fallback_loaded_count = 0;
-	int missing_word_count = 0;
-	{
-		for (const auto &selected_word : selected_words) {
-			auto batch_it = batch_loaded_seeds.find(selected_word.word_id);
-			if (batch_it == batch_loaded_seeds.end()) {
-				++missing_word_count;
-				WP_SEED_LOGW(kTag,
-					"batch seed missing word_id=%d word=%s",
-					selected_word.word_id,
-					selected_word.word.c_str());
-				if (!fallback_context_ready && !fallback_prepare_failed) {
-					fallback_context_ready = PrepareSeedQueryContext(db, &fallback_query_context);
-					fallback_prepare_failed = !fallback_context_ready;
-				}
-				if (fallback_context_ready) {
-					VocabularySeed fallback_seed;
-					if (LoadVocabularySeed(db, fallback_query_context, selected_word, &fallback_seed)) {
-						loaded_seeds.push_back(std::move(fallback_seed));
-						++fallback_loaded_count;
-					}
-				}
-				continue;
-			}
-			loaded_seeds.push_back(batch_it->second);
-		}
-	}
-	CloseSeedDb(db, "LoadVocabularySeedPool");
-	WP_SEED_LOGW(kTag,
-		"seed pool timing total_ms=%d words=%d loaded=%d batch_load_ms=%d missing_words=%d fallback_loaded=%d",
-		static_cast<int>(NowMs() - pool_start_ms),
-		static_cast<int>(selected_words.size()),
-		static_cast<int>(loaded_seeds.size()),
-		static_cast<int>(batch_load_ms),
-		missing_word_count,
-		fallback_loaded_count);
-	return loaded_seeds;
 }
 
 bool LoadVocabularySeedForWord(const word_practice::SelectedWord &selected_word,
@@ -1390,8 +1174,8 @@ std::vector<int> BuildAvailableQuestionTypesForSeed(const VocabularySeed &seed,
 						    const std::vector<VocabularySeed> &loaded_seeds,
 						    const word_practice::WordMasteryProfile *profile,
 						    bool include_speak_questions,
-						    bool cold_start_mode) {
-	const QuestionBuildPolicy policy = BuildQuestionBuildPolicy(seed, profile, include_speak_questions, cold_start_mode);
+					    word_practice::LearningMode learning_mode) {
+	const QuestionBuildPolicy policy = BuildQuestionBuildPolicy(seed, profile, include_speak_questions, learning_mode);
 	const std::vector<OptionSeed> distractors = BuildDistractorOptionsFromSeeds(seed, loaded_seeds, 12);
 	const std::vector<OptionSeed> standard_options = BuildOptionCandidates(seed, distractors, false);
 	const std::vector<OptionSeed> image_options = BuildImageOptionCandidates(seed, loaded_seeds);
@@ -1435,7 +1219,7 @@ std::unordered_map<int, std::vector<int>> BuildAvailableQuestionTypesByWord(
 	const std::vector<VocabularySeed> &loaded_seeds,
 	const std::vector<word_practice::WordMasteryProfile> &profiles,
 	bool include_speak_questions,
-	bool cold_start_mode) {
+	word_practice::LearningMode learning_mode) {
 	std::unordered_map<int, std::vector<int>> available_question_types_by_word;
 	for (const auto &seed : loaded_seeds) {
 		const word_practice::WordMasteryProfile *profile = FindQuestionBuildProfile(profiles, seed.word_id);
@@ -1444,7 +1228,7 @@ std::unordered_map<int, std::vector<int>> BuildAvailableQuestionTypesByWord(
 			loaded_seeds,
 			profile,
 			include_speak_questions,
-			cold_start_mode);
+			learning_mode);
 		if (!available_types.empty()) {
 			available_question_types_by_word.emplace(seed.word_id, std::move(available_types));
 		}
@@ -1458,11 +1242,11 @@ bool AppendGeneratedQuestionByType(std::vector<word_practice::QuestionData> *que
 					   const word_practice::WordMasteryProfile *profile,
 					   int question_type,
 					   bool include_speak_questions,
-					   bool cold_start_mode) {
+					   word_practice::LearningMode learning_mode) {
 	if (question_pool == nullptr) {
 		return false;
 	}
-	const QuestionBuildPolicy policy = BuildQuestionBuildPolicy(seed, profile, include_speak_questions, cold_start_mode);
+	const QuestionBuildPolicy policy = BuildQuestionBuildPolicy(seed, profile, include_speak_questions, learning_mode);
 	const std::vector<OptionSeed> distractors = BuildDistractorOptionsFromSeeds(seed, loaded_seeds, 12);
 	const std::vector<OptionSeed> standard_options = BuildOptionCandidates(seed, distractors, false);
 	const std::vector<OptionSeed> image_options = BuildImageOptionCandidates(seed, loaded_seeds);
@@ -1530,7 +1314,7 @@ bool GenerateQuestionOnDemand(const std::vector<VocabularySeed> &loaded_seeds,
 				      int word_id,
 				      int question_type,
 				      bool include_speak_questions,
-				      bool cold_start_mode,
+				      word_practice::LearningMode learning_mode,
 				      word_practice::QuestionData *out_question) {
 	if (out_question == nullptr) {
 		return false;
@@ -1549,7 +1333,7 @@ bool GenerateQuestionOnDemand(const std::vector<VocabularySeed> &loaded_seeds,
 			profile,
 			question_type,
 			include_speak_questions,
-			cold_start_mode) || generated_questions.empty()) {
+			learning_mode) || generated_questions.empty()) {
 		return false;
 	}
 	*out_question = std::move(generated_questions.front());
@@ -1558,12 +1342,6 @@ bool GenerateQuestionOnDemand(const std::vector<VocabularySeed> &loaded_seeds,
 
 }  // namespace
 
-std::vector<word_practice::VocabularySeed> word_practice::QuestionSeedModule::LoadVocabularySeedPool(
-	const std::vector<word_practice::SelectedWord> &selected_words,
-	int stage_index) const {
-	return ::LoadVocabularySeedPool(selected_words, stage_index);
-}
-
 bool word_practice::QuestionSeedModule::LoadVocabularySeedForWord(
 	const word_practice::SelectedWord &selected_word,
 	int stage_index,
@@ -1571,22 +1349,22 @@ bool word_practice::QuestionSeedModule::LoadVocabularySeedForWord(
 	return ::LoadVocabularySeedForWord(selected_word, stage_index, out_seed);
 }
 
-bool word_practice::QuestionSeedModule::ShouldUseColdStartMode(
+word_practice::LearningMode word_practice::QuestionSeedModule::DetermineLearningMode(
 	const std::vector<word_practice::SelectedWord> &selected_words,
 	const std::vector<word_practice::WordMasteryProfile> &profiles) const {
-	return ::ShouldUseColdStartMode(selected_words, profiles);
+	return ::DetermineLearningMode(selected_words, profiles);
 }
 
 std::unordered_map<int, std::vector<int>> word_practice::QuestionSeedModule::BuildAvailableQuestionTypesByWord(
 	const std::vector<word_practice::VocabularySeed> &loaded_seeds,
 	const std::vector<word_practice::WordMasteryProfile> &profiles,
 	bool include_speak_questions,
-	bool cold_start_mode) const {
+	word_practice::LearningMode learning_mode) const {
 	return ::BuildAvailableQuestionTypesByWord(
 		loaded_seeds,
 		profiles,
 		include_speak_questions,
-		cold_start_mode);
+		learning_mode);
 }
 
 bool word_practice::QuestionSeedModule::GenerateQuestionOnDemand(
@@ -1595,7 +1373,7 @@ bool word_practice::QuestionSeedModule::GenerateQuestionOnDemand(
 	int word_id,
 	int question_type,
 	bool include_speak_questions,
-	bool cold_start_mode,
+	word_practice::LearningMode learning_mode,
 	word_practice::QuestionData *out_question) const {
 	return ::GenerateQuestionOnDemand(
 		loaded_seeds,
@@ -1603,6 +1381,6 @@ bool word_practice::QuestionSeedModule::GenerateQuestionOnDemand(
 		word_id,
 		question_type,
 		include_speak_questions,
-		cold_start_mode,
+		learning_mode,
 		out_question);
 }

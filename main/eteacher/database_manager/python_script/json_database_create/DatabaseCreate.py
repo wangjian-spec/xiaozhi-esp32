@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from contextlib import closing
 import importlib
 import json
 import random
@@ -1632,7 +1633,7 @@ class DatabaseService:
 			conn.commit()
 
 	def _ensure_user_schema(self) -> None:
-		with sqlite3.connect(self.user_db_path) as conn:
+		with closing(sqlite3.connect(self.user_db_path)) as conn:
 			conn.execute("PRAGMA foreign_keys = ON")
 			conn.executescript(
 				"""
@@ -1653,16 +1654,17 @@ class DatabaseService:
 					word_id INTEGER NOT NULL,
 					textbook_name TEXT NOT NULL,
 					stage INTEGER DEFAULT 0,
-					recognition_score INTEGER DEFAULT 0,
+					strength INTEGER DEFAULT 0,
 					recall_score INTEGER DEFAULT 0,
 					output_score INTEGER DEFAULT 0,
 					next_review_at INTEGER DEFAULT 0,
 					lapse_count INTEGER DEFAULT 0,
 					last_practiced_at INTEGER DEFAULT 0,
 					last_decay_at INTEGER DEFAULT 0,
-					consecutive_correct INTEGER DEFAULT 0,
-					consecutive_wrong INTEGER DEFAULT 0,
-					downgraded_from_stage INTEGER DEFAULT -1,
+					last_reviewed_at INTEGER DEFAULT 0,
+					last_response_time_ms INTEGER DEFAULT 0,
+					persistent_boost INTEGER DEFAULT 0,
+					mastered INTEGER DEFAULT 0,
 					PRIMARY KEY(user_id, word_id, textbook_name)
 				);
 
@@ -1678,6 +1680,48 @@ class DatabaseService:
 					correct INTEGER DEFAULT 0,
 					question_reason TEXT,
 					practiced_at INTEGER DEFAULT 0
+				);
+
+				CREATE TABLE IF NOT EXISTS learned (
+					user_id INTEGER NOT NULL,
+					textbook_name TEXT NOT NULL,
+					word_id INTEGER NOT NULL,
+					correct_count INTEGER DEFAULT 0,
+					wrong_count INTEGER DEFAULT 0,
+					last_seen_at INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, textbook_name, word_id)
+				);
+
+				CREATE TABLE IF NOT EXISTS word_practice_stats_daily (
+					user_id INTEGER NOT NULL,
+					date TEXT NOT NULL,
+					textbook_name TEXT NOT NULL,
+					total_count INTEGER DEFAULT 0,
+					correct_count INTEGER DEFAULT 0,
+					wrong_count INTEGER DEFAULT 0,
+					pass_count INTEGER DEFAULT 0,
+					fail_count INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, date, textbook_name)
+				);
+
+				CREATE TABLE IF NOT EXISTS word_practice_daily_progress (
+					user_id INTEGER NOT NULL,
+					date TEXT NOT NULL,
+					textbook_name TEXT NOT NULL,
+					completed_words INTEGER DEFAULT 0,
+					target_words INTEGER DEFAULT 0,
+					progress_percent INTEGER DEFAULT 0,
+					updated_at INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, date, textbook_name)
+				);
+
+				CREATE TABLE IF NOT EXISTS word_practice_runtime_state (
+					user_id INTEGER NOT NULL,
+					textbook_name TEXT NOT NULL,
+					completed_rounds INTEGER DEFAULT 0,
+					last_round_passed INTEGER DEFAULT 0,
+					last_round_at INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, textbook_name)
 				);
 
 				CREATE TABLE IF NOT EXISTS ai_sessions (
@@ -1775,14 +1819,143 @@ class DatabaseService:
 
 				CREATE INDEX IF NOT EXISTS idx_vocab_user ON vocab_items(user_id);
 				CREATE INDEX IF NOT EXISTS idx_vocab_word ON vocab_items(word_id);
-				CREATE INDEX IF NOT EXISTS idx_word_learning_profile_user_next_review ON word_learning_profile(user_id, next_review_at);
 				CREATE INDEX IF NOT EXISTS idx_word_practice_history_user_word ON word_practice_history(user_id, word_id, practiced_at);
 				CREATE INDEX IF NOT EXISTS idx_tasks_user_deleted_due ON tasks(user_id, is_deleted, due_at);
 				CREATE INDEX IF NOT EXISTS idx_tasks_deleted_done ON tasks(is_deleted, is_completed);
 				CREATE INDEX IF NOT EXISTS idx_game_reward_user ON game_rewards_log(user_id);
+				PRAGMA user_version = 4;
 				"""
 			)
+			self._ensure_word_learning_profile_runtime_schema(conn)
 			conn.commit()
+
+	def _ensure_word_learning_profile_runtime_schema(self, conn: sqlite3.Connection) -> None:
+		runtime_columns = {
+			"textbook_name": "TEXT NOT NULL DEFAULT 'default'",
+			"stage": "INTEGER DEFAULT 0",
+			"strength": "INTEGER DEFAULT 0",
+			"recall_score": "INTEGER DEFAULT 0",
+			"output_score": "INTEGER DEFAULT 0",
+			"next_review_at": "INTEGER DEFAULT 0",
+			"lapse_count": "INTEGER DEFAULT 0",
+			"last_practiced_at": "INTEGER DEFAULT 0",
+			"last_decay_at": "INTEGER DEFAULT 0",
+			"last_reviewed_at": "INTEGER DEFAULT 0",
+			"last_response_time_ms": "INTEGER DEFAULT 0",
+			"persistent_boost": "INTEGER DEFAULT 0",
+			"mastered": "INTEGER DEFAULT 0",
+		}
+		columns = self._get_conn_table_columns(conn, "word_learning_profile")
+		for column_name, column_sql in runtime_columns.items():
+			if column_name not in columns:
+				conn.execute(f"ALTER TABLE word_learning_profile ADD COLUMN {column_name} {column_sql}")
+		columns = self._get_conn_table_columns(conn, "word_learning_profile")
+		primary_key = [
+			column_name
+			for column_name, info in sorted(columns.items(), key=lambda item: int(item[1]["pk"]))
+			if int(info["pk"])
+		]
+		if primary_key != ["user_id", "word_id", "textbook_name"]:
+			self._rebuild_word_learning_profile_table(conn)
+		conn.execute(
+			"CREATE INDEX IF NOT EXISTS idx_word_learning_profile_user_next_review "
+			"ON word_learning_profile(user_id, next_review_at)"
+		)
+		conn.execute("PRAGMA user_version = 4")
+
+	def _rebuild_word_learning_profile_table(self, conn: sqlite3.Connection) -> None:
+		conn.execute("SAVEPOINT rebuild_word_learning_profile")
+		try:
+			conn.execute("DROP TABLE IF EXISTS word_learning_profile__backup")
+			conn.execute("CREATE TABLE word_learning_profile__backup AS SELECT * FROM word_learning_profile")
+			conn.execute("DROP TABLE word_learning_profile")
+			conn.execute(
+				"""
+				CREATE TABLE word_learning_profile (
+					user_id INTEGER NOT NULL,
+					word_id INTEGER NOT NULL,
+					textbook_name TEXT NOT NULL,
+					stage INTEGER DEFAULT 0,
+					strength INTEGER DEFAULT 0,
+					recall_score INTEGER DEFAULT 0,
+					output_score INTEGER DEFAULT 0,
+					next_review_at INTEGER DEFAULT 0,
+					lapse_count INTEGER DEFAULT 0,
+					last_practiced_at INTEGER DEFAULT 0,
+					last_decay_at INTEGER DEFAULT 0,
+					last_reviewed_at INTEGER DEFAULT 0,
+					last_response_time_ms INTEGER DEFAULT 0,
+					persistent_boost INTEGER DEFAULT 0,
+					mastered INTEGER DEFAULT 0,
+					PRIMARY KEY(user_id, word_id, textbook_name)
+				)
+				"""
+			)
+			conn.execute(
+				"""
+				INSERT OR REPLACE INTO word_learning_profile(
+					user_id,
+					word_id,
+					textbook_name,
+					stage,
+					strength,
+					recall_score,
+					output_score,
+					next_review_at,
+					lapse_count,
+					last_practiced_at,
+					last_decay_at,
+					last_reviewed_at,
+					last_response_time_ms,
+					persistent_boost,
+					mastered
+				)
+				SELECT
+					COALESCE(user_id, 0),
+					COALESCE(word_id, 0),
+					COALESCE(NULLIF(textbook_name, ''), 'default'),
+					COALESCE(stage, 0),
+					COALESCE(strength, 0),
+					COALESCE(recall_score, 0),
+					COALESCE(output_score, 0),
+					COALESCE(next_review_at, 0),
+					COALESCE(lapse_count, 0),
+					COALESCE(last_practiced_at, 0),
+					COALESCE(last_decay_at, 0),
+					COALESCE(last_reviewed_at, 0),
+					COALESCE(last_response_time_ms, 0),
+					COALESCE(persistent_boost, 0),
+					COALESCE(mastered, 0)
+				FROM word_learning_profile__backup
+				"""
+			)
+			conn.execute("DROP TABLE word_learning_profile__backup")
+			conn.execute(
+				"CREATE INDEX IF NOT EXISTS idx_word_learning_profile_user_next_review "
+				"ON word_learning_profile(user_id, next_review_at)"
+			)
+			conn.execute(
+				"CREATE INDEX IF NOT EXISTS idx_word_practice_history_user_word "
+				"ON word_practice_history(user_id, word_id, practiced_at)"
+			)
+			conn.execute("RELEASE SAVEPOINT rebuild_word_learning_profile")
+		except sqlite3.Error:
+			conn.execute("ROLLBACK TO SAVEPOINT rebuild_word_learning_profile")
+			conn.execute("RELEASE SAVEPOINT rebuild_word_learning_profile")
+			raise
+
+	@staticmethod
+	def _get_conn_table_columns(conn: sqlite3.Connection, table_name: str) -> dict[str, dict[str, object]]:
+		rows = conn.execute(f"PRAGMA table_info({DatabaseService._quote_identifier(table_name)})").fetchall()
+		return {
+			str(row[1]): {
+				"type": str(row[2] or ""),
+				"not_null": int(row[3]),
+				"default_value": row[4],
+				"pk": int(row[5]),
+			}
+			for row in rows
+		}
 
 	@staticmethod
 	def _fetch_scalar(db_path: Path, sql: str) -> int:

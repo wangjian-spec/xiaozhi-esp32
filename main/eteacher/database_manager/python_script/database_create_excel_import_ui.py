@@ -1653,16 +1653,17 @@ class DatabaseService:
 					word_id INTEGER NOT NULL,
 					textbook_name TEXT NOT NULL,
 					stage INTEGER DEFAULT 0,
-					recognition_score INTEGER DEFAULT 0,
+					strength INTEGER DEFAULT 0,
 					recall_score INTEGER DEFAULT 0,
 					output_score INTEGER DEFAULT 0,
 					next_review_at INTEGER DEFAULT 0,
 					lapse_count INTEGER DEFAULT 0,
 					last_practiced_at INTEGER DEFAULT 0,
 					last_decay_at INTEGER DEFAULT 0,
-					consecutive_correct INTEGER DEFAULT 0,
-					consecutive_wrong INTEGER DEFAULT 0,
-					downgraded_from_stage INTEGER DEFAULT -1,
+					last_reviewed_at INTEGER DEFAULT 0,
+					last_response_time_ms INTEGER DEFAULT 0,
+					persistent_boost INTEGER DEFAULT 0,
+					mastered INTEGER DEFAULT 0,
 					PRIMARY KEY(user_id, word_id, textbook_name)
 				);
 
@@ -1678,6 +1679,48 @@ class DatabaseService:
 					correct INTEGER DEFAULT 0,
 					question_reason TEXT,
 					practiced_at INTEGER DEFAULT 0
+				);
+
+				CREATE TABLE IF NOT EXISTS learned (
+					user_id INTEGER NOT NULL,
+					textbook_name TEXT NOT NULL,
+					word_id INTEGER NOT NULL,
+					correct_count INTEGER DEFAULT 0,
+					wrong_count INTEGER DEFAULT 0,
+					last_seen_at INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, textbook_name, word_id)
+				);
+
+				CREATE TABLE IF NOT EXISTS word_practice_stats_daily (
+					user_id INTEGER NOT NULL,
+					date TEXT NOT NULL,
+					textbook_name TEXT NOT NULL,
+					total_count INTEGER DEFAULT 0,
+					correct_count INTEGER DEFAULT 0,
+					wrong_count INTEGER DEFAULT 0,
+					pass_count INTEGER DEFAULT 0,
+					fail_count INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, date, textbook_name)
+				);
+
+				CREATE TABLE IF NOT EXISTS word_practice_daily_progress (
+					user_id INTEGER NOT NULL,
+					date TEXT NOT NULL,
+					textbook_name TEXT NOT NULL,
+					completed_words INTEGER DEFAULT 0,
+					target_words INTEGER DEFAULT 0,
+					progress_percent INTEGER DEFAULT 0,
+					updated_at INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, date, textbook_name)
+				);
+
+				CREATE TABLE IF NOT EXISTS word_practice_runtime_state (
+					user_id INTEGER NOT NULL,
+					textbook_name TEXT NOT NULL,
+					completed_rounds INTEGER DEFAULT 0,
+					last_round_passed INTEGER DEFAULT 0,
+					last_round_at INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, textbook_name)
 				);
 
 				CREATE TABLE IF NOT EXISTS ai_sessions (
@@ -1780,6 +1823,7 @@ class DatabaseService:
 				CREATE INDEX IF NOT EXISTS idx_tasks_user_deleted_due ON tasks(user_id, is_deleted, due_at);
 				CREATE INDEX IF NOT EXISTS idx_tasks_deleted_done ON tasks(is_deleted, is_completed);
 				CREATE INDEX IF NOT EXISTS idx_game_reward_user ON game_rewards_log(user_id);
+				PRAGMA user_version = 4;
 				"""
 			)
 			conn.commit()

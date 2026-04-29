@@ -121,7 +121,11 @@ CREATE TABLE question_bank (
 - `users.name`
 - `users.current_stage`
 - `users.level`
-- `users.today_mission`
+- `learning_preferences.today_mission_count`
+- `learning_preferences.today_practice_word`
+- `settings.enable_read_questions`
+- `practice_stats.continuous_days`
+- `practice_stats.last_practice_date`
 - `devices.device_id`
 - `devices.firmware`
 
@@ -150,23 +154,17 @@ CREATE TABLE word_learning_profile (
   word_id               INTEGER NOT NULL,
   textbook_name         TEXT NOT NULL,
   stage                 INTEGER DEFAULT 0,
-  familiarity           INTEGER DEFAULT 0,
-  stability             INTEGER DEFAULT 0,
-  recognition_score     INTEGER DEFAULT 0,
+  strength              INTEGER DEFAULT 0,
   recall_score          INTEGER DEFAULT 0,
   output_score          INTEGER DEFAULT 0,
   next_review_at        INTEGER DEFAULT 0,
   lapse_count           INTEGER DEFAULT 0,
   last_practiced_at     INTEGER DEFAULT 0,
   last_decay_at         INTEGER DEFAULT 0,
-  last_error_at         INTEGER DEFAULT 0,
-  consecutive_correct   INTEGER DEFAULT 0,
-  consecutive_wrong     INTEGER DEFAULT 0,
-  consecutive_recall_correct INTEGER DEFAULT 0,
-  recent_review_failed  INTEGER DEFAULT 0,
+  last_reviewed_at      INTEGER DEFAULT 0,
   last_response_time_ms INTEGER DEFAULT 0,
+  persistent_boost      INTEGER DEFAULT 0,
   mastered              INTEGER DEFAULT 0,
-  downgraded_from_stage INTEGER DEFAULT -1,
   PRIMARY KEY(user_id, word_id, textbook_name)
 );
 
@@ -175,26 +173,92 @@ CREATE TABLE word_learning_profile (
 - **user_id**: 用户标识，整型，表示该记录所属用户。
 - **word_id**: 单词 ID，整型，对应静态词典 `word.id`。
 - **textbook_name**: 教材或来源名称，文本，用于区分同一单词在不同教材下的学习记录。
-- **stage**: 当前学习阶段，整型（默认 0），表示学习流程中的阶段索引。
-- **familiarity**: 熟悉度评分（内部算法），整型，数值越大表示越熟悉。
-- **stability**: 稳定性指数，整型，表示记忆的巩固程度。
-- **recognition_score**: 识别维度得分（被动识别），整型。
-- **recall_score**: 回忆维度得分（主动回忆），整型。
-- **output_score**: 输出维度得分（口语/书写输出能力），整型。
-- **next_review_at**: 下次复习时间戳，整型，Unix 时间（秒）。
-- **lapse_count**: 衰退/遗忘次数，整型。
-- **last_practiced_at**: 上次练习时间戳，整型，Unix 时间（秒）。
-- **last_decay_at**: 上次发生记忆衰减的时间戳，整型，Unix 时间（秒）。
-- **last_error_at**: 上次答题出错的时间戳，整型，Unix 时间（秒）。
-- **consecutive_correct**: 连续正确答题次数，整型。
-- **consecutive_wrong**: 连续错误答题次数，整型。
-- **consecutive_recall_correct**: 连续回忆题正确次数，整型（追踪回忆能力的短期趋势）。
-- **recent_review_failed**: 最近复习是否失败标志或计数，整型（0 表示无失败，>0 表示失败次数或标识）。
-- **last_response_time_ms**: 最近一次答题响应耗时，整型，单位毫秒。
-- **mastered**: 掌握标志，整型（0/1），表示是否被标记为已掌握。
-- **downgraded_from_stage**: 如果发生降级，记录原先阶段，默认 -1 表示无降级记录。
+- **stage**: UI 展示阶段，基于 `strength` 和 `mastered` 推导后持久化。
+- **strength**: 当前综合掌握强度，范围 `0~100`，是晋级、掌握、弱词判定的核心数值。
+- **recall_score**: 主动回忆能力分数，达到阈值后才会放行 Output 训练。
+- **output_score**: 输出能力分数，达到阈值后才会放行 Advanced Speak 训练。
+- **next_review_at**: 下次进入 due review 的时间戳，Unix 秒。
+- **lapse_count**: 遗忘/答错累计次数。
+- **last_practiced_at**: 最近一次练习时间戳，Unix 秒。
+- **last_decay_at**: 最近一次执行逾期衰减的时间戳，Unix 秒。
+- **last_reviewed_at**: 最近一次真正参与复习调度的时间戳，Unix 秒。
+- **last_response_time_ms**: 最近一次答题耗时，毫秒。
+- **persistent_boost**: 长期弱词强化值，错误累计较多时会置高，帮助调度器重复强化。
+- **mastered**: 是否达到“掌握”门槛的持久化标记。
 
-上面表用于单词练习 App 的词级掌握状态，不再按 `question_id` 维护掌握度，而是按 `word_id` 维护 recognition / recall / output 三个维度分数、当前阶段、下次复习时间和降级恢复信息；
+上面表用于单词练习 App 的词级掌握状态。当前版本按 `word_id` 维护 `strength / recall_score / output_score / persistent_boost` 四类核心信号。
+
+运行时约束补充：
+
+- 当前 `word_practice` 运行时以 `PRAGMA user_version = 4` 为目标版本。
+- `EnsureSchemaVersion()` 会为 `word_learning_profile` 自动补齐运行时依赖列，并在发现旧主键不包含 `textbook_name` 时执行表重建迁移。
+- `json_database_create/DatabaseCreate.py` 创建 `user.db` 时使用与运行时一致的 `word_learning_profile`、`word_practice_history` 和结果统计表结构，并设置 `PRAGMA user_version = 4`。
+- `DatabaseCreate.py` 对已有旧版 `user.db` 不是只执行 `CREATE TABLE IF NOT EXISTS`：它会补齐 `textbook_name / stage / strength / recall_score / output_score / next_review_at / lapse_count / last_practiced_at / last_decay_at / last_reviewed_at / last_response_time_ms / persistent_boost / mastered`，并在主键不是 `(user_id, word_id, textbook_name)` 时重建 `word_learning_profile`。这保证 `word_practice` 启动后可以直接打开 `user.db`，并能通过 `INSERT INTO word_learning_profile(user_id, word_id, textbook_name, ...)` 写入或补种 profile。
+- `DatabaseCreate.py` 与运行时已统一使用相同的 `word_learning_profile` 字段集合，不再保留旧版 `familiarity / stability / recognition_score` 字段。
+
+`word_practice_history` 用于保存逐题作答历史：
+
+```sql
+CREATE TABLE word_practice_history (
+  id              INTEGER PRIMARY KEY,
+  user_id         INTEGER NOT NULL,
+  word_id         INTEGER NOT NULL,
+  question_type   INTEGER DEFAULT 0,
+  target_skill    TEXT,
+  review_type     TEXT,
+  rating          INTEGER DEFAULT 0,
+  response_time   INTEGER DEFAULT 0,
+  correct         INTEGER DEFAULT 0,
+  question_reason TEXT,
+  practiced_at    INTEGER DEFAULT 0
+);
+```
+
+结果模块还会维护 4 张运行统计表：
+
+```sql
+CREATE TABLE learned (
+  user_id       INTEGER NOT NULL,
+  textbook_name TEXT NOT NULL,
+  word_id       INTEGER NOT NULL,
+  correct_count INTEGER DEFAULT 0,
+  wrong_count   INTEGER DEFAULT 0,
+  last_seen_at  INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, textbook_name, word_id)
+);
+
+CREATE TABLE word_practice_stats_daily (
+  user_id       INTEGER NOT NULL,
+  date          TEXT NOT NULL,
+  textbook_name TEXT NOT NULL,
+  total_count   INTEGER DEFAULT 0,
+  correct_count INTEGER DEFAULT 0,
+  wrong_count   INTEGER DEFAULT 0,
+  pass_count    INTEGER DEFAULT 0,
+  fail_count    INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, date, textbook_name)
+);
+
+CREATE TABLE word_practice_daily_progress (
+  user_id          INTEGER NOT NULL,
+  date             TEXT NOT NULL,
+  textbook_name    TEXT NOT NULL,
+  completed_words  INTEGER DEFAULT 0,
+  target_words     INTEGER DEFAULT 0,
+  progress_percent INTEGER DEFAULT 0,
+  updated_at       INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, date, textbook_name)
+);
+
+CREATE TABLE word_practice_runtime_state (
+  user_id           INTEGER NOT NULL,
+  textbook_name     TEXT NOT NULL,
+  completed_rounds  INTEGER DEFAULT 0,
+  last_round_passed INTEGER DEFAULT 0,
+  last_round_at     INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, textbook_name)
+);
+```
 
 其他表字段说明（根据代码实现整理）：
 
@@ -212,7 +276,7 @@ CREATE TABLE word_learning_profile (
   - **pos**: 词性（part of speech）。
   - **meaning_en**: 英文释义或释义示例。
   - **meaning_zh**: 中文释义或说明。
-  - **source**: 释义来源或替代的图片字段（迁移兼容字段）。
+  - **source**: 释义来源字段。
   - **word_tag**: 用于分类（如动物、动词、听力等）。
 
 - `word_form`:
@@ -398,10 +462,6 @@ CREATE TABLE word_practice_history (
   practiced_at    INTEGER DEFAULT 0
 );
 
-上面表是单词练习 app 的统一历史表，合并了原先的 `vocab_review_log` 与 `word_question_history`。它同时保存答题结果、训练目标（recognition / recall / output）、出题原因（new_word / review_due / mistake_followup / weak_reinforce / batch_target）以及统计字段；
-
-单词练习 app 的回合推进状态不再放在数据库，改为写入 `/sdcard/user/user.json` 的 `word_practice_runtime_state` 节点；
-
 #### C. AI 学习过程
 
 ```sql
@@ -557,6 +617,8 @@ CREATE TABLE sync_state (
 - `DiscoverUserDataDbPath(log_tag, required_table)`
   - `required_table="vocab_items"`：词典/生词本场景
   - `required_table=nullptr`：允许首次建表场景（如日程）
+  - 若固定路径上的 `user.db` 不存在，会返回目标路径供后续 `sqlite3_open_v2(...CREATE...)` 首次建库。
+  - 若固定路径上的 `user.db` 被识别为损坏或不是有效 SQLite 文件，会先尝试隔离为 `.corrupt` 备份，再返回原路径供后续重建。
 
 ### 3.3 词典库访问
 
@@ -627,6 +689,14 @@ CREATE TABLE sync_state (
 
 - 说明用户库路径识别到错误文件，或目标库未初始化该表。
 - 先检查 `DiscoverUserDataDbPath(..., "vocab_items")` 返回路径。
+
+### Q4：`selection abort missing db user_db=missing`
+
+- 对 `word_practice` 来说，说明 `DiscoverUserDataDbPath(..., nullptr)` 最终没有返回可写目标路径。
+- 常见原因有两类：
+  - 固定路径上存在损坏文件，但隔离失败，导致 discover 仍返回空。
+  - 当前运行固件不是包含最新 `sqlite_db_api.cc` 逻辑的版本，仍把“文件不存在”当成失败。
+- 优先查看数据库日志中的 `skip invalid sqlite user db file`、`quarantined corrupt user db`、`user db target path reserved for create`、`discover user db failed`。
 
 ### Q2：`commit transaction failed rc=14`
 

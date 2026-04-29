@@ -715,8 +715,8 @@
       "word_practice_cup": {
         "type": "Image",
         "rect": {
-          "x": 196,
-          "y": 22,
+          "x": 166,
+          "y": 23,
           "w": 32,
           "h": 32
         },
@@ -728,9 +728,9 @@
       "label_CorrectCount": {
         "type": "Label",
         "rect": {
-          "x": 261,
-          "y": 31,
-          "w": 50,
+          "x": 222,
+          "y": 33,
+          "w": 15,
           "h": 20
         },
         "style": null,
@@ -741,9 +741,9 @@
       "label_WrongCount": {
         "type": "Label",
         "rect": {
-          "x": 338,
-          "y": 31,
-          "w": 50,
+          "x": 267,
+          "y": 33,
+          "w": 15,
           "h": 20
         },
         "style": null,
@@ -754,8 +754,8 @@
       "word_prictice_correct": {
         "type": "Image",
         "rect": {
-          "x": 239,
-          "y": 31,
+          "x": 201,
+          "y": 33,
           "w": 16,
           "h": 16
         },
@@ -767,8 +767,8 @@
       "word_practice_wrong": {
         "type": "Image",
         "rect": {
-          "x": 318,
-          "y": 31,
+          "x": 246,
+          "y": 33,
           "w": 16,
           "h": 16
         },
@@ -836,6 +836,32 @@
           "y": 60,
           "w": 350,
           "h": 60
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "progress_cbdf9e": {
+        "type": "Progress",
+        "rect": {
+          "x": 287,
+          "y": 35,
+          "w": 80,
+          "h": 15
+        },
+        "style": null,
+        "z": 0,
+        "parent": "root_public",
+        "properties": {}
+      },
+      "label_progress_percent": {
+        "type": "Label",
+        "rect": {
+          "x": 371,
+          "y": 33,
+          "w": 20,
+          "h": 20
         },
         "style": null,
         "z": 0,

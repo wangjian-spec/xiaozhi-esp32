@@ -1,5 +1,6 @@
 #include "widget_internal.h"
 
+#include "boards/EnglishTeacher/custom_epd_display.h"
 #include "../input.h"
 #include "eteacher/app_ui/status_bar.h"
 #include "boards/common/board.h"
@@ -396,9 +397,21 @@ void ProgressWidget::OnDraw(Painter& p) {
     const uint8_t max_value = profile_.max_value == 0 ? 100 : profile_.max_value;
     const int percent = static_cast<int>(ClampProgressValue(profile_.value, max_value)) * 100 / max_value;
     const int inset = std::max<int>(0, profile_.fill_inset);
+    auto* ep = dynamic_cast<EpdPainter*>(&p);
+    const int16_t max_radius = static_cast<int16_t>(std::max<int>(0, (std::min<int>(rect.w, rect.h) - 1) / 2));
+    const int16_t radius = std::max<int16_t>(0, std::min<int16_t>(profile_.corner_radius, max_radius));
     if (profile_.draw_border) {
         p.SetDrawColor(Color::Black);
-        p.DrawRect(rect);
+        if (profile_.draw_rounded_border && ep) {
+            ep->Gfx().drawRoundRect(rect.x + ep->Offset().x,
+                                    rect.y + ep->Offset().y,
+                                    rect.w,
+                                    rect.h,
+                                    radius,
+                                    GxEPD_BLACK);
+        } else {
+            p.DrawRect(rect);
+        }
     }
     const int inner_x = inset;
     const int inner_y = inset;
@@ -407,10 +420,19 @@ void ProgressWidget::OnDraw(Painter& p) {
     if (inner_w > 0 && inner_h > 0 && percent > 0) {
         const int fill_w = inner_w * percent / 100;
         p.SetDrawColor(Color::Black);
-        p.FillRect({static_cast<int16_t>(inner_x),
-                    static_cast<int16_t>(inner_y),
-                    static_cast<int16_t>(fill_w),
-                    static_cast<int16_t>(inner_h)});
+        if (profile_.draw_rounded_border && ep) {
+            ep->Gfx().fillRoundRect(rect.x + ep->Offset().x + inner_x,
+                                    rect.y + ep->Offset().y + inner_y,
+                                    fill_w,
+                                    inner_h,
+                                    std::max<int16_t>(0, static_cast<int16_t>(radius - inset)),
+                                    GxEPD_BLACK);
+        } else {
+            p.FillRect({static_cast<int16_t>(inner_x),
+                        static_cast<int16_t>(inner_y),
+                        static_cast<int16_t>(fill_w),
+                        static_cast<int16_t>(inner_h)});
+        }
     }
 }
 

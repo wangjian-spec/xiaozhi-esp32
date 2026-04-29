@@ -12,7 +12,7 @@ struct PracticeRoundPlan {
 
 class PracticeFlowController {
 public:
-	PracticeRoundPlan BuildRoundPlan() const;
+	PracticeRoundPlan BuildRoundPlan(int practice_word_count) const;
 
 	int MaxSpeakRetryCount() const;
 	bool ShouldAutoFailSpeakQuestion(int failed_attempts) const;

@@ -15,6 +15,7 @@
 #include "eteacher/apps/word_practice/word_practice_quiz_module.h"
 #include "eteacher/apps/word_practice/word_practice_result_module.h"
 #include "eteacher/apps/word_practice/word_practice_selection_module.h"
+#include "eteacher/apps/word_practice/word_practice_session_evaluator.h"
 #include "eteacher/apps/word_practice/word_practice_session_module.h"
 #include "eteacher/app_manager/app_base.h"
 #include "eteacher/app_ui/scene.h"
@@ -31,6 +32,7 @@ public:
 	void OnExit(AppContext &ctx) override;
 	void OnButton(AppContext &ctx, const ButtonEvent &event) override;
 	void OnChatMessage(const char* role, const char* content) override;
+	bool ShouldInterceptSelectExit() const override;
 
 private:
 	using QuestionData = word_practice::QuestionData;
@@ -66,10 +68,9 @@ private:
 	};
 
 	struct TodayMissionData {
-		int new_word_count = 5;
-		int review_word_count = 10;
+		int today_mission_count = 15;
+		int today_practice_word = 15;
 		int completed_words = 0;
-		int target_words = 15;
 	};
 
 	struct DeviceJsonData {
@@ -103,6 +104,7 @@ private:
 		int accuracy_percent = 0;
 		int total_questions = 0;
 		int wrong_questions = 0;
+		int skipped_questions = 0;
 		int new_word_total = 0;
 		int new_word_mastered = 0;
 		int review_word_total = 0;
@@ -135,14 +137,20 @@ private:
 	bool CanReuseQuestionPool(int stage_index, int stage_cursor_index, int next_new_word_id) const;
 	void UpdateQuestionPoolCacheState(int stage_index, int stage_cursor_index, int next_new_word_id);
 	void InvalidateQuestionPoolCache();
+	void ResetLoadedQuestionDataCache();
+	void ResetMasteryProfileCache();
+	void RebuildMasteryProfileCache();
+	void UpdateMasteryProfileCache(const word_practice::WordMasteryProfile &profile);
+	bool TryAppendSeedFromCache(const word_practice::SelectedWord &selected_word);
+	const word_practice::WordMasteryProfile *FindCachedMasteryProfile(int word_id) const;
 	void LoadQuestionPool();
 	bool WarmQuestionCandidates(size_t target_seed_count, const char *reason);
 	bool PickNextQuestion();
 	bool CommitScheduledQuestion(const word_practice::ScheduledQuestion &scheduled);
 	void PresentCurrentQuestion();
-	void ShowSessionSummary();
+	void ShowSessionSummary(bool finalize_round = true);
 	void ResetRoundState();
-	void FinishRoundIfNeeded();
+	void UpdateSessionState(bool scheduler_exhausted = false);
 	bool RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, bool correct);
 	void MaybeRecordRoundCompletion();
 	std::string BuildRoundGoalText() const;
@@ -162,6 +170,9 @@ private:
 	void RefreshType56Widgets();
 	void UpdateQuestionPromptPresentation(int question_type, const std::string &prompt);
 	void UpdateAsrResultPresentation(int question_type, const std::string &result_text);
+	void ResetCycleScoreState();
+	void RecordCycleAnswer(bool correct);
+	void RecordCycleSkip();
 	void SyncScoreLabels();
 	void AddLearnedWordsFromText(const std::string &text);
 	void HideSettlementLearnedWordLabels();
@@ -169,11 +180,13 @@ private:
 	void HideHomeLevelIconLabels();
 	void RenderHomeLevelIconLabels();
 	QuestionPromptProfile BuildQuestionPromptProfile(int question_type) const;
-	bool IsSessionPassed() const;
+	word_practice::SessionEvaluation EvaluateSession() const;
 	SessionSummaryData BuildSessionSummaryData() const;
 	std::string BuildSettlementDialogText(const SessionSummaryData &summary) const;
 	std::string BuildTodayMissionText() const;
 	std::string BuildWordPreviewText() const;
+	int DisplayedPracticeProgressPercent() const;
+	void UpdatePracticeProgressWidget(bool visible);
 	int CurrentStageIndex() const;
 	int ComputeDisplayLevel() const;
 	int QueryMasteredWordCount() const;
@@ -181,16 +194,7 @@ private:
 	bool LoadUserJson();
 	bool SaveUserJson() const;
 
-	std::string SelectSceneIdByType(int question_type) const;
-	std::string TypeTitle(int question_type) const;
-	std::string TypeInstruction(int question_type) const;
-
-	ChoiceState BuildChoiceState(const QuestionData &q) const;
-	std::string NormalizeAnswerToken(std::string value) const;
-	std::string NormalizePairWord(const std::string &value) const;
 	std::string ButtonToken(AppButton button) const;
-
-	std::string DiscoverUserDbPath() const;
 	void SaveAnswerStats(const QuestionData &q, bool correct);
 	bool PlayAudioFromSd(const std::string &audio_path);
 	bool EnsureAudioBundleIndexLoaded(const std::string &audio_path);
@@ -224,6 +228,7 @@ private:
 	app_ui::LabelWidget *label_today_mission_ = nullptr;
 	app_ui::LabelWidget *label_word_preview_ = nullptr;
 	app_ui::LabelWidget *label_mission_progress_ = nullptr;
+	app_ui::LabelWidget *label_progress_percent_ = nullptr;
 	app_ui::TextWidget *bottom_bar_ = nullptr;
 	app_ui::TextAreaWidget *textarea_input_answer_ = nullptr;
 	app_ui::DialogWidget *dialog_select_board_ = nullptr;
@@ -236,6 +241,7 @@ private:
 	app_ui::CheckboxWidget *checkbox_has_read_ = nullptr;
 	app_ui::CheckboxWidget *checkbox_no_read_ = nullptr;
 	app_ui::ProgressWidget *progress_today_mission_ = nullptr;
+	app_ui::ProgressWidget *progress_practice_ = nullptr;
 
 	app_ui::ImageWidget *image_good_ = nullptr;
 	app_ui::ImageWidget *image_bad_ = nullptr;
@@ -285,9 +291,11 @@ private:
 	word_practice::WordSelectionConfig cached_question_pool_selection_config_{};
 	std::vector<word_practice::SelectedWord> selected_words_{};
 	std::vector<word_practice::VocabularySeed> question_seed_pool_{};
+	std::unordered_map<int, word_practice::VocabularySeed> seed_cache_{};
 	std::unordered_map<int, std::vector<int>> available_question_types_by_word_{};
 	size_t next_seed_pool_load_index_ = 0;
 	std::vector<word_practice::WordMasteryProfile> mastery_profiles_{};
+	std::unordered_map<int, word_practice::WordMasteryProfile> mastery_profile_cache_{};
 	word_practice::LearningBatch learning_batch_{};
 	word_practice::ScheduledQuestion current_scheduled_question_{};
 	word_practice::CurrentQuestionSlot current_question_slot_{};
@@ -331,11 +339,14 @@ private:
 	bool speak_recording_ = false;
 	int current_speak_asr_failure_count_ = 0;
 	bool enable_speak_questions_ = true;
-	bool current_round_cold_start_ = false;
+	word_practice::LearningMode current_learning_mode_ = word_practice::LearningMode::Normal;
 	bool round_completion_recorded_ = false;
-	bool easy_confirmation_pending_ = false;
+	bool session_scheduler_exhausted_ = false;
 	bool question_pool_cache_valid_ = false;
 	bool cached_question_pool_enable_speak_questions_ = true;
+	int seed_cache_stage_index_ = 0;
+	int mastery_profile_cache_user_id_ = -1;
+	std::string mastery_profile_cache_textbook_name_{};
 	int cached_question_pool_user_id_ = -1;
 	int cached_question_pool_stage_index_ = 0;
 	int cached_question_pool_stage_cursor_index_ = -1;
@@ -350,6 +361,9 @@ private:
 	int session_started_at_sec_ = 0;
 	int session_mastered_words_before_ = 0;
 	int session_progress_before_ = 0;
+	int cycle_correct_count_ = 0;
+	int cycle_wrong_count_ = 0;
+	int cycle_skip_count_ = 0;
 };
 
 std::unique_ptr<AppBase> MakeWordPracticeApp();

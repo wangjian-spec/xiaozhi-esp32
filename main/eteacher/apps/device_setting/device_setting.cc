@@ -80,16 +80,58 @@ constexpr uint32_t kWidgetDeviceDownloadButton = 0xCD89E678u;
 
 constexpr const char* kInputInitStatus = "请输入WIFI密码,按Start退出键盘";
 constexpr const char* kUserJsonPath = "/sdcard/user/user.json";
+constexpr int kDefaultTodayMissionCount = 15;
+constexpr int kDefaultTodayPracticeWordCount = 15;
 constexpr std::array<int, 12> kDefaultStageLevelupCount = {10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48};
 constexpr std::array<std::pair<int, int>, 7> kMissionPresets = {
-    std::pair<int, int>{5, 10},
-    std::pair<int, int>{8, 12},
-    std::pair<int, int>{10, 15},
-    std::pair<int, int>{12, 18},
-    std::pair<int, int>{15, 20},
+    std::pair<int, int>{15, 15},
     std::pair<int, int>{20, 20},
-    std::pair<int, int>{20, 30},
+    std::pair<int, int>{25, 25},
+    std::pair<int, int>{30, 30},
+    std::pair<int, int>{35, 35},
+    std::pair<int, int>{40, 40},
+    std::pair<int, int>{50, 50},
 };
+
+int PositiveOrFallback(int value, int fallback) {
+    return value > 0 ? value : fallback;
+}
+
+int JsonIntOrDefault(const cJSON* obj, const char* key, int fallback);
+bool JsonBoolOrDefault(const cJSON* obj, const char* key, bool fallback);
+std::string JsonStringOrDefault(const cJSON* obj, const char* key, const std::string& fallback);
+
+int ReadLegacyMissionCount(const cJSON* object, int fallback) {
+    if (!cJSON_IsObject(object)) {
+        return fallback;
+    }
+    const int configured_count = JsonIntOrDefault(object, "today_mission_count", JsonIntOrDefault(object, "target_words", 0));
+    if (configured_count > 0) {
+        return configured_count;
+    }
+    const int new_word_count = std::max(0, JsonIntOrDefault(object, "new_word_count", 0));
+    const int review_word_count = std::max(0, JsonIntOrDefault(object, "review_word_count", 0));
+    const int combined_count = new_word_count + review_word_count;
+    return combined_count > 0 ? combined_count : fallback;
+}
+
+int ReadPracticeWordCount(const cJSON* object, int fallback) {
+    if (!cJSON_IsObject(object)) {
+        return fallback;
+    }
+    const int configured_count = JsonIntOrDefault(object, "today_practice_word", 0);
+    if (configured_count > 0) {
+        return configured_count;
+    }
+    const int legacy_target_words = JsonIntOrDefault(object, "target_words", 0);
+    if (legacy_target_words > 0) {
+        return legacy_target_words;
+    }
+    const int new_word_count = std::max(0, JsonIntOrDefault(object, "new_word_count", 0));
+    const int review_word_count = std::max(0, JsonIntOrDefault(object, "review_word_count", 0));
+    const int combined_count = new_word_count + review_word_count;
+    return combined_count > 0 ? combined_count : fallback;
+}
 
 bool IsClickLike(const ButtonEvent& event) {
     return event.action == ButtonAction::Click || event.action == ButtonAction::LongPress;
@@ -232,8 +274,8 @@ std::string StageKey(int stage_index) {
     return "stage" + std::to_string(std::max(1, std::min(12, stage_index)));
 }
 
-std::string BuildMissionLabel(int new_word_count, int review_word_count) {
-    return "新" + std::to_string(new_word_count) + " / 复" + std::to_string(review_word_count);
+std::string BuildMissionLabel(int mission_count, int practice_word_count) {
+    return "目标" + std::to_string(mission_count) + " / 练" + std::to_string(practice_word_count);
 }
 
 std::string BuildJsonLogPreview(const std::string& content, size_t max_length = 160) {
@@ -1572,7 +1614,7 @@ void DeviceSettingApp::RefreshUserSettingsPage() {
         user_name_label_->SetText(std::string("口语题: ") + (user_json_.enable_read_questions ? "开启" : "关闭"));
     }
     if (user_phone_label_) {
-        user_phone_label_->SetText("今日任务: " + BuildMissionLabel(user_json_.today_mission.new_word_count, user_json_.today_mission.review_word_count));
+        user_phone_label_->SetText("今日任务: " + BuildMissionLabel(user_json_.today_mission.today_mission_count, user_json_.today_mission.today_practice_word));
     }
     if (user_mode_label_) {
         user_mode_label_->SetText("按 C 切换当前焦点项");
@@ -1586,7 +1628,7 @@ void DeviceSettingApp::RefreshUserSettingsPage() {
     }
     if (user_mission_setting_button_) {
         user_mission_setting_button_->SetVisible(true);
-        user_mission_setting_button_->SetText(BuildMissionLabel(user_json_.today_mission.new_word_count, user_json_.today_mission.review_word_count));
+        user_mission_setting_button_->SetText(BuildMissionLabel(user_json_.today_mission.today_mission_count, user_json_.today_mission.today_practice_word));
         auto profile = user_mission_setting_button_->Profile();
         profile.focus_invert = true;
         user_mission_setting_button_->SetProfile(profile);
@@ -1659,15 +1701,16 @@ bool DeviceSettingApp::LoadUserJson() {
     user_json_.stage_levelup_count.assign(kDefaultStageLevelupCount.begin(), kDefaultStageLevelupCount.end());
     user_json_.stage_words_quantity.assign(12, 0);
     user_json_.stage_new_word_cursor.assign(12, 0);
+    user_json_.today_mission.today_mission_count = kDefaultTodayMissionCount;
+    user_json_.today_mission.today_practice_word = kDefaultTodayPracticeWordCount;
+    user_json_.today_mission.target_words = kDefaultTodayMissionCount;
     const std::string content = ReadFileToString(kUserJsonPath);
     if (content.empty()) {
-        user_json_.today_mission.target_words = user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count;
         return SaveUserJson();
     }
 
     cJSON* root = cJSON_Parse(content.c_str());
     if (!root) {
-        user_json_.today_mission.target_words = user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count;
         return SaveUserJson();
     }
 
@@ -1677,12 +1720,12 @@ bool DeviceSettingApp::LoadUserJson() {
         user_json_.current_stage = JsonStringOrDefault(users, "current_stage", user_json_.current_stage);
         user_json_.level = std::max(0, JsonIntOrDefault(users, "level", user_json_.level));
         cJSON* today_mission = cJSON_GetObjectItemCaseSensitive(users, "today_mission");
-        if (cJSON_IsObject(today_mission)) {
-            user_json_.today_mission.new_word_count = std::max(1, JsonIntOrDefault(today_mission, "new_word_count", user_json_.today_mission.new_word_count));
-            user_json_.today_mission.review_word_count = std::max(1, JsonIntOrDefault(today_mission, "review_word_count", user_json_.today_mission.review_word_count));
-            user_json_.today_mission.completed_words = std::max(0, JsonIntOrDefault(today_mission, "completed_words", user_json_.today_mission.completed_words));
-            user_json_.today_mission.target_words = std::max(1, JsonIntOrDefault(today_mission, "target_words", user_json_.today_mission.target_words));
-        }
+        user_json_.today_mission.today_mission_count = PositiveOrFallback(
+            ReadLegacyMissionCount(today_mission, user_json_.today_mission.today_mission_count),
+            user_json_.today_mission.today_mission_count);
+        user_json_.today_mission.today_practice_word = PositiveOrFallback(
+            ReadPracticeWordCount(today_mission, user_json_.today_mission.today_practice_word),
+            user_json_.today_mission.today_practice_word);
     }
 
     cJSON* learning_preferences = cJSON_GetObjectItemCaseSensitive(root, "learning_preferences");
@@ -1691,34 +1734,20 @@ bool DeviceSettingApp::LoadUserJson() {
             learning_preferences,
             "enable_read_questions",
             user_json_.enable_read_questions);
-        user_json_.today_mission.new_word_count = std::max(
-            1,
-            JsonIntOrDefault(learning_preferences, "new_word_count", user_json_.today_mission.new_word_count));
-        user_json_.today_mission.review_word_count = std::max(
-            1,
-            JsonIntOrDefault(learning_preferences, "review_word_count", user_json_.today_mission.review_word_count));
-        user_json_.today_mission.completed_words = std::max(
-            0,
-            JsonIntOrDefault(learning_preferences, "completed_words", user_json_.today_mission.completed_words));
-        user_json_.today_mission.target_words = std::max(
-            1,
-            JsonIntOrDefault(learning_preferences, "target_words", user_json_.today_mission.target_words));
+        user_json_.today_mission.today_mission_count = PositiveOrFallback(
+            ReadLegacyMissionCount(learning_preferences, user_json_.today_mission.today_mission_count),
+            user_json_.today_mission.today_mission_count);
+        user_json_.today_mission.today_practice_word = PositiveOrFallback(
+            ReadPracticeWordCount(learning_preferences, user_json_.today_mission.today_practice_word),
+            user_json_.today_mission.today_practice_word);
 
         cJSON* preference_mission = cJSON_GetObjectItemCaseSensitive(learning_preferences, "today_mission");
-        if (cJSON_IsObject(preference_mission)) {
-            user_json_.today_mission.new_word_count = std::max(
-                1,
-                JsonIntOrDefault(preference_mission, "new_word_count", user_json_.today_mission.new_word_count));
-            user_json_.today_mission.review_word_count = std::max(
-                1,
-                JsonIntOrDefault(preference_mission, "review_word_count", user_json_.today_mission.review_word_count));
-            user_json_.today_mission.completed_words = std::max(
-                0,
-                JsonIntOrDefault(preference_mission, "completed_words", user_json_.today_mission.completed_words));
-            user_json_.today_mission.target_words = std::max(
-                1,
-                JsonIntOrDefault(preference_mission, "target_words", user_json_.today_mission.target_words));
-        }
+        user_json_.today_mission.today_mission_count = PositiveOrFallback(
+            ReadLegacyMissionCount(preference_mission, user_json_.today_mission.today_mission_count),
+            user_json_.today_mission.today_mission_count);
+        user_json_.today_mission.today_practice_word = PositiveOrFallback(
+            ReadPracticeWordCount(preference_mission, user_json_.today_mission.today_practice_word),
+            user_json_.today_mission.today_practice_word);
     }
 
     cJSON* settings = cJSON_GetObjectItemCaseSensitive(root, "settings");
@@ -1740,13 +1769,13 @@ bool DeviceSettingApp::LoadUserJson() {
     EnsureIntVectorSize(&user_json_.stage_levelup_count, 12, 20);
     EnsureIntVectorSize(&user_json_.stage_words_quantity, 12, 0);
     EnsureIntVectorSize(&user_json_.stage_new_word_cursor, 12, 0);
-    user_json_.today_mission.target_words = std::max(1, user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count);
+    user_json_.today_mission.target_words = std::max(1, user_json_.today_mission.today_mission_count);
     ESP_LOGI(kTag,
-             "device_setting user.json loaded path=%s stage=%s mission=%d/%d completed=%d target=%d speak=%d preview=%s",
+             "device_setting user.json loaded path=%s stage=%s mission_count=%d practice_words=%d completed=%d target=%d speak=%d preview=%s",
              kUserJsonPath,
              user_json_.current_stage.c_str(),
-             user_json_.today_mission.new_word_count,
-             user_json_.today_mission.review_word_count,
+             user_json_.today_mission.today_mission_count,
+             user_json_.today_mission.today_practice_word,
              user_json_.today_mission.completed_words,
              user_json_.today_mission.target_words,
              user_json_.enable_read_questions ? 1 : 0,
@@ -1764,12 +1793,6 @@ bool DeviceSettingApp::SaveUserJson() const {
     cJSON_AddStringToObject(users, "name", user_json_.name.c_str());
     cJSON_AddStringToObject(users, "current_stage", user_json_.current_stage.c_str());
     cJSON_AddNumberToObject(users, "level", user_json_.level);
-    cJSON* today_mission = cJSON_CreateObject();
-    cJSON_AddNumberToObject(today_mission, "new_word_count", user_json_.today_mission.new_word_count);
-    cJSON_AddNumberToObject(today_mission, "review_word_count", user_json_.today_mission.review_word_count);
-    cJSON_AddNumberToObject(today_mission, "completed_words", user_json_.today_mission.completed_words);
-    cJSON_AddNumberToObject(today_mission, "target_words", std::max(1, user_json_.today_mission.target_words));
-    cJSON_AddItemToObject(users, "today_mission", today_mission);
     cJSON_AddItemToObject(root, "users", users);
 
     cJSON* settings = cJSON_CreateObject();
@@ -1778,16 +1801,8 @@ bool DeviceSettingApp::SaveUserJson() const {
 
     cJSON* learning_preferences = cJSON_CreateObject();
     cJSON_AddBoolToObject(learning_preferences, "enable_read_questions", user_json_.enable_read_questions);
-    cJSON_AddNumberToObject(learning_preferences, "new_word_count", user_json_.today_mission.new_word_count);
-    cJSON_AddNumberToObject(learning_preferences, "review_word_count", user_json_.today_mission.review_word_count);
-    cJSON_AddNumberToObject(learning_preferences, "completed_words", user_json_.today_mission.completed_words);
-    cJSON_AddNumberToObject(learning_preferences, "target_words", std::max(1, user_json_.today_mission.target_words));
-    cJSON* learning_mission = cJSON_CreateObject();
-    cJSON_AddNumberToObject(learning_mission, "new_word_count", user_json_.today_mission.new_word_count);
-    cJSON_AddNumberToObject(learning_mission, "review_word_count", user_json_.today_mission.review_word_count);
-    cJSON_AddNumberToObject(learning_mission, "completed_words", user_json_.today_mission.completed_words);
-    cJSON_AddNumberToObject(learning_mission, "target_words", std::max(1, user_json_.today_mission.target_words));
-    cJSON_AddItemToObject(learning_preferences, "today_mission", learning_mission);
+    cJSON_AddNumberToObject(learning_preferences, "today_mission_count", std::max(1, user_json_.today_mission.today_mission_count));
+    cJSON_AddNumberToObject(learning_preferences, "today_practice_word", std::max(1, user_json_.today_mission.today_practice_word));
     cJSON_AddItemToObject(root, "learning_preferences", learning_preferences);
 
     cJSON* devices = cJSON_CreateObject();
@@ -1828,12 +1843,12 @@ bool DeviceSettingApp::SaveUserJson() const {
     cJSON_Delete(root);
     const bool ok = WriteStringToFile(kUserJsonPath, output);
     ESP_LOGI(kTag,
-             "device_setting user.json save %s path=%s stage=%s mission=%d/%d completed=%d target=%d speak=%d preview=%s",
+             "device_setting user.json save %s path=%s stage=%s mission_count=%d practice_words=%d completed=%d target=%d speak=%d preview=%s",
              ok ? "ok" : "failed",
              kUserJsonPath,
              user_json_.current_stage.c_str(),
-             user_json_.today_mission.new_word_count,
-             user_json_.today_mission.review_word_count,
+             user_json_.today_mission.today_mission_count,
+             user_json_.today_mission.today_practice_word,
              user_json_.today_mission.completed_words,
              user_json_.today_mission.target_words,
              user_json_.enable_read_questions ? 1 : 0,
@@ -1854,15 +1869,15 @@ void DeviceSettingApp::CycleStageSetting() {
 void DeviceSettingApp::CycleMissionSetting() {
     int next_index = 0;
     for (size_t i = 0; i < kMissionPresets.size(); ++i) {
-        if (user_json_.today_mission.new_word_count == kMissionPresets[i].first &&
-            user_json_.today_mission.review_word_count == kMissionPresets[i].second) {
+        if (user_json_.today_mission.today_mission_count == kMissionPresets[i].first &&
+            user_json_.today_mission.today_practice_word == kMissionPresets[i].second) {
             next_index = static_cast<int>((i + 1) % kMissionPresets.size());
             break;
         }
     }
-    user_json_.today_mission.new_word_count = kMissionPresets[static_cast<size_t>(next_index)].first;
-    user_json_.today_mission.review_word_count = kMissionPresets[static_cast<size_t>(next_index)].second;
-    user_json_.today_mission.target_words = user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count;
+    user_json_.today_mission.today_mission_count = kMissionPresets[static_cast<size_t>(next_index)].first;
+    user_json_.today_mission.today_practice_word = kMissionPresets[static_cast<size_t>(next_index)].second;
+    user_json_.today_mission.target_words = user_json_.today_mission.today_mission_count;
     (void)SaveUserJson();
     RefreshUserSettingsPage();
 }

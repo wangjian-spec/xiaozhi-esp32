@@ -45,6 +45,12 @@ enum class BatchWordKind {
 	WeakWord,
 };
 
+enum class LearningMode {
+	ColdStart,
+	Normal,
+	IntensiveReview,
+};
+
 enum class WordProgressState {
 	NotStarted,
 	InProgress,
@@ -69,12 +75,7 @@ enum class QuizType {
 	Unknown,
 };
 struct WordSelectionConfig {
-	int review_word_count = 10;
-	int new_word_count = 5;
-
-	int TotalCount() const {
-		return review_word_count + new_word_count;
-	}
+	int total_word_count = 0;
 };
 
 struct SelectedWord {
@@ -109,23 +110,17 @@ struct WordMasteryProfile {
 	int word_id = 0;
 	std::string textbook_name;
 	int stage = 0;
-	int familiarity = 0;
-	int stability = 0;
-	int recognition_score = 0;
+	int strength = 0;
 	int recall_score = 0;
 	int output_score = 0;
 	int64_t next_review_at = 0;
 	int lapse_count = 0;
 	int64_t last_practiced_at = 0;
 	int64_t last_decay_at = 0;
-	int64_t last_error_at = 0;
-	int consecutive_correct = 0;
-	int consecutive_wrong = 0;
-	int consecutive_recall_correct = 0;
-	bool recent_review_failed = false;
+	int64_t last_reviewed_at = 0;
 	int last_response_time_ms = 0;
+	int persistent_boost = 0;
 	bool mastered = false;
-	int downgraded_from_stage = -1;
 };
 
 struct BatchWordPlan {
@@ -136,6 +131,20 @@ struct BatchWordPlan {
 	bool recall_done = false;
 	int shown_count = 0;
 	int correct_count = 0;
+};
+
+struct CompletionRule {
+	int required_shown = 0;
+	int required_any_correct = 0;
+	int required_recognition = 0;
+	int required_recall = 0;
+	int required_output = 0;
+};
+
+struct SkillCoverage {
+	bool recognition_done = false;
+	bool recall_done = false;
+	bool output_attempted = false;
 };
 
 struct LearningBatch {
@@ -168,6 +177,11 @@ struct BatchProgressSummary {
 	int review_completed = 0;
 	int weak_total = 0;
 	int weak_completed = 0;
+	SkillCoverage skill_coverage{};
+	bool recognition_coverage_ok = false;
+	bool recall_coverage_ok = false;
+	bool output_coverage_ok = false;
+	bool skill_coverage_ok = false;
 	bool batch_completed = false;
 };
 

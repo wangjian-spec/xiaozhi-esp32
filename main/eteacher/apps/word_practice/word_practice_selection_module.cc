@@ -2,14 +2,18 @@
 
 #include <algorithm>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <sqlite3.h>
 
 #include "esp_timer.h"
+#include "eteacher/apps/word_practice/word_practice_config.h"
 #include "eteacher/apps/word_practice/word_practice_db_utils.h"
+#include "eteacher/apps/word_practice/word_practice_learning_module.h"
 #include "eteacher/apps/word_practice/word_practice_time_utils.h"
 #include "eteacher/database_manager/database_debug.h"
 #include "eteacher/database_manager/sqlite_db_api.h"
@@ -28,7 +32,6 @@ namespace word_practice {
 namespace {
 
 constexpr int kDefaultUserId = 0;
-constexpr int kMinimumActiveProfileWords = 20;
 constexpr const char *kTag = "WordPracticeSelect";
 
 struct SqliteDbCloser {
@@ -82,45 +85,6 @@ bool ExecSql(sqlite3 *db, const char *sql) {
 		return false;
 	}
 	return true;
-	}
-
-bool EnsureWordLearningProfileTables(sqlite3 *db) {
-	if (db == nullptr) {
-		return false;
-	}
-	const char *sql_profile =
-		"CREATE TABLE IF NOT EXISTS word_learning_profile ("
-		"user_id INTEGER NOT NULL,"
-		"word_id INTEGER NOT NULL,"
-		"textbook_name TEXT NOT NULL,"
-		"stage INTEGER DEFAULT 0,"
-		"familiarity INTEGER DEFAULT 0,"
-		"stability INTEGER DEFAULT 0,"
-		"recognition_score INTEGER DEFAULT 0,"
-		"recall_score INTEGER DEFAULT 0,"
-		"output_score INTEGER DEFAULT 0,"
-		"next_review_at INTEGER DEFAULT 0,"
-		"lapse_count INTEGER DEFAULT 0,"
-		"last_practiced_at INTEGER DEFAULT 0,"
-		"last_decay_at INTEGER DEFAULT 0,"
-		"last_error_at INTEGER DEFAULT 0,"
-		"consecutive_correct INTEGER DEFAULT 0,"
-		"consecutive_wrong INTEGER DEFAULT 0,"
-		"consecutive_recall_correct INTEGER DEFAULT 0,"
-		"recent_review_failed INTEGER DEFAULT 0,"
-		"last_response_time_ms INTEGER DEFAULT 0,"
-		"mastered INTEGER DEFAULT 0,"
-		"downgraded_from_stage INTEGER DEFAULT -1,"
-		"PRIMARY KEY(user_id, word_id, textbook_name)"
-		");";
-	const char *sql_profile_index =
-		"CREATE INDEX IF NOT EXISTS idx_word_learning_profile_user_next_review "
-		"ON word_learning_profile(user_id, next_review_at);";
-	const char *sql_pick_candidate_index =
-		"CREATE INDEX IF NOT EXISTS idx_word_learning_profile_pick_candidate "
-		"ON word_learning_profile(user_id, textbook_name, mastered, stage, familiarity, stability, recall_score, output_score, next_review_at, word_id) "
-		"WHERE mastered = 0;";
-	return ExecSql(db, sql_profile) && ExecSql(db, sql_profile_index) && ExecSql(db, sql_pick_candidate_index);
 }
 
 bool TableExists(sqlite3 *db, const char *schema_name, const char *table_name) {
@@ -212,34 +176,106 @@ int CountDueReviewWords(sqlite3 *db, int user_id, const std::string &textbook_na
 	return std::max(0, sqlite3_column_int(stmt.get(), 0));
 }
 
-bool InsertProfileSeed(sqlite3 *db, int user_id, int word_id, const std::string &textbook_name) {
-	if (db == nullptr || word_id <= 0 || textbook_name.empty()) {
-		return false;
+int CountProfiles(sqlite3 *db, const std::string &sql, int user_id, const std::string &textbook_name, int64_t now_sec) {
+	if (db == nullptr) {
+		return 0;
+	}
+	StatementPtr stmt;
+	if (!PrepareStatement(db, sql, &stmt)) {
+		ESP_LOGW(kTag, "count profiles prepare failed msg=%s sql=%s", sqlite3_errmsg(db), sql.c_str());
+		return 0;
+	}
+	int bind_index = 1;
+	if (sqlite3_bind_int(stmt.get(), bind_index++, user_id) != SQLITE_OK ||
+		sqlite3_bind_text(stmt.get(), bind_index++, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+		ESP_LOGW(kTag, "count profiles bind failed msg=%s sql=%s", sqlite3_errmsg(db), sql.c_str());
+		return 0;
+	}
+	if (sql.find("next_review_at") != std::string::npos) {
+		if (sqlite3_bind_int64(stmt.get(), bind_index++, static_cast<sqlite3_int64>(now_sec)) != SQLITE_OK) {
+			ESP_LOGW(kTag, "count profiles bind now failed msg=%s sql=%s", sqlite3_errmsg(db), sql.c_str());
+			return 0;
+		}
+	}
+	if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
+		ESP_LOGW(kTag, "count profiles step failed msg=%s sql=%s", sqlite3_errmsg(db), sql.c_str());
+		return 0;
+	}
+	return std::max(0, sqlite3_column_int(stmt.get(), 0));
+}
+
+int CountDictionaryWords(sqlite3 *db) {
+	if (db == nullptr) {
+		return 0;
 	}
 	const char *sql =
-		"INSERT OR IGNORE INTO word_learning_profile("
-		"user_id, word_id, textbook_name, stage, familiarity, stability, recognition_score, recall_score, output_score, next_review_at, lapse_count, last_practiced_at, last_decay_at, last_error_at, consecutive_correct, consecutive_wrong, consecutive_recall_correct, recent_review_failed, last_response_time_ms, mastered, downgraded_from_stage"
-		") VALUES(?, ?, ?, 1, 8, 6, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1);";
+		"SELECT COUNT(1) FROM dictdb.word WHERE word IS NOT NULL AND TRIM(word) <> '';";
+	StatementPtr stmt;
+	if (!PrepareStatement(db, sql, &stmt)) {
+		return 0;
+	}
+	if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
+		return 0;
+	}
+	return std::max(0, sqlite3_column_int(stmt.get(), 0));
+}
+
+bool QueryDictionaryIdRange(sqlite3 *db, int *min_word_id, int *max_word_id) {
+	if (db == nullptr || min_word_id == nullptr || max_word_id == nullptr) {
+		return false;
+	}
+	*min_word_id = 0;
+	*max_word_id = 0;
+	const char *sql =
+		"SELECT COALESCE(MIN(id), 0), COALESCE(MAX(id), 0) "
+		"FROM dictdb.word WHERE word IS NOT NULL AND TRIM(word) <> '';";
 	StatementPtr stmt;
 	if (!PrepareStatement(db, sql, &stmt)) {
 		return false;
 	}
-	if (sqlite3_bind_int(stmt.get(), 1, user_id) != SQLITE_OK ||
-		sqlite3_bind_int(stmt.get(), 2, word_id) != SQLITE_OK ||
-		sqlite3_bind_text(stmt.get(), 3, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+	if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
 		return false;
 	}
-	return sqlite3_step(stmt.get()) == SQLITE_DONE;
+	*min_word_id = sqlite3_column_int(stmt.get(), 0);
+	*max_word_id = sqlite3_column_int(stmt.get(), 1);
+	return true;
 }
 
-int AppendProfilesFromStageCursor(sqlite3 *db,
-					  int user_id,
-					  const std::string &textbook_name,
-					  int start_after_word_id,
-					  size_t limit,
-					  int *next_new_word_id) {
-	if (db == nullptr || limit == 0 || next_new_word_id == nullptr) {
+int CountTopUpCandidates(sqlite3 *db, int user_id, const std::string &textbook_name, int start_after_word_id) {
+	if (db == nullptr) {
 		return 0;
+	}
+	const char *sql =
+		"SELECT COUNT(1) "
+		"FROM dictdb.word AS w "
+		"LEFT JOIN word_learning_profile AS p "
+		"  ON p.user_id = ? AND p.textbook_name = ? AND p.word_id = w.id "
+		"WHERE w.word IS NOT NULL AND TRIM(w.word) <> '' "
+		"AND w.id > ? "
+		"AND p.word_id IS NULL;";
+	StatementPtr stmt;
+	if (!PrepareStatement(db, sql, &stmt)) {
+		return 0;
+	}
+	if (sqlite3_bind_int(stmt.get(), 1, user_id) != SQLITE_OK ||
+		sqlite3_bind_text(stmt.get(), 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
+		sqlite3_bind_int(stmt.get(), 3, std::max(0, start_after_word_id)) != SQLITE_OK) {
+		return 0;
+	}
+	if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
+		return 0;
+	}
+	return std::max(0, sqlite3_column_int(stmt.get(), 0));
+}
+
+std::string SampleTopUpCandidateIds(
+	sqlite3 *db,
+	int user_id,
+	const std::string &textbook_name,
+	int start_after_word_id,
+	size_t limit) {
+	if (db == nullptr || limit == 0) {
+		return {};
 	}
 	const char *sql =
 		"SELECT w.id "
@@ -253,62 +289,170 @@ int AppendProfilesFromStageCursor(sqlite3 *db,
 		"LIMIT ?;";
 	StatementPtr stmt;
 	if (!PrepareStatement(db, sql, &stmt)) {
-		return 0;
+		return {};
 	}
 	if (sqlite3_bind_int(stmt.get(), 1, user_id) != SQLITE_OK ||
 		sqlite3_bind_text(stmt.get(), 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
 		sqlite3_bind_int(stmt.get(), 3, std::max(0, start_after_word_id)) != SQLITE_OK ||
 		sqlite3_bind_int(stmt.get(), 4, static_cast<int>(limit)) != SQLITE_OK) {
-		return 0;
+		return {};
 	}
-
-	int inserted_count = 0;
-	int latest_word_id = std::max(0, start_after_word_id);
-	while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+	std::ostringstream sample;
+	bool first = true;
+	for (int rc = sqlite3_step(stmt.get()); rc == SQLITE_ROW; rc = sqlite3_step(stmt.get())) {
 		const int word_id = sqlite3_column_int(stmt.get(), 0);
-		if (word_id <= 0) {
-			continue;
+		if (!first) {
+			sample << ',';
 		}
-		if (!InsertProfileSeed(db, user_id, word_id, textbook_name)) {
-			continue;
-		}
-		latest_word_id = word_id;
-		++inserted_count;
+		first = false;
+		sample << word_id;
 	}
-	*next_new_word_id = latest_word_id;
-	return inserted_count;
+	return sample.str();
 }
 
-int TopUpProfilesFromStage(sqlite3 *db,
-				   int user_id,
-				   const std::string &textbook_name,
-				   int start_after_word_id,
-				   size_t limit,
-				   int *next_new_word_id) {
+void LogSelectionProfileInventory(sqlite3 *db, int user_id, const std::string &textbook_name, int64_t now_sec) {
+	if (db == nullptr) {
+		return;
+	}
+	const std::string total_sql =
+		"SELECT COUNT(1) FROM word_learning_profile WHERE user_id=? AND textbook_name=?;";
+	const std::string selectable_due_sql =
+		"SELECT COUNT(1) FROM word_learning_profile AS p "
+		"WHERE p.user_id = ? "
+		"AND p.textbook_name = ? "
+		"AND COALESCE(p.mastered, 0) = 0 "
+		"AND COALESCE(p.last_practiced_at, 0) > 0 "
+		"AND (p.next_review_at IS NULL OR p.next_review_at = 0 OR p.next_review_at <= ?);";
+	const std::string selectable_fresh_sql =
+		"SELECT COUNT(1) FROM word_learning_profile AS p "
+		"WHERE p.user_id = ? "
+		"AND p.textbook_name = ? "
+		"AND COALESCE(p.mastered, 0) = 0 "
+		"AND COALESCE(p.last_practiced_at, 0) = 0;";
+	const std::string selectable_backlog_sql =
+		"SELECT COUNT(1) FROM word_learning_profile AS p "
+		"WHERE p.user_id = ? "
+		"AND p.textbook_name = ? "
+		"AND COALESCE(p.mastered, 0) = 0 "
+		"AND COALESCE(p.last_practiced_at, 0) > 0 "
+		"AND COALESCE(p.next_review_at, 0) > ?;";
+	const std::string mastered_sql =
+		"SELECT COUNT(1) FROM word_learning_profile WHERE user_id=? AND textbook_name=? AND COALESCE(mastered, 0) <> 0;";
+	WP_SELECT_TRACE_LOGW(
+		kTag,
+		"selection profile inventory textbook=%s total=%d due=%d fresh=%d backlog=%d mastered=%d",
+		textbook_name.c_str(),
+		CountProfiles(db, total_sql, user_id, textbook_name, now_sec),
+		CountProfiles(db, selectable_due_sql, user_id, textbook_name, now_sec),
+		CountProfiles(db, selectable_fresh_sql, user_id, textbook_name, now_sec),
+		CountProfiles(db, selectable_backlog_sql, user_id, textbook_name, now_sec),
+		CountProfiles(db, mastered_sql, user_id, textbook_name, now_sec));
+}
+
+bool InsertProfileSeed(sqlite3 *db, int user_id, int word_id, const std::string &textbook_name) {
+	if (db == nullptr || word_id <= 0 || textbook_name.empty()) {
+		return false;
+	}
+	const char *sql =
+		"INSERT OR IGNORE INTO word_learning_profile("
+		"user_id, word_id, textbook_name, stage, strength, recall_score, output_score, next_review_at, lapse_count, last_practiced_at, last_decay_at, last_reviewed_at, last_response_time_ms, persistent_boost, mastered"
+		") VALUES(?, ?, ?, 1, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);";
+	StatementPtr stmt;
+	if (!PrepareStatement(db, sql, &stmt)) {
+		return false;
+	}
+	if (sqlite3_bind_int(stmt.get(), 1, user_id) != SQLITE_OK ||
+		sqlite3_bind_int(stmt.get(), 2, word_id) != SQLITE_OK ||
+		sqlite3_bind_text(stmt.get(), 3, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+		return false;
+	}
+	const int step_rc = sqlite3_step(stmt.get());
+	if (step_rc != SQLITE_DONE) {
+		ESP_LOGW(kTag,
+			"insert profile seed failed rc=%d word_id=%d textbook=%s msg=%s",
+			step_rc,
+			word_id,
+			textbook_name.c_str(),
+			sqlite3_errmsg(db));
+		return false;
+	}
+	const int changed_rows = sqlite3_changes(db);
+	if (changed_rows <= 0) {
+		ESP_LOGW(kTag,
+			"insert profile seed ignored word_id=%d textbook=%s user_id=%d",
+			word_id,
+			textbook_name.c_str(),
+			user_id);
+		return false;
+	}
+	return true;
+}
+
+std::vector<int> CollectTopUpCandidateWordIds(sqlite3 *db,
+						      int user_id,
+						      const std::string &textbook_name,
+						      int start_after_word_id,
+						      size_t limit,
+						      int *next_new_word_id) {
+	std::vector<int> word_ids;
 	if (db == nullptr || next_new_word_id == nullptr || limit == 0) {
+		return word_ids;
+	}
+
+	auto append_candidates = [&](int cursor_start, size_t remaining, bool allow_wrap) {
+		const char *sql =
+			"SELECT w.id "
+			"FROM dictdb.word AS w "
+			"LEFT JOIN word_learning_profile AS p "
+			"  ON p.user_id = ? AND p.textbook_name = ? AND p.word_id = w.id "
+			"WHERE w.word IS NOT NULL AND TRIM(w.word) <> '' "
+			"AND w.id > ? "
+			"AND p.word_id IS NULL "
+			"ORDER BY w.id ASC "
+			"LIMIT ?;";
+		StatementPtr stmt;
+		if (!PrepareStatement(db, sql, &stmt)) {
+			return;
+		}
+		if (sqlite3_bind_int(stmt.get(), 1, user_id) != SQLITE_OK ||
+			sqlite3_bind_text(stmt.get(), 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
+			sqlite3_bind_int(stmt.get(), 3, std::max(0, cursor_start)) != SQLITE_OK ||
+			sqlite3_bind_int(stmt.get(), 4, static_cast<int>(remaining)) != SQLITE_OK) {
+			return;
+		}
+		for (int rc = sqlite3_step(stmt.get()); rc == SQLITE_ROW; rc = sqlite3_step(stmt.get())) {
+			const int word_id = sqlite3_column_int(stmt.get(), 0);
+			if (word_id <= 0) {
+				continue;
+			}
+			word_ids.push_back(word_id);
+			*next_new_word_id = word_id;
+			if (word_ids.size() >= limit) {
+				break;
+			}
+		}
+		if (!allow_wrap && word_ids.empty()) {
+			*next_new_word_id = std::max(0, cursor_start);
+		}
+	};
+
+	*next_new_word_id = std::max(0, start_after_word_id);
+	append_candidates(start_after_word_id, limit, false);
+	if (start_after_word_id > 0 && word_ids.size() < limit) {
+		append_candidates(0, limit - word_ids.size(), true);
+	}
+	return word_ids;
+}
+
+int InsertProfileSeeds(sqlite3 *db, int user_id, const std::vector<int> &word_ids, const std::string &textbook_name) {
+	if (db == nullptr || word_ids.empty() || textbook_name.empty()) {
 		return 0;
 	}
-	int inserted_count = AppendProfilesFromStageCursor(
-		db,
-		user_id,
-		textbook_name,
-		start_after_word_id,
-		limit,
-		next_new_word_id);
-	if (static_cast<size_t>(inserted_count) >= limit) {
-		return inserted_count;
-	}
-	const size_t remaining = limit - static_cast<size_t>(inserted_count);
-	if (start_after_word_id > 0 && remaining > 0) {
-		int wrapped_cursor = *next_new_word_id;
-		inserted_count += AppendProfilesFromStageCursor(
-			db,
-			user_id,
-			textbook_name,
-			0,
-			remaining,
-			&wrapped_cursor);
-		*next_new_word_id = wrapped_cursor;
+	int inserted_count = 0;
+	for (const int word_id : word_ids) {
+		if (InsertProfileSeed(db, user_id, word_id, textbook_name)) {
+			++inserted_count;
+		}
 	}
 	return inserted_count;
 }
@@ -327,67 +471,16 @@ std::string BuildDictionaryWordLookupSql(size_t word_count, bool has_word_image)
 	return sql;
 }
 
-void AppendSelectedProfileWords(sqlite3 *db,
-					  int user_id,
-					  const std::string &textbook_name,
-					  size_t limit,
-					  std::vector<SelectedWord> *selected_words) {
-	if (db == nullptr || selected_words == nullptr || limit == 0) {
+void AppendDictionaryWordsForProfileIds(sqlite3 *db,
+					 const std::vector<std::pair<int, bool>> &selected_profile_ids,
+					 std::vector<SelectedWord> *selected_words) {
+	if (db == nullptr || selected_words == nullptr || selected_profile_ids.empty()) {
 		return;
 	}
 	const bool has_word_image = ColumnExists(db, "dictdb", "word", "image");
-	const std::string profile_sql =
-		"SELECT p.word_id, CASE WHEN COALESCE(p.last_practiced_at, 0) > 0 THEN 1 ELSE 0 END "
-		"FROM word_learning_profile AS p "
-		"WHERE p.user_id = ? "
-		"AND p.textbook_name = ? "
-		"AND COALESCE(p.mastered, 0) = 0 "
-		"ORDER BY COALESCE(p.stage, 0) ASC, COALESCE(p.familiarity, 0) ASC, COALESCE(p.stability, 0) ASC, COALESCE(p.recall_score, 0) ASC, COALESCE(p.output_score, 0) ASC, COALESCE(p.next_review_at, 0) ASC, p.word_id ASC "
-		"LIMIT ?;";
-	StatementPtr profile_stmt;
-	if (!PrepareStatement(db, profile_sql, &profile_stmt)) {
-		WP_SELECT_TRACE_LOGW(kTag,
-			"append selected profiles prepare failed textbook=%s msg=%s",
-			textbook_name.c_str(),
-			sqlite3_errmsg(db));
-		return;
-	}
-	if (sqlite3_bind_int(profile_stmt.get(), 1, user_id) != SQLITE_OK ||
-		sqlite3_bind_text(profile_stmt.get(), 2, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK ||
-		sqlite3_bind_int(profile_stmt.get(), 3, static_cast<int>(limit)) != SQLITE_OK) {
-		return;
-	}
-	std::vector<std::pair<int, bool>> selected_profile_ids;
-	selected_profile_ids.reserve(limit);
-	int step_rc = SQLITE_ROW;
-	while ((step_rc = sqlite3_step(profile_stmt.get())) == SQLITE_ROW) {
-		const int word_id = sqlite3_column_int(profile_stmt.get(), 0);
-		const bool is_review = sqlite3_column_int(profile_stmt.get(), 1) != 0;
-		if (word_id <= 0) {
-			continue;
-		}
-		selected_profile_ids.emplace_back(word_id, is_review);
-	}
-	if (step_rc != SQLITE_DONE) {
-		WP_SELECT_TRACE_LOGW(kTag,
-			"append selected profiles step failed textbook=%s rc=%d msg=%s selected=%d",
-			textbook_name.c_str(),
-			step_rc,
-			sqlite3_errmsg(db),
-			static_cast<int>(selected_words->size()));
-		return;
-	}
-	if (selected_profile_ids.empty()) {
-		return;
-	}
 	const std::string dict_sql = BuildDictionaryWordLookupSql(selected_profile_ids.size(), has_word_image);
 	StatementPtr dict_stmt;
 	if (!PrepareStatement(db, dict_sql, &dict_stmt)) {
-		WP_SELECT_TRACE_LOGW(kTag,
-			"append selected profiles dict prepare failed textbook=%s has_word_image=%d msg=%s",
-			textbook_name.c_str(),
-			has_word_image ? 1 : 0,
-			sqlite3_errmsg(db));
 		return;
 	}
 	for (size_t index = 0; index < selected_profile_ids.size(); ++index) {
@@ -397,6 +490,7 @@ void AppendSelectedProfileWords(sqlite3 *db,
 	}
 	std::unordered_map<int, SelectedWord> dictionary_words;
 	dictionary_words.reserve(selected_profile_ids.size());
+	int step_rc = SQLITE_ROW;
 	while ((step_rc = sqlite3_step(dict_stmt.get())) == SQLITE_ROW) {
 		SelectedWord selected;
 		selected.word_id = sqlite3_column_int(dict_stmt.get(), 0);
@@ -410,12 +504,6 @@ void AppendSelectedProfileWords(sqlite3 *db,
 		dictionary_words[selected.word_id] = std::move(selected);
 	}
 	if (step_rc != SQLITE_DONE) {
-		WP_SELECT_TRACE_LOGW(kTag,
-			"append selected profiles dict step failed textbook=%s rc=%d msg=%s selected=%d",
-			textbook_name.c_str(),
-			step_rc,
-			sqlite3_errmsg(db),
-			static_cast<int>(dictionary_words.size()));
 		return;
 	}
 	selected_words->reserve(selected_words->size() + selected_profile_ids.size());
@@ -429,11 +517,124 @@ void AppendSelectedProfileWords(sqlite3 *db,
 	}
 }
 
-}  // namespace
-
-void SelectionModule::ResetProgress() {
+void AppendProfileIds(sqlite3 *db,
+			 int user_id,
+			 const std::string &textbook_name,
+			 const std::string &sql,
+			 int64_t now_sec,
+			 size_t limit,
+			 bool is_review,
+			 std::unordered_set<int> *seen_word_ids,
+			 std::vector<std::pair<int, bool>> *selected_profile_ids) {
+	if (db == nullptr || seen_word_ids == nullptr || selected_profile_ids == nullptr || limit == 0) {
+		return;
+	}
+	StatementPtr stmt;
+	if (!PrepareStatement(db, sql, &stmt)) {
+		return;
+	}
+	int bind_index = 1;
+	if (sqlite3_bind_int(stmt.get(), bind_index++, user_id) != SQLITE_OK ||
+		sqlite3_bind_text(stmt.get(), bind_index++, textbook_name.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+		return;
+	}
+	if (sql.find("next_review_at") != std::string::npos) {
+		if (sqlite3_bind_int64(stmt.get(), bind_index++, static_cast<sqlite3_int64>(now_sec)) != SQLITE_OK) {
+			return;
+		}
+	}
+	if (sqlite3_bind_int(stmt.get(), bind_index, static_cast<int>(limit)) != SQLITE_OK) {
+		return;
+	}
+	size_t appended_count = 0;
+	for (int rc = sqlite3_step(stmt.get()); rc == SQLITE_ROW; rc = sqlite3_step(stmt.get())) {
+		const int word_id = sqlite3_column_int(stmt.get(), 0);
+		if (word_id <= 0 || !seen_word_ids->insert(word_id).second) {
+			continue;
+		}
+		selected_profile_ids->emplace_back(word_id, is_review);
+		++appended_count;
+		if (appended_count >= limit) {
+			break;
+		}
+	}
 }
 
+void AppendSelectedProfileWords(sqlite3 *db,
+				  int user_id,
+				  const std::string &textbook_name,
+				  int64_t now_sec,
+				  size_t limit,
+				  std::vector<SelectedWord> *selected_words) {
+	if (db == nullptr || selected_words == nullptr || limit == 0) {
+		return;
+	}
+	std::vector<std::pair<int, bool>> selected_profile_ids;
+	selected_profile_ids.reserve(limit);
+	std::unordered_set<int> seen_word_ids;
+	seen_word_ids.reserve(limit);
+
+	const std::string due_sql =
+		"SELECT p.word_id "
+		"FROM word_learning_profile AS p "
+		"WHERE p.user_id = ? "
+		"AND p.textbook_name = ? "
+		"AND COALESCE(p.mastered, 0) = 0 "
+		"AND COALESCE(p.last_practiced_at, 0) > 0 "
+		"AND (p.next_review_at IS NULL OR p.next_review_at = 0 OR p.next_review_at <= ?) "
+		"ORDER BY COALESCE(p.next_review_at, 0) ASC, p.word_id ASC "
+		"LIMIT ?;";
+	AppendProfileIds(db, user_id, textbook_name, due_sql, now_sec, limit, true, &seen_word_ids, &selected_profile_ids);
+
+	if (selected_profile_ids.size() < limit) {
+		const std::string fresh_sql =
+			"SELECT p.word_id "
+			"FROM word_learning_profile AS p "
+			"WHERE p.user_id = ? "
+			"AND p.textbook_name = ? "
+			"AND COALESCE(p.mastered, 0) = 0 "
+			"AND COALESCE(p.last_practiced_at, 0) = 0 "
+			"ORDER BY p.word_id ASC "
+			"LIMIT ?;";
+		AppendProfileIds(
+			db,
+			user_id,
+			textbook_name,
+			fresh_sql,
+			now_sec,
+			limit - selected_profile_ids.size(),
+			false,
+			&seen_word_ids,
+			&selected_profile_ids);
+	}
+
+	if (selected_profile_ids.size() < limit) {
+		const std::string backlog_sql =
+			"SELECT p.word_id "
+			"FROM word_learning_profile AS p "
+			"WHERE p.user_id = ? "
+			"AND p.textbook_name = ? "
+			"AND COALESCE(p.mastered, 0) = 0 "
+			"AND COALESCE(p.last_practiced_at, 0) > 0 "
+			"AND COALESCE(p.next_review_at, 0) > ? "
+			"ORDER BY COALESCE(p.next_review_at, 0) ASC, p.word_id ASC "
+			"LIMIT ?;";
+		AppendProfileIds(
+			db,
+			user_id,
+			textbook_name,
+			backlog_sql,
+			now_sec,
+			limit - selected_profile_ids.size(),
+			true,
+			&seen_word_ids,
+			&selected_profile_ids);
+	}
+
+	AppendDictionaryWordsForProfileIds(db, selected_profile_ids, selected_words);
+}
+
+}  // namespace
 std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordSelectionConfig &config,
 						 int user_id,
 						 int stage_index,
@@ -449,12 +650,12 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 		stage_index,
 		textbook_name.c_str(),
 		resolved_next_new_word_id,
-		config.TotalCount());
+		config.total_word_count);
 	if (next_new_word_id != nullptr) {
 		*next_new_word_id = resolved_next_new_word_id;
 	}
 	const int64_t select_start_ms = NowMs();
-	const int total_count = std::max(0, config.TotalCount());
+	const int total_count = std::max(0, config.total_word_count);
 	if (total_count <= 0) {
 		ESP_LOGW(kTag, "skip vocabulary selection: invalid total_count=%d", total_count);
 		return selected_words;
@@ -494,8 +695,11 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 	DB_LOGI(kTag, "RESOURCE_OK kind=db scope=user action=open path=%s method=sqlite3_open_v2(READWRITE|CREATE) caller=SelectWordsFromVocabulary", user_db_path.c_str());
 	std::unique_ptr<sqlite3, SqliteDbCloser> db(raw_db);
 	const int64_t open_user_db_ms = NowMs() - open_user_db_start_ms;
-	if (!EnsureWordLearningProfileTables(db.get())) {
-		WP_SELECT_TRACE_LOGW(kTag, "selection abort ensure word_learning_profile failed");
+	word_practice::WordMasteryDao mastery_dao(kTag, normalized_user_id);
+	if (!mastery_dao.EnsureTables(db.get())) {
+		WP_SELECT_TRACE_LOGW(kTag,
+			"selection abort ensure word_learning_profile failed msg=%s",
+			sqlite3_errmsg(db.get()));
 		return selected_words;
 	}
 
@@ -518,32 +722,88 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 		return selected_words;
 	}
 	const int64_t now_sec = NowSec();
+	LogSelectionProfileInventory(db.get(), normalized_user_id, textbook_name, now_sec);
 	const int64_t topup_start_ms = NowMs();
 	const int due_review_count = CountDueReviewWords(db.get(), normalized_user_id, textbook_name, now_sec);
 	int inserted_profiles = 0;
-	if (due_review_count < kMinimumActiveProfileWords) {
-		const int missing_count = kMinimumActiveProfileWords - due_review_count;
-		if (ExecSql(db.get(), "BEGIN IMMEDIATE TRANSACTION;")) {
-			inserted_profiles = TopUpProfilesFromStage(
-				db.get(),
-				normalized_user_id,
-				textbook_name,
+	if (due_review_count < config::kMinimumActiveProfileWords) {
+		const int missing_count = config::kMinimumActiveProfileWords - due_review_count;
+		const int cursor_before_topup = resolved_next_new_word_id;
+		const int topup_candidate_count =
+			CountTopUpCandidates(db.get(), normalized_user_id, textbook_name, resolved_next_new_word_id);
+		const std::string topup_candidate_sample =
+			SampleTopUpCandidateIds(db.get(), normalized_user_id, textbook_name, resolved_next_new_word_id, 5);
+		int topup_cursor_after_candidates = resolved_next_new_word_id;
+		const std::vector<int> topup_word_ids = CollectTopUpCandidateWordIds(
+			db.get(),
+			normalized_user_id,
+			textbook_name,
+			resolved_next_new_word_id,
+			static_cast<size_t>(missing_count),
+			&topup_cursor_after_candidates);
+		WP_SELECT_TRACE_LOGW(kTag,
+			"selection topup plan due_review=%d missing=%d cursor=%d candidates=%d sample_ids=%s",
+			due_review_count,
+			missing_count,
+			resolved_next_new_word_id,
+			topup_candidate_count,
+			topup_candidate_sample.empty() ? "(none)" : topup_candidate_sample.c_str());
+		if (topup_candidate_count == 0) {
+			int min_word_id = 0;
+			int max_word_id = 0;
+			const bool has_id_range = QueryDictionaryIdRange(db.get(), &min_word_id, &max_word_id);
+			WP_SELECT_TRACE_LOGW(kTag,
+				"selection topup source empty dict_words=%d dict_min_id=%d dict_max_id=%d cursor=%d textbook=%s has_id_range=%d",
+				CountDictionaryWords(db.get()),
+				has_id_range ? min_word_id : 0,
+				has_id_range ? max_word_id : 0,
 				resolved_next_new_word_id,
-				static_cast<size_t>(missing_count),
-				&resolved_next_new_word_id);
+				textbook_name.c_str(),
+				has_id_range ? 1 : 0);
+		}
+			if (topup_word_ids.empty()) {
+				resolved_next_new_word_id = cursor_before_topup;
+			} else if (!ExecSql(db.get(), "DETACH DATABASE dictdb;")) {
+				ESP_LOGW(kTag, "selection topup detach dictdb failed cursor=%d", resolved_next_new_word_id);
+				resolved_next_new_word_id = cursor_before_topup;
+			} else if (!ExecSql(db.get(), "BEGIN IMMEDIATE TRANSACTION;")) {
+			ESP_LOGW(kTag,
+				"selection topup begin transaction failed cursor=%d",
+				resolved_next_new_word_id);
+		} else {
+				resolved_next_new_word_id = topup_cursor_after_candidates;
+				inserted_profiles = InsertProfileSeeds(db.get(), normalized_user_id, topup_word_ids, textbook_name);
 			if (!ExecSql(db.get(), "COMMIT;")) {
+				ESP_LOGW(kTag,
+					"selection topup commit failed cursor=%d inserted=%d",
+					resolved_next_new_word_id,
+					inserted_profiles);
 				(void)ExecSql(db.get(), "ROLLBACK;");
 				inserted_profiles = 0;
+				resolved_next_new_word_id = cursor_before_topup;
 			}
+			if (!AttachReadonlyDb(db.get(), words_db_path, "dictdb")) {
+				WP_SELECT_TRACE_LOGW(kTag, "selection abort reattach words db failed path=%s", words_db_path.c_str());
+				return selected_words;
+			}
+		}
+		if (inserted_profiles == 0 && topup_candidate_count > 0) {
+			WP_SELECT_TRACE_LOGW(kTag,
+				"selection topup inserted nothing despite candidates cursor=%d candidates=%d textbook=%s",
+				cursor_before_topup,
+				topup_candidate_count,
+				textbook_name.c_str());
 		}
 	}
 	const int64_t topup_ms = NowMs() - topup_start_ms;
+	LogSelectionProfileInventory(db.get(), normalized_user_id, textbook_name, now_sec);
 
 	const int64_t select_profile_start_ms = NowMs();
 	AppendSelectedProfileWords(
 		db.get(),
 		normalized_user_id,
 		textbook_name,
+		now_sec,
 		static_cast<size_t>(total_count),
 		&selected_words);
 	const int64_t select_profile_ms = NowMs() - select_profile_start_ms;

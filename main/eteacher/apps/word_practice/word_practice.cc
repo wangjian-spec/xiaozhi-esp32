@@ -21,6 +21,7 @@
 #include <esp_timer.h>
 
 #include "boards/EnglishTeacher/custom_epd_display.h"
+#include "eteacher/apps/word_practice/word_practice_config.h"
 #include "eteacher/apps/word_practice/word_practice_time_utils.h"
 #include "eteacher/apps/word_practice/word_practice_ui.h"
 #include "eteacher/app_ui/common_ui_utils.h"
@@ -47,8 +48,6 @@
 namespace {
 constexpr const char *kTag = "WordPracticeApp";
 constexpr const app_ui::desc::UiDesc *kUiDesc = &app_ui::generated::word_practice::kUi;
-constexpr size_t kInitialQuestionSeedWarmupCount = 4;
-constexpr size_t kIncrementalQuestionSeedWarmupCount = 2;
 
 constexpr uint32_t kWidgetPublicTeacher = 0xB1B2CF12u;
 constexpr uint32_t kWidgetPublicCup = 0x1F95DB60u;
@@ -107,11 +106,13 @@ constexpr uint32_t kWidgetCheckboxHasRead = 0x3C197D08u;
 constexpr uint32_t kWidgetLabelReadSetting = 0x2C4D6279u;
 constexpr uint32_t kWidgetLabelTodayMission = 0xC210C036u;
 constexpr uint32_t kWidgetProgressTodayMission = 0x06460615u;
+constexpr uint32_t kWidgetProgressPractice = 0x89DAD822u;
 constexpr uint32_t kWidgetHomeFrameTop = 0x01F331C9u;
 constexpr uint32_t kWidgetHomeFrameBottom = 0x40AB301Au;
 constexpr uint32_t kWidgetButtonMissionSetting = 0xA7B12F6Fu;
 constexpr uint32_t kWidgetLabelWordPreview = 0xE1A01541u;
 constexpr uint32_t kWidgetLabelMissionProgress = 0x8FC5D946u;
+constexpr uint32_t kWidgetLabelProgressPercent = 0xEFA86CF3u;
 constexpr uint32_t kWidgetDialogSettingResult = 0x1ADDAADAu;
 constexpr uint32_t kWidgetListviewSelect = 0xD2702AA1u;
 constexpr uint32_t kWidgetButtonConfirm = 0x234566C2u;
@@ -125,16 +126,9 @@ constexpr const char *kUserJsonPath = "/sdcard/user/user.json";
 constexpr int kLevelIconCellSize = 20;
 constexpr int kLevelIconMaxPerRow = 5;
 constexpr int kLevelIconMaxCount = 25;
+constexpr int kDefaultTodayMissionCount = 15;
+constexpr int kDefaultTodayPracticeWordCount = 15;
 constexpr std::array<int, 12> kDefaultStageLevelupCount = {10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48};
-constexpr std::array<std::pair<int, int>, 7> kMissionPresets = {
-	std::pair<int, int>{5, 10},
-	std::pair<int, int>{8, 12},
-	std::pair<int, int>{10, 15},
-	std::pair<int, int>{12, 18},
-	std::pair<int, int>{15, 20},
-	std::pair<int, int>{20, 20},
-	std::pair<int, int>{20, 30},
-};
 
 std::string TodayDateString() {
 	return word_practice::CurrentCalendarDateString();
@@ -142,6 +136,14 @@ std::string TodayDateString() {
 
 int ClampPercent(int value) {
 	return std::max(0, std::min(100, value));
+}
+
+int JsonIntOrDefault(cJSON *object, const char *key, int fallback);
+bool JsonBoolOrDefault(cJSON *object, const char *key, bool fallback);
+std::string JsonStringOrDefault(cJSON *object, const char *key, const std::string &fallback);
+
+int PositiveOrFallback(int value, int fallback) {
+	return value > 0 ? value : fallback;
 }
 
 void EnsureIntVectorSize(std::vector<int> *values, size_t size, int fallback) {
@@ -1110,7 +1112,6 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	image_sun_moon_star_static_rect_ = {};
 
 	session_module_.ResetForNewRound(pass_target_questions_);
-	selection_module_.ResetProgress();
 	question_scheduler_.Reset();
 	selected_words_.clear();
 	mastery_profiles_.clear();
@@ -1150,9 +1151,8 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	audio_bundle_index_available_ = false;
 	CancelQuestionAudioAutoPlay();
 	current_speak_asr_failure_count_ = 0;
-	current_round_cold_start_ = false;
+	current_learning_mode_ = word_practice::LearningMode::Normal;
 	round_completion_recorded_ = false;
-	easy_confirmation_pending_ = false;
 	ui_mode_ = UiMode::HomePreview;
 	overlay_mode_ = OverlayMode::None;
 	dialog_focus_ = DialogFocus::Confirm;
@@ -1160,6 +1160,7 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	session_started_at_sec_ = 0;
 	session_mastered_words_before_ = 0;
 	session_progress_before_ = 0;
+	ResetCycleScoreState();
 
 	router_.Reset();
 	scene_load_id_ = 0;
@@ -1187,7 +1188,7 @@ void WordPracticeApp::OnEnter(AppContext &ctx) {
 	mastery_dao_.SetUserId(current_user_id_);
 	result_module_.SetUserId(current_user_id_);
 	enable_speak_questions_ = user_json_.enable_read_questions;
-	word_selection_config_ = practice_flow_controller_.BuildRoundPlan().selection_config;
+	word_selection_config_ = practice_flow_controller_.BuildRoundPlan(user_json_.today_mission.today_practice_word).selection_config;
 
 	const int64_t startup_begin_ms = NowMs();
 	ESP_LOGW(kTag,
@@ -1309,6 +1310,8 @@ void WordPracticeApp::OnExit(AppContext &ctx) {
 	audio_bundle_index_loaded_ = false;
 	audio_bundle_index_available_ = false;
 	InvalidateQuestionPoolCache();
+	ResetLoadedQuestionDataCache();
+	ResetMasteryProfileCache();
 	current_audio_path_.clear();
 	ctx_ = nullptr;
 	ui_ready_ = false;
@@ -1382,6 +1385,10 @@ void WordPracticeApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
 	}
 	SyncScoreLabels();
 	Render(ctx);
+}
+
+bool WordPracticeApp::ShouldInterceptSelectExit() const {
+	return overlay_mode_ == OverlayMode::Settlement;
 }
 
 bool WordPracticeApp::LoadUi(AppContext &ctx) {
@@ -1464,8 +1471,8 @@ void WordPracticeApp::RefreshSelectionDialog() {
 		profile.prompt_max_lines = 14;
 		profile.text_offset_x = 6;
 		profile.text_offset_y = 6;
-		profile.confirm_label = "继续练习 >";
-		profile.cancel_label = "返回首页 >";
+		profile.confirm_label = "重新开始 >";
+		profile.cancel_label = "Select退出 >";
 		dialog_setting_result_->SetProfile(profile);
 		dialog_setting_result_->SetSelectedIndex(dialog_focus_ == DialogFocus::Confirm ? 0 : 1);
 		dialog_setting_result_->SetText(BuildSettlementDialogText(last_session_summary_));
@@ -1491,11 +1498,12 @@ void WordPracticeApp::StartPracticeRound(AppContext &ctx) {
 	session_started_at_sec_ = static_cast<int>(NowSec());
 	session_mastered_words_before_ = QueryMasteredWordCount();
 	session_progress_before_ = user_json_.today_progress_percent;
+	ResetCycleScoreState();
 	wrong_words_this_round_.clear();
 	wrong_word_ids_this_round_.clear();
 	learned_words_this_round_.clear();
 	last_session_wrong_word_ids_.clear();
-	const word_practice::PracticeRoundPlan round_plan = practice_flow_controller_.BuildRoundPlan();
+	const word_practice::PracticeRoundPlan round_plan = practice_flow_controller_.BuildRoundPlan(user_json_.today_mission.today_practice_word);
 	word_selection_config_ = round_plan.selection_config;
 	ResetRoundState();
 	const int stage_index = CurrentStageIndex();
@@ -1571,6 +1579,7 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	label_today_mission_ = dynamic_cast<app_ui::LabelWidget *>(root->FindById(kWidgetLabelTodayMission));
 	label_word_preview_ = dynamic_cast<app_ui::LabelWidget *>(root->FindById(kWidgetLabelWordPreview));
 	label_mission_progress_ = dynamic_cast<app_ui::LabelWidget *>(root->FindById(kWidgetLabelMissionProgress));
+	label_progress_percent_ = dynamic_cast<app_ui::LabelWidget *>(root->FindById(kWidgetLabelProgressPercent));
 	bottom_bar_ = dynamic_cast<app_ui::TextWidget *>(root->FindById(kWidgetBottomBar));
 	textarea_input_answer_ = dynamic_cast<app_ui::TextAreaWidget *>(root->FindById(kWidgetTextAreaInputAnswer));
 	if (textarea_input_answer_) {
@@ -1606,6 +1615,18 @@ void WordPracticeApp::BindWidgets(app_ui::Widget *root) {
 	checkbox_has_read_ = dynamic_cast<app_ui::CheckboxWidget *>(root->FindById(kWidgetCheckboxHasRead));
 	checkbox_no_read_ = dynamic_cast<app_ui::CheckboxWidget *>(root->FindById(kWidgetCheckboxNoRead));
 	progress_today_mission_ = dynamic_cast<app_ui::ProgressWidget *>(root->FindById(kWidgetProgressTodayMission));
+	progress_practice_ = dynamic_cast<app_ui::ProgressWidget *>(root->FindById(kWidgetProgressPractice));
+	if (progress_practice_) {
+		auto profile = progress_practice_->Profile();
+		profile.draw_rounded_border = true;
+		profile.corner_radius = std::max<int16_t>(0, progress_practice_->DeclaredRect().h / 2);
+		progress_practice_->SetProfile(profile);
+		progress_practice_->SetVisible(false);
+	}
+	if (label_progress_percent_) {
+		label_progress_percent_->SetVisible(false);
+		label_progress_percent_->SetText(std::to_string(std::max(0, user_json_.today_progress_percent)) + "%");
+	}
 	if (listview_select_) {
 		app_ui::ListViewProfile profile = listview_select_->Profile();
 		profile.rows = 5;
@@ -1878,6 +1899,8 @@ bool WordPracticeApp::LoadUserJson() {
 	user_json_.stage_levelup_count.assign(kDefaultStageLevelupCount.begin(), kDefaultStageLevelupCount.end());
 	user_json_.stage_words_quantity.assign(12, 0);
 	user_json_.stage_new_word_cursor.assign(12, 0);
+	user_json_.today_mission.today_mission_count = kDefaultTodayMissionCount;
+	user_json_.today_mission.today_practice_word = kDefaultTodayPracticeWordCount;
 	const std::string content = ReadFileToString(kUserJsonPath);
 	if (content.empty()) {
 		ESP_LOGW(kTag, "user.json missing or empty path=%s", kUserJsonPath);
@@ -1906,34 +1929,12 @@ bool WordPracticeApp::LoadUserJson() {
 			learning_preferences,
 			"enable_read_questions",
 			user_json_.enable_read_questions);
-		user_json_.today_mission.new_word_count = std::max(
-			1,
-			JsonIntOrDefault(learning_preferences, "new_word_count", user_json_.today_mission.new_word_count));
-		user_json_.today_mission.review_word_count = std::max(
-			1,
-			JsonIntOrDefault(learning_preferences, "review_word_count", user_json_.today_mission.review_word_count));
-
-		cJSON *preference_mission = cJSON_GetObjectItemCaseSensitive(learning_preferences, "today_mission");
-		if (cJSON_IsObject(preference_mission)) {
-			user_json_.today_mission.new_word_count = std::max(
-				1,
-				JsonIntOrDefault(preference_mission, "new_word_count", user_json_.today_mission.new_word_count));
-			user_json_.today_mission.review_word_count = std::max(
-				1,
-				JsonIntOrDefault(preference_mission, "review_word_count", user_json_.today_mission.review_word_count));
-		}
-	}
-
-	if (cJSON_IsObject(users)) {
-		cJSON *legacy_today_mission = cJSON_GetObjectItemCaseSensitive(users, "today_mission");
-		if (cJSON_IsObject(legacy_today_mission)) {
-			user_json_.today_mission.new_word_count = std::max(
-				1,
-				JsonIntOrDefault(legacy_today_mission, "new_word_count", user_json_.today_mission.new_word_count));
-			user_json_.today_mission.review_word_count = std::max(
-				1,
-				JsonIntOrDefault(legacy_today_mission, "review_word_count", user_json_.today_mission.review_word_count));
-		}
+		user_json_.today_mission.today_mission_count = PositiveOrFallback(
+			JsonIntOrDefault(learning_preferences, "today_mission_count", user_json_.today_mission.today_mission_count),
+			user_json_.today_mission.today_mission_count);
+		user_json_.today_mission.today_practice_word = PositiveOrFallback(
+			JsonIntOrDefault(learning_preferences, "today_practice_word", user_json_.today_mission.today_practice_word),
+			user_json_.today_mission.today_practice_word);
 	}
 
 	cJSON *devices = cJSON_GetObjectItemCaseSensitive(root, "devices");
@@ -1961,17 +1962,18 @@ bool WordPracticeApp::LoadUserJson() {
 	}
 	LoadIntArrayFromJson(root, "stage_words_quantity", &user_json_.stage_words_quantity, 0);
 	LoadIntArrayFromJson(root, "stage_new_word_cursor", &user_json_.stage_new_word_cursor, 0);
+	const int mission_target_words = std::max(1, user_json_.today_mission.today_mission_count);
 		WP_PERSIST_LOGW(
 		kTag,
-		"user.json loaded path=%s name=%s stage=%s level=%d mission=%d/%d completed=%d target=%d speak=%d preview=%s",
+		"user.json loaded path=%s name=%s stage=%s level=%d mission_count=%d practice_words=%d completed=%d target=%d speak=%d preview=%s",
 		kUserJsonPath,
 		user_json_.name.c_str(),
 		user_json_.current_stage.c_str(),
 		user_json_.level,
-		user_json_.today_mission.new_word_count,
-		user_json_.today_mission.review_word_count,
+		user_json_.today_mission.today_mission_count,
+		user_json_.today_mission.today_practice_word,
 		user_json_.today_mission.completed_words,
-		user_json_.today_mission.target_words,
+		mission_target_words,
 		user_json_.enable_read_questions ? 1 : 0,
 		BuildJsonLogPreview(content).c_str());
 	cJSON_Delete(root);
@@ -2002,8 +2004,8 @@ bool WordPracticeApp::SaveUserJson() const {
 
 	cJSON *learning_preferences = cJSON_CreateObject();
 	cJSON_AddBoolToObject(learning_preferences, "enable_read_questions", user_json_.enable_read_questions);
-	cJSON_AddNumberToObject(learning_preferences, "new_word_count", user_json_.today_mission.new_word_count);
-	cJSON_AddNumberToObject(learning_preferences, "review_word_count", user_json_.today_mission.review_word_count);
+	cJSON_AddNumberToObject(learning_preferences, "today_mission_count", std::max(1, user_json_.today_mission.today_mission_count));
+	cJSON_AddNumberToObject(learning_preferences, "today_practice_word", std::max(1, user_json_.today_mission.today_practice_word));
 	cJSON_AddItemToObject(root, "learning_preferences", learning_preferences);
 
 	cJSON *practice_stats = cJSON_CreateObject();
@@ -2038,13 +2040,13 @@ bool WordPracticeApp::SaveUserJson() const {
 	const bool ok = WriteStringToFile(kUserJsonPath, output);
 	ESP_LOGI(
 		kTag,
-		"user.json save %s path=%s mission=%d/%d completed=%d target=%d speak=%d preview=%s",
+		"user.json save %s path=%s mission_count=%d practice_words=%d completed=%d target=%d speak=%d preview=%s",
 		ok ? "ok" : "failed",
 		kUserJsonPath,
-		user_json_.today_mission.new_word_count,
-		user_json_.today_mission.review_word_count,
+		user_json_.today_mission.today_mission_count,
+		user_json_.today_mission.today_practice_word,
 		user_json_.today_mission.completed_words,
-		user_json_.today_mission.target_words,
+		std::max(1, user_json_.today_mission.today_mission_count),
 		user_json_.enable_read_questions ? 1 : 0,
 		BuildJsonLogPreview(output).c_str());
 	return ok;
@@ -2067,7 +2069,7 @@ int WordPracticeApp::ComputeDisplayLevel() const {
 }
 
 int WordPracticeApp::QueryMasteredWordCount() const {
-	const std::string user_db = DiscoverUserDbPath();
+	const std::string user_db = result_module_.ProgressDao().DiscoverUserDbPath();
 	if (user_db.empty()) {
 		return user_json_.mastered_words;
 	}
@@ -2079,7 +2081,7 @@ int WordPracticeApp::QueryMasteredWordCount() const {
 		return user_json_.mastered_words;
 	}
 	(void)mastery_dao_.EnsureTables(db);
-	const char *sql = "SELECT COUNT(1) FROM word_learning_profile WHERE user_id=? AND (mastered=1 OR (recall_score>=3 AND output_score>=3 AND COALESCE(consecutive_recall_correct, 0)>=2 AND COALESCE(recent_review_failed, 0)=0 AND COALESCE(stability, 0)>=60 AND lapse_count<=3));";
+	const char *sql = "SELECT COUNT(1) FROM word_learning_profile WHERE user_id=? AND (mastered=1 OR (recall_score>=3 AND output_score>=3 AND strength>=60 AND lapse_count<=3));";
 	sqlite3_stmt *stmt = nullptr;
 	int mastered_words = user_json_.mastered_words;
 	if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK && stmt) {
@@ -2111,16 +2113,14 @@ void WordPracticeApp::SyncUserProgressState() {
 			user_json_.mastered_words);
 	}
 	user_json_.level = ComputeDisplayLevel();
-	user_json_.today_mission.target_words = std::max(1, user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count);
-	const word_practice::DailyProgressState daily_progress = result_module_.ProgressDao().QueryDailyProgress(
-		textbook_name,
-		user_json_.today_mission.target_words);
-	user_json_.today_mission.completed_words = std::min(daily_progress.completed_words, std::max(1, user_json_.today_mission.target_words));
-	user_json_.today_progress_percent = ClampPercent(daily_progress.progress_percent);
+	const word_practice::DailyProgressState daily_progress = result_module_.ProgressDao().QueryDailyProgress(textbook_name);
+	user_json_.today_mission.completed_words = std::max(0, daily_progress.completed_words);
+	user_json_.today_progress_percent = std::max(0, daily_progress.progress_percent);
 }
 
 std::string WordPracticeApp::BuildTodayMissionText() const {
-	return "今日任务：练习 " + std::to_string(word_selection_config_.TotalCount()) + " 个单词";
+	return "今日任务：答对 " + std::to_string(std::max(1, user_json_.today_mission.today_mission_count)) +
+		" 个单词，今日练习 " + std::to_string(std::max(1, user_json_.today_mission.today_practice_word)) + " 个单词";
 }
 
 std::string WordPracticeApp::BuildWordPreviewText() const {
@@ -2309,7 +2309,11 @@ void WordPracticeApp::RefreshHomePreview() {
 	}
 	if (label_mission_progress_) {
 		label_mission_progress_->SetVisible(true);
-		label_mission_progress_->SetText("今日目标完成：" + std::to_string(user_json_.today_progress_percent) + "%");
+		std::string progress_text = "今日目标完成：" + std::to_string(user_json_.today_progress_percent) + "%";
+		if (user_json_.today_progress_percent > 100) {
+			progress_text += "（超额完成）";
+		}
+		label_mission_progress_->SetText(progress_text);
 	}
 	if (checkbox_has_read_) {
 		checkbox_has_read_->SetVisible(false);
@@ -2342,6 +2346,7 @@ void WordPracticeApp::RefreshHomePreview() {
 		profile.max_value = 100;
 		progress_today_mission_->SetProfile(profile);
 	}
+	UpdatePracticeProgressWidget(false);
 	if (image_public_speaker_) {
 		image_public_speaker_->SetVisible(false);
 	}
@@ -2404,10 +2409,12 @@ void WordPracticeApp::HandleHomePreviewAction(AppContext &ctx, const ButtonEvent
 WordPracticeApp::SessionSummaryData WordPracticeApp::BuildSessionSummaryData() const {
 	SessionSummaryData summary;
 	const word_practice::BatchProgressSummary batch_summary = batch_progress_tracker_.BuildSummary();
-	summary.total_questions = session_module_.TotalAnswered();
-	summary.wrong_questions = session_module_.WrongCount();
-	summary.accuracy_percent = summary.total_questions > 0
-		? static_cast<int>((session_module_.CorrectCount() * 100) / std::max(1, summary.total_questions))
+	const word_practice::SessionEvaluation evaluation = EvaluateSession();
+	summary.total_questions = cycle_correct_count_ + cycle_wrong_count_;
+	summary.wrong_questions = cycle_wrong_count_;
+	summary.skipped_questions = cycle_skip_count_;
+	summary.accuracy_percent = evaluation.correct_answers + evaluation.wrong_answers > 0
+		? static_cast<int>(evaluation.accuracy * 100.0f)
 		: 0;
 	summary.duration_seconds = std::max(0, static_cast<int>(NowSec()) - session_started_at_sec_);
 	summary.new_word_total = batch_summary.new_total;
@@ -2417,7 +2424,7 @@ WordPracticeApp::SessionSummaryData WordPracticeApp::BuildSessionSummaryData() c
 	summary.mastered_before = session_mastered_words_before_;
 	summary.mastered_after = QueryMasteredWordCount();
 	summary.progress_before = session_progress_before_;
-	summary.progress_after = ClampPercent((batch_summary.completed_items * 100) / std::max(1, batch_summary.total_items));
+	summary.progress_after = std::max(0, user_json_.today_progress_percent);
 	summary.level_up = ComputeDisplayLevel() > user_json_.level;
 	std::unordered_set<std::string> seen;
 	for (const auto &word : wrong_words_this_round_) {
@@ -2450,7 +2457,8 @@ std::string WordPracticeApp::BuildSettlementDialogText(const SessionSummaryData 
 	text += "新词学习：" + std::to_string(summary.new_word_total) + "（掌握 " + std::to_string(summary.new_word_mastered) + "）\n";
 	text += "复习单词：" + std::to_string(summary.review_word_total) + "（正确 " + std::to_string(summary.review_word_correct) + "）\n";
 	text += "总题数：" + std::to_string(summary.total_questions) + "\n";
-	text += "错误：" + std::to_string(summary.wrong_questions) + "\n\n";
+	text += "错误：" + std::to_string(summary.wrong_questions) + "\n";
+	text += "跳过：" + std::to_string(summary.skipped_questions) + "\n\n";
 	text += "📊 进度提升\n\n";
 	text += "掌握词汇量：" + std::to_string(summary.mastered_before) + " → " + std::to_string(summary.mastered_after) + "\n";
 	text += "本日进度：" + std::to_string(summary.progress_before) + "% → " + std::to_string(summary.progress_after) + "%\n\n";
@@ -2488,11 +2496,7 @@ void WordPracticeApp::HandleSettlementAction(AppContext &ctx, const ButtonEvent 
 		return;
 	}
 	if (event.id == AppButton::Start) {
-		if (dialog_focus_ == DialogFocus::Confirm) {
-			StartPracticeRound(ctx);
-		} else {
-			ShowHomePreview(ctx);
-		}
+		StartPracticeRound(ctx);
 	}
 }
 
@@ -2503,8 +2507,7 @@ bool WordPracticeApp::CanReuseQuestionPool(int stage_index, int stage_cursor_ind
 		cached_question_pool_stage_cursor_index_ == stage_cursor_index &&
 		cached_question_pool_new_word_cursor_ == next_new_word_id &&
 		cached_question_pool_enable_speak_questions_ == enable_speak_questions_ &&
-		cached_question_pool_selection_config_.review_word_count == word_selection_config_.review_word_count &&
-		cached_question_pool_selection_config_.new_word_count == word_selection_config_.new_word_count &&
+		cached_question_pool_selection_config_.total_word_count == word_selection_config_.total_word_count &&
 		!selected_words_.empty() &&
 		!question_seed_pool_.empty() &&
 		!available_question_types_by_word_.empty() &&
@@ -2534,6 +2537,58 @@ void WordPracticeApp::InvalidateQuestionPoolCache() {
 	cached_question_pool_enable_speak_questions_ = enable_speak_questions_;
 }
 
+void WordPracticeApp::ResetLoadedQuestionDataCache() {
+	seed_cache_.clear();
+	seed_cache_stage_index_ = 0;
+}
+
+void WordPracticeApp::ResetMasteryProfileCache() {
+	mastery_profile_cache_.clear();
+	mastery_profile_cache_user_id_ = -1;
+	mastery_profile_cache_textbook_name_.clear();
+}
+
+void WordPracticeApp::RebuildMasteryProfileCache() {
+	mastery_profile_cache_.clear();
+	mastery_profile_cache_.reserve(mastery_profiles_.size());
+	for (const auto &profile : mastery_profiles_) {
+		mastery_profile_cache_[profile.word_id] = profile;
+	}
+	mastery_profile_cache_user_id_ = current_user_id_;
+	mastery_profile_cache_textbook_name_ = current_textbook_name_;
+}
+
+void WordPracticeApp::UpdateMasteryProfileCache(const word_practice::WordMasteryProfile &profile) {
+	if (mastery_profile_cache_user_id_ != current_user_id_ || mastery_profile_cache_textbook_name_ != current_textbook_name_) {
+		ResetMasteryProfileCache();
+		mastery_profile_cache_user_id_ = current_user_id_;
+		mastery_profile_cache_textbook_name_ = current_textbook_name_;
+	}
+	mastery_profile_cache_[profile.word_id] = profile;
+}
+
+bool WordPracticeApp::TryAppendSeedFromCache(const word_practice::SelectedWord &selected_word) {
+	const auto it = seed_cache_.find(selected_word.word_id);
+	if (it == seed_cache_.end()) {
+		return false;
+	}
+	word_practice::VocabularySeed cached_seed = it->second;
+	cached_seed.is_review = selected_word.is_review;
+	if (!Trim(selected_word.word).empty()) {
+		cached_seed.word = Trim(selected_word.word);
+	}
+	if (!Trim(selected_word.image).empty()) {
+		cached_seed.image = Trim(selected_word.image);
+	}
+	question_seed_pool_.push_back(std::move(cached_seed));
+	return true;
+}
+
+const word_practice::WordMasteryProfile *WordPracticeApp::FindCachedMasteryProfile(int word_id) const {
+	const auto it = mastery_profile_cache_.find(word_id);
+	return it == mastery_profile_cache_.end() ? nullptr : &it->second;
+}
+
 bool WordPracticeApp::WarmQuestionCandidates(size_t target_seed_count, const char *reason) {
 	if (selected_words_.empty()) {
 		question_seed_pool_.clear();
@@ -2546,13 +2601,23 @@ bool WordPracticeApp::WarmQuestionCandidates(size_t target_seed_count, const cha
 	const size_t seed_count_before = question_seed_pool_.size();
 	const size_t available_before = available_question_types_by_word_.size();
 	const int stage_index = CurrentStageIndex();
+	if (seed_cache_stage_index_ != stage_index) {
+		ResetLoadedQuestionDataCache();
+		seed_cache_stage_index_ = stage_index;
+	}
 	const int64_t warm_start_ms = NowMs();
 	int loaded_count = 0;
 	int failed_count = 0;
+	int cache_hit_count = 0;
 
 	while (question_seed_pool_.size() < desired_seed_count && next_seed_pool_load_index_ < selected_words_.size()) {
 		const word_practice::SelectedWord &selected_word = selected_words_[next_seed_pool_load_index_++];
 		if (FindLoadedVocabularySeed(question_seed_pool_, selected_word.word_id) != nullptr) {
+			continue;
+		}
+		if (TryAppendSeedFromCache(selected_word)) {
+			++loaded_count;
+			++cache_hit_count;
 			continue;
 		}
 		word_practice::VocabularySeed loaded_seed;
@@ -2560,6 +2625,7 @@ bool WordPracticeApp::WarmQuestionCandidates(size_t target_seed_count, const cha
 			++failed_count;
 			continue;
 		}
+		seed_cache_[loaded_seed.word_id] = loaded_seed;
 		question_seed_pool_.push_back(std::move(loaded_seed));
 		++loaded_count;
 	}
@@ -2568,13 +2634,14 @@ bool WordPracticeApp::WarmQuestionCandidates(size_t target_seed_count, const cha
 		question_seed_pool_,
 		mastery_profiles_,
 		enable_speak_questions_,
-		current_round_cold_start_);
+		current_learning_mode_);
 
 	WP_APP_DBLOGW(kTag,
-		"warm question candidates reason=%s target=%d loaded_now=%d failed_now=%d seeds=%d available_words=%d next_index=%d total_ms=%d",
+		"warm question candidates reason=%s target=%d loaded_now=%d cache_hits=%d failed_now=%d seeds=%d available_words=%d next_index=%d total_ms=%d",
 		reason != nullptr ? reason : "unknown",
 		static_cast<int>(desired_seed_count),
 		loaded_count,
+		cache_hit_count,
 		failed_count,
 		static_cast<int>(question_seed_pool_.size()),
 		static_cast<int>(available_question_types_by_word_.size()),
@@ -2593,25 +2660,27 @@ void WordPracticeApp::LoadQuestionPool() {
 	available_question_types_by_word_.clear();
 	next_seed_pool_load_index_ = 0;
 	mastery_profiles_.clear();
+	ResetMasteryProfileCache();
 	learning_batch_ = {};
-	batch_progress_tracker_.Reset(learning_batch_);
+	batch_progress_tracker_.Reset(learning_batch_, current_learning_mode_);
 	current_scheduled_question_ = {};
 	current_question_slot_ = {};
 	current_round_goal_text_.clear();
 	last_attempt_feedback_text_.clear();
-	current_round_cold_start_ = false;
-	easy_confirmation_pending_ = false;
+	current_learning_mode_ = word_practice::LearningMode::Normal;
 	if (!eteacher::database_manager::EnsureSqliteRuntimeReady(kTag)) {
 		ESP_LOGE(kTag, "sqlite runtime init failed");
 		return;
 	}
 	(void)eteacher::database_manager::EnsureSqliteSdMounted(kTag);
 	WP_APP_DBLOGW(kTag,
-		"load question pool start review_target=%d new_target=%d requested_total=%d",
-		word_selection_config_.review_word_count,
-		word_selection_config_.new_word_count,
-		word_selection_config_.TotalCount());
+		"load question pool start requested_total=%d selection_mode=total_words",
+		word_selection_config_.total_word_count);
 	const int stage_index = CurrentStageIndex();
+	if (seed_cache_stage_index_ != 0 && seed_cache_stage_index_ != stage_index) {
+		ResetLoadedQuestionDataCache();
+	}
+	seed_cache_stage_index_ = stage_index;
 	eteacher::app_ui::SetWordResourceStage(stage_index);
 	current_textbook_name_ = "default";
 	const std::string preferred_textbook_name = StageNumberToTag(stage_index);
@@ -2643,13 +2712,14 @@ void WordPracticeApp::LoadQuestionPool() {
 	const int64_t decay_start_ms = NowMs();
 	const int decayed_profile_count = mastery_dao_.ApplyDueDecayIfNeeded(&mastery_profiles_);
 	const int64_t decay_end_ms = NowMs();
-	current_round_cold_start_ = question_seed_module_.ShouldUseColdStartMode(selected_words_, mastery_profiles_);
+	RebuildMasteryProfileCache();
+	current_learning_mode_ = question_seed_module_.DetermineLearningMode(selected_words_, mastery_profiles_);
 	const int64_t seed_load_start_ms = NowMs();
-	(void)WarmQuestionCandidates(kInitialQuestionSeedWarmupCount, "startup");
+	(void)WarmQuestionCandidates(word_practice::config::kInitialQuestionSeedWarmupCount, "startup");
 	const int64_t seed_load_end_ms = NowMs();
 	const int64_t available_types_start_ms = NowMs();
 	while (available_question_types_by_word_.empty() && next_seed_pool_load_index_ < selected_words_.size()) {
-		const size_t next_target = question_seed_pool_.size() + kIncrementalQuestionSeedWarmupCount;
+		const size_t next_target = question_seed_pool_.size() + word_practice::config::kIncrementalQuestionSeedWarmupCount;
 		if (!WarmQuestionCandidates(next_target, "startup_expand")) {
 			break;
 		}
@@ -2687,15 +2757,14 @@ void WordPracticeApp::LoadQuestionPool() {
 	}
 	current_question_slot_ = {};
 	const int64_t batch_build_start_ms = NowMs();
-	learning_batch_ = batch_planner_.Build(selected_words_, mastery_profiles_, current_round_cold_start_);
+	learning_batch_ = batch_planner_.Build(selected_words_, mastery_profiles_, current_learning_mode_);
 	const int64_t batch_build_end_ms = NowMs();
-	batch_progress_tracker_.Reset(learning_batch_);
+	batch_progress_tracker_.Reset(learning_batch_, current_learning_mode_);
 	question_scheduler_.Reset();
 	current_scheduled_question_ = {};
 	current_round_goal_text_ = BuildRoundGoalText();
 	last_attempt_feedback_text_.clear();
 	round_completion_recorded_ = false;
-	easy_confirmation_pending_ = false;
 	UpdateQuestionPoolCacheState(stage_index, stage_cursor_index, next_new_word_id);
 	WP_APP_DBLOGW(kTag, "vocabulary question seed pool loaded: seeds=%d available_words=%d",
 		static_cast<int>(question_seed_pool_.size()),
@@ -2718,10 +2787,13 @@ void WordPracticeApp::LoadQuestionPool() {
 
 bool WordPracticeApp::PickNextQuestion() {
 	if (available_question_types_by_word_.empty()) {
-		const size_t next_target = std::max(question_seed_pool_.size() + kIncrementalQuestionSeedWarmupCount,
-			static_cast<size_t>(kInitialQuestionSeedWarmupCount));
+		const size_t next_target = std::max(
+			question_seed_pool_.size() + word_practice::config::kIncrementalQuestionSeedWarmupCount,
+			static_cast<size_t>(word_practice::config::kInitialQuestionSeedWarmupCount));
 		(void)WarmQuestionCandidates(next_target, "schedule_empty");
 		if (available_question_types_by_word_.empty()) {
+			session_scheduler_exhausted_ = true;
+			UpdateSessionState(true);
 			return false;
 		}
 	}
@@ -2735,10 +2807,9 @@ bool WordPracticeApp::PickNextQuestion() {
 		learning_batch_,
 		mastery_profiles_,
 		batch_progress_tracker_,
-		current_round_cold_start_,
+		current_learning_mode_,
 		session_module_.TotalAnswered(),
-		session_module_.PassTargetQuestions(),
-		easy_confirmation_pending_);
+		session_module_.PassTargetQuestions());
 	WP_APP_DBLOGW(kTag,
 		"pick next question answered=%d has_value=%d word_id=%d type=%d reason=%d skill=%d",
 		session_module_.TotalAnswered(),
@@ -2748,16 +2819,17 @@ bool WordPracticeApp::PickNextQuestion() {
 		static_cast<int>(scheduled.reason_type),
 		static_cast<int>(scheduled.target_skill));
 	if (!scheduled.has_value) {
-		const size_t next_target = question_seed_pool_.size() + kIncrementalQuestionSeedWarmupCount;
+		const size_t next_target = question_seed_pool_.size() + word_practice::config::kIncrementalQuestionSeedWarmupCount;
 		if (next_seed_pool_load_index_ < selected_words_.size() && WarmQuestionCandidates(next_target, "schedule_retry")) {
 			return PickNextQuestion();
 		}
-		FinishRoundIfNeeded();
+		session_scheduler_exhausted_ = true;
+		UpdateSessionState(true);
 		return session_module_.IsFinished();
 	}
-	easy_confirmation_pending_ = false;
+	session_scheduler_exhausted_ = false;
 	const word_practice::BatchWordPlan *selected_plan = FindBatchPlan(learning_batch_, scheduled.word_id);
-	const word_practice::WordMasteryProfile *selected_profile = FindMasteryProfile(&mastery_profiles_, scheduled.word_id);
+	const word_practice::WordMasteryProfile *selected_profile = FindCachedMasteryProfile(scheduled.word_id);
 	WP_APP_DBLOGW(kTag,
 		"pick next question selected type=%d word_id=%d",
 		scheduled.question_type,
@@ -2771,7 +2843,7 @@ bool WordPracticeApp::PickNextQuestion() {
 		word_practice::ToString(scheduled.target_skill),
 		scheduled.question_type,
 		selected_profile != nullptr ? selected_profile->stage : -1,
-		selected_profile != nullptr ? selected_profile->recognition_score : -1,
+		selected_profile != nullptr ? selected_profile->strength : -1,
 		selected_profile != nullptr ? selected_profile->recall_score : -1,
 		selected_profile != nullptr ? selected_profile->output_score : -1,
 		batch_progress_tracker_.HasRecognitionCheckpoint(scheduled.word_id) ? 1 : 0,
@@ -2805,13 +2877,16 @@ bool WordPracticeApp::CommitScheduledQuestion(const word_practice::ScheduledQues
 			ESP_LOGW(kTag, "generate question missing selected word word_id=%d", scheduled.word_id);
 			return false;
 		}
-		word_practice::VocabularySeed loaded_seed;
-		const int stage_index = CurrentStageIndex();
-		if (!question_seed_module_.LoadVocabularySeedForWord(*selected_word, stage_index, &loaded_seed)) {
-			ESP_LOGW(kTag, "load seed on demand failed word_id=%d type=%d", scheduled.word_id, scheduled.question_type);
-			return false;
+		if (!TryAppendSeedFromCache(*selected_word)) {
+			word_practice::VocabularySeed loaded_seed;
+			const int stage_index = CurrentStageIndex();
+			if (!question_seed_module_.LoadVocabularySeedForWord(*selected_word, stage_index, &loaded_seed)) {
+				ESP_LOGW(kTag, "load seed on demand failed word_id=%d type=%d", scheduled.word_id, scheduled.question_type);
+				return false;
+			}
+			seed_cache_[loaded_seed.word_id] = loaded_seed;
+			question_seed_pool_.push_back(std::move(loaded_seed));
 		}
-		question_seed_pool_.push_back(std::move(loaded_seed));
 	}
 	if (!question_seed_module_.GenerateQuestionOnDemand(
 			question_seed_pool_,
@@ -2819,7 +2894,7 @@ bool WordPracticeApp::CommitScheduledQuestion(const word_practice::ScheduledQues
 			scheduled.word_id,
 			scheduled.question_type,
 			enable_speak_questions_,
-			current_round_cold_start_,
+			current_learning_mode_,
 			&current_question_slot_.current)) {
 		ESP_LOGW(kTag, "generate question on demand failed word_id=%d type=%d", scheduled.word_id, scheduled.question_type);
 		current_question_slot_ = {};
@@ -2832,10 +2907,10 @@ bool WordPracticeApp::CommitScheduledQuestion(const word_practice::ScheduledQues
 	}
 	PresentCurrentQuestion();
 	ESP_LOGW(kTag,
-		"commit scheduled question word_id=%d type=%d total_ms=%lld",
+		"commit scheduled question word_id=%d type=%d total_ms=%d",
 		scheduled.word_id,
 		scheduled.question_type,
-		static_cast<long long>(NowMs() - commit_start_ms));
+		static_cast<int>(NowMs() - commit_start_ms));
 	return true;
 }
 
@@ -2850,7 +2925,7 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	const auto &q = *question;
 	const bool is_type56 = (q.type == 5 || q.type == 6);
 
-	const std::string scene = SelectSceneIdByType(q.type);
+	const std::string scene = quiz_module_.SelectSceneId(q.type);
 	const int64_t activate_scene_start_ms = NowMs();
 	if (!scene.empty() && ctx_ && (!router_.HasScenes() || router_.CurrentId() != scene)) {
 		size_t index = 0;
@@ -2865,7 +2940,7 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	const int64_t activate_scene_end_ms = NowMs();
 
 	const int64_t build_choice_start_ms = NowMs();
-	current_choice_ = BuildChoiceState(q);
+	current_choice_ = quiz_module_.Generate(q);
 	const int64_t build_choice_end_ms = NowMs();
 	current_audio_path_ = BuildQuestionAudioPath(current_choice_.audio_filename);
 	if (!current_audio_path_.empty()) {
@@ -2875,14 +2950,10 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	}
 
 	if (label_question_type_) {
-		label_question_type_->SetText(TypeTitle(q.type));
+		label_question_type_->SetText(quiz_module_.TypeTitle(q.type));
 	}
-	if (label_correct_count_) {
-		label_correct_count_->SetText(std::to_string(session_module_.CorrectCount()));
-	}
-	if (label_wrong_count_) {
-		label_wrong_count_->SetText(std::to_string(session_module_.WrongCount()));
-	}
+	UpdatePracticeProgressWidget(true);
+	SyncScoreLabels();
 	if (label_alert_) {
 		const std::string reason_text = BuildQuestionReasonText(current_scheduled_question_);
 		if (session_module_.TotalAnswered() == 0 && !current_round_goal_text_.empty()) {
@@ -2892,7 +2963,7 @@ void WordPracticeApp::PresentCurrentQuestion() {
 		}
 	}
 	if (bottom_bar_) {
-		bottom_bar_->SetText(TypeInstruction(q.type));
+		bottom_bar_->SetText(quiz_module_.TypeInstruction(q.type));
 	}
 	UpdateQuestionPromptPresentation(q.type, q.type == 6 ? "" : current_choice_.prompt);
 	if (label_asr_result_) {
@@ -3000,15 +3071,15 @@ void WordPracticeApp::PresentCurrentQuestion() {
 				continue;
 			}
 
-			const std::string left_word = NormalizePairWord(pair.substr(0, sep));
-			const std::string right_word = NormalizePairWord(pair.substr(sep + 1));
+			const std::string left_word = quiz_module_.NormalizePairWord(pair.substr(0, sep));
+			const std::string right_word = quiz_module_.NormalizePairWord(pair.substr(sep + 1));
 			if (left_word.empty() || right_word.empty()) {
 				continue;
 			}
 
 			int left_index = -1;
 			for (int i = 0; i < 4; ++i) {
-				if (NormalizePairWord(type4_left_words_[static_cast<size_t>(i)]) == left_word) {
+				if (quiz_module_.NormalizePairWord(type4_left_words_[static_cast<size_t>(i)]) == left_word) {
 					left_index = i;
 					break;
 				}
@@ -3016,7 +3087,7 @@ void WordPracticeApp::PresentCurrentQuestion() {
 
 			int right_index = -1;
 			for (int i = 0; i < 4; ++i) {
-				if (NormalizePairWord(type4_right_words_[static_cast<size_t>(i)]) == right_word) {
+				if (quiz_module_.NormalizePairWord(type4_right_words_[static_cast<size_t>(i)]) == right_word) {
 					right_index = i;
 					break;
 				}
@@ -3121,34 +3192,37 @@ void WordPracticeApp::PresentCurrentQuestion() {
 	if (image_good_) image_good_->SetVisible(false);
 	if (image_bad_) image_bad_->SetVisible(false);
 	ESP_LOGW(kTag,
-		"present question word_id=%d qtype=%d question_id=%d total_ms=%lld activate_scene_ms=%lld build_choice_ms=%lld audio=%d scene=%s prompt_len=%d options=%d",
+		"present question word_id=%d qtype=%d question_id=%d total_ms=%d activate_scene_ms=%d build_choice_ms=%d audio=%d scene_len=%d prompt_len=%d options=%d",
 		current_scheduled_question_.word_id,
 		q.type,
 		q.id,
-		static_cast<long long>(NowMs() - present_start_ms),
-		static_cast<long long>(activate_scene_end_ms - activate_scene_start_ms),
-		static_cast<long long>(build_choice_end_ms - build_choice_start_ms),
+		static_cast<int>(NowMs() - present_start_ms),
+		static_cast<int>(activate_scene_end_ms - activate_scene_start_ms),
+		static_cast<int>(build_choice_end_ms - build_choice_start_ms),
 		current_audio_path_.empty() ? 0 : 1,
-		scene.c_str(),
+		static_cast<int>(scene.size()),
 		static_cast<int>(current_choice_.prompt.size()),
 		static_cast<int>(current_choice_.options.size()));
 }
 
-void WordPracticeApp::ShowSessionSummary() {
+void WordPracticeApp::ShowSessionSummary(bool finalize_round) {
 	if (!label_question_) {
 		return;
 	}
+	const word_practice::SessionEvaluation evaluation = EvaluateSession();
 	WP_PERSIST_LOGW(kTag,
-		"show session summary answered=%d correct=%d wrong=%d passed=%d round_recorded=%d overlay=%d",
+		"show session summary answered=%d correct=%d wrong=%d success=%d round_recorded=%d overlay=%d",
 		session_module_.TotalAnswered(),
-		session_module_.CorrectCount(),
-		session_module_.WrongCount(),
-		IsSessionPassed() ? 1 : 0,
+		cycle_correct_count_,
+		cycle_wrong_count_,
+		evaluation.success ? 1 : 0,
 		round_completion_recorded_ ? 1 : 0,
 		static_cast<int>(overlay_mode_));
-	MaybeRecordRoundCompletion();
+	if (finalize_round) {
+		MaybeRecordRoundCompletion();
+	}
 	SyncScoreLabels();
-	const bool pass = IsSessionPassed();
+	const bool pass = evaluation.success;
 	last_session_wrong_word_ids_.clear();
 	for (int word_id : wrong_word_ids_this_round_) {
 		if (word_id <= 0) {
@@ -3160,14 +3234,16 @@ void WordPracticeApp::ShowSessionSummary() {
 		}
 	}
 	last_session_summary_ = BuildSessionSummaryData();
-	user_json_.mastered_words = last_session_summary_.mastered_after;
-	if (last_session_summary_.level_up) {
-		user_json_.level = ComputeDisplayLevel();
+	if (finalize_round) {
+		user_json_.mastered_words = last_session_summary_.mastered_after;
+		if (last_session_summary_.level_up) {
+			user_json_.level = ComputeDisplayLevel();
+		}
+		user_json_.practice_stats.continuous_days = std::max(1, last_session_summary_.continuous_days);
+		user_json_.practice_stats.last_practice_date = TodayDateString();
+		SyncUserProgressState();
+		(void)SaveUserJson();
 	}
-	user_json_.practice_stats.continuous_days = std::max(1, last_session_summary_.continuous_days);
-	user_json_.practice_stats.last_practice_date = TodayDateString();
-	SyncUserProgressState();
-	(void)SaveUserJson();
 
 	auto hide_widget = [](app_ui::Widget *widget) {
 		if (!widget) {
@@ -3235,14 +3311,15 @@ void WordPracticeApp::ShowSessionSummary() {
 	}
 
 	if (label_alert_) {
-		label_alert_->SetText(pass ? "本轮结果已写入，请按 Start 进入下一轮，或按 B 返回首页。" : "本轮已记录，建议先复习错词；按 Start 继续，按 B 返回首页。\n动画显示区域：预留");
+		label_alert_->SetText(pass ? "本轮已完成。按 Start 重新开始一轮，按 Select 退出 word_practice。" : "本轮已记录，按 Start 重新开始一轮，按 Select 退出 word_practice。\n动画显示区域：预留");
 	}
+	UpdatePracticeProgressWidget(false);
 	RenderSettlementLearnedWordLabels();
 	overlay_mode_ = OverlayMode::Settlement;
 	dialog_focus_ = DialogFocus::Confirm;
 	RefreshSelectionDialog();
 	if (bottom_bar_) {
-		bottom_bar_->SetText("左右切换  Start开始  B返回首页");
+		bottom_bar_->SetText("Start重新开始一轮  Select退出应用");
 	}
 }
 
@@ -3254,7 +3331,7 @@ void WordPracticeApp::ResetRoundState() {
 	current_round_goal_text_.clear();
 	last_attempt_feedback_text_.clear();
 	round_completion_recorded_ = false;
-	easy_confirmation_pending_ = false;
+	session_scheduler_exhausted_ = false;
 	learned_words_this_round_.clear();
 	wrong_words_this_round_.clear();
 	wrong_word_ids_this_round_.clear();
@@ -3263,14 +3340,81 @@ void WordPracticeApp::ResetRoundState() {
 	current_speak_asr_failure_count_ = 0;
 }
 
-void WordPracticeApp::FinishRoundIfNeeded() {
-	const word_practice::BatchProgressSummary summary = batch_progress_tracker_.BuildSummary();
-	const int minimum_questions_before_finish = std::min(
-		pass_target_questions_,
-		std::max(summary.completed_items, std::min(summary.total_items, 6)));
-	if (summary.batch_completed && session_module_.TotalAnswered() >= minimum_questions_before_finish) {
+void WordPracticeApp::UpdateSessionState(bool scheduler_exhausted) {
+	if (session_module_.IsFinished()) {
+		return;
+	}
+	if (scheduler_exhausted) {
+		session_scheduler_exhausted_ = true;
+	}
+	const word_practice::SessionEvaluation evaluation = EvaluateSession();
+	WP_PERSIST_LOGW(kTag,
+		"session evaluation finished=%d success=%d completion=%.2f accuracy=%.2f completed_words=%d/%d min_questions=%d gates=(words:%d completion:%d accuracy:%d minimum:%d skills:%d answer_limit:%d progress_gate:%d scheduler_exhausted:%d)",
+		evaluation.finished ? 1 : 0,
+		evaluation.success ? 1 : 0,
+		evaluation.completion,
+		evaluation.accuracy,
+		evaluation.completed_words,
+		evaluation.target_words,
+		evaluation.minimum_questions,
+		evaluation.detail.pass_words ? 1 : 0,
+		evaluation.detail.pass_completion ? 1 : 0,
+		evaluation.detail.pass_accuracy ? 1 : 0,
+		evaluation.detail.pass_minimum_questions ? 1 : 0,
+		evaluation.detail.pass_skill_coverage ? 1 : 0,
+		evaluation.detail.finish_by_answer_limit ? 1 : 0,
+		evaluation.detail.finish_by_progress_gate ? 1 : 0,
+		evaluation.detail.scheduler_exhausted ? 1 : 0);
+	if (evaluation.finished) {
 		session_module_.FinishNow();
 	}
+}
+
+int WordPracticeApp::DisplayedPracticeProgressPercent() const {
+	const int progress = std::max(0, user_json_.today_progress_percent);
+	if (progress < 100) {
+		return progress;
+	}
+	return (progress / 100) * 100;
+}
+
+void WordPracticeApp::ResetCycleScoreState() {
+	cycle_correct_count_ = 0;
+	cycle_wrong_count_ = 0;
+	cycle_skip_count_ = 0;
+}
+
+void WordPracticeApp::RecordCycleAnswer(bool correct) {
+	session_module_.RecordAnswer(correct);
+	if (correct) {
+		++cycle_correct_count_;
+	} else {
+		++cycle_wrong_count_;
+	}
+}
+
+void WordPracticeApp::RecordCycleSkip() {
+	session_module_.RecordSkip();
+	++cycle_skip_count_;
+}
+
+void WordPracticeApp::UpdatePracticeProgressWidget(bool visible) {
+	if (!progress_practice_) {
+		return;
+	}
+	const int displayed_percent = DisplayedPracticeProgressPercent();
+	if (label_progress_percent_) {
+		label_progress_percent_->SetVisible(visible);
+		label_progress_percent_->SetText(std::to_string(displayed_percent) + "%");
+	}
+	progress_practice_->SetVisible(visible);
+	if (!visible) {
+		return;
+	}
+	auto profile = progress_practice_->Profile();
+	profile.value = static_cast<uint8_t>(ClampPercent(displayed_percent));
+	profile.max_value = 100;
+	progress_practice_->SetProfile(profile);
 }
 
 std::string WordPracticeApp::BuildRoundGoalText() const {
@@ -3278,8 +3422,10 @@ std::string WordPracticeApp::BuildRoundGoalText() const {
 		"本轮目标：推进 " + std::to_string(learning_batch_.planned_new_words) +
 		" 个新词，巩固 " + std::to_string(learning_batch_.planned_review_words) +
 		" 个旧词，修正 " + std::to_string(learning_batch_.planned_weak_words) + " 个弱词";
-	if (current_round_cold_start_) {
-		goal += "\n冷启动轮：先识别，再轻回忆，不启用跨题纠错链";
+	if (current_learning_mode_ == word_practice::LearningMode::ColdStart) {
+		goal += "\n冷启动轮：先识别，再回忆。";
+	} else if (current_learning_mode_ == word_practice::LearningMode::IntensiveReview) {
+		goal += "\n强化复习轮：优先弱词和到期复习词。";
 	}
 	return goal;
 }
@@ -3349,7 +3495,7 @@ void WordPracticeApp::MaybeRecordRoundCompletion() {
 	if (!session_module_.IsFinished() || round_completion_recorded_) {
 		return;
 	}
-	const bool pass = IsSessionPassed();
+	const bool pass = EvaluateSession().success;
 	if (result_module_.ProgressDao().RecordRoundCompletion(current_textbook_name_, pass)) {
 		round_completion_recorded_ = true;
 		++completed_rounds_for_textbook_;
@@ -3416,17 +3562,17 @@ bool WordPracticeApp::RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, b
 	} else {
 		WP_PERSIST_LOGI(
 			kTag,
-			"apply attempt ok word_id=%d textbook=%s qtype=%d stage=%d->%d familiarity=%d stability=%d mastered=%d response_ms=%d",
+			"apply attempt ok word_id=%d textbook=%s qtype=%d stage=%d->%d strength=%d mastered=%d response_ms=%d",
 			attempt.word_id,
 			attempt.textbook_name.c_str(),
 			attempt.question_type,
 			before.stage,
 			profile->stage,
-			profile->familiarity,
-			profile->stability,
+			profile->strength,
 			profile->mastered ? 1 : 0,
 			attempt.response_time_ms);
 	}
+	UpdateMasteryProfileCache(*profile);
 	batch_progress_tracker_.MarkOutcome(
 		attempt.word_id,
 		kind,
@@ -3436,10 +3582,7 @@ bool WordPracticeApp::RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, b
 	question_scheduler_.RecordResult(
 		current_scheduled_question_,
 		*profile,
-		correct,
-		current_round_cold_start_,
-		session_module_.TotalAnswered(),
-		session_module_.PassTargetQuestions());
+		correct);
 	last_attempt_feedback_text_ = BuildWordFeedbackText(before, *profile, kind, attempt.target_skill, correct);
 	if (!correct) {
 		const std::string wrong_word = !Trim(current_choice_.source_word).empty() ? Trim(current_choice_.source_word) : Trim(q.answer);
@@ -3450,7 +3593,7 @@ bool WordPracticeApp::RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, b
 	}
 	const word_practice::BatchProgressSummary summary = batch_progress_tracker_.BuildSummary();
 	WP_PERSIST_LOGW(kTag,
-		"attempt result word_id=%d qtype=%d correct=%d kind=%d reason=%s skill=%s stage=%d->%d familiarity=%d->%d stability=%d->%d recall=%d->%d output=%d->%d mastered=%d response_ms=%d batch=%d/%d new=%d/%d review=%d/%d weak=%d/%d complete=%d",
+		"attempt result word_id=%d qtype=%d correct=%d kind=%d reason=%s skill=%s stage=%d->%d strength=%d->%d recall=%d->%d output=%d->%d mastered=%d response_ms=%d batch=%d/%d new=%d/%d review=%d/%d weak=%d/%d complete=%d coverage=(%d,%d,%d)",
 		attempt.word_id,
 		attempt.question_type,
 		attempt.correct ? 1 : 0,
@@ -3459,10 +3602,8 @@ bool WordPracticeApp::RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, b
 		word_practice::ToString(attempt.target_skill),
 		before.stage,
 		profile->stage,
-		before.familiarity,
-		profile->familiarity,
-		before.stability,
-		profile->stability,
+		before.strength,
+		profile->strength,
 		before.recall_score,
 		profile->recall_score,
 		before.output_score,
@@ -3477,17 +3618,20 @@ bool WordPracticeApp::RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, b
 		summary.review_total,
 		summary.weak_completed,
 		summary.weak_total,
-		summary.batch_completed ? 1 : 0);
-	FinishRoundIfNeeded();
+		summary.batch_completed ? 1 : 0,
+		summary.skill_coverage.recognition_done ? 1 : 0,
+		summary.skill_coverage.recall_done ? 1 : 0,
+		summary.skill_coverage.output_attempted ? 1 : 0);
+	UpdateSessionState();
 	return true;
 }
 
 void WordPracticeApp::SyncScoreLabels() {
 	if (label_correct_count_) {
-		label_correct_count_->SetText(std::to_string(session_module_.CorrectCount()));
+		label_correct_count_->SetText(std::to_string(cycle_correct_count_));
 	}
 	if (label_wrong_count_) {
-		label_wrong_count_->SetText(std::to_string(session_module_.WrongCount()));
+		label_wrong_count_->SetText(std::to_string(cycle_wrong_count_));
 	}
 }
 
@@ -3673,7 +3817,7 @@ void WordPracticeApp::HandleAnswer(AppButton button) {
 	}
 
 	std::string answer_text = Trim(current_choice_.expected);
-	const std::string expected_token = NormalizeAnswerToken(current_choice_.expected);
+	const std::string expected_token = quiz_module_.NormalizeAnswerToken(current_choice_.expected);
 	if (expected_token.size() == 1 && expected_token[0] >= 'A' && expected_token[0] <= 'D') {
 		const size_t option_index = static_cast<size_t>(expected_token[0] - 'A');
 		if (option_index < current_choice_.options.size() && !current_choice_.options[option_index].empty()) {
@@ -3686,8 +3830,8 @@ void WordPracticeApp::HandleAnswer(AppButton button) {
 		answer_text = Trim(q.answer);
 	}
 
-	const bool correct = NormalizeAnswerToken(picked) == NormalizeAnswerToken(current_choice_.expected);
-	session_module_.RecordAnswer(correct);
+	const bool correct = quiz_module_.NormalizeAnswerToken(picked) == quiz_module_.NormalizeAnswerToken(current_choice_.expected);
+	RecordCycleAnswer(correct);
 	if (correct) {
 		AddLearnedWordsFromText(answer_text);
 		if (image_good_) {
@@ -3852,7 +3996,7 @@ void WordPracticeApp::HandleType4Action(AppButton button) {
 		return;
 	}
 
-	const std::string picked_token = NormalizeAnswerToken(picked);
+	const std::string picked_token = quiz_module_.NormalizeAnswerToken(picked);
 	if (picked_token.size() != 1 || picked_token[0] < 'A' || picked_token[0] > 'D') {
 		return;
 	}
@@ -3876,7 +4020,7 @@ void WordPracticeApp::HandleType4Action(AppButton button) {
 		}
 
 		if (all_matched) {
-			session_module_.RecordAnswer(true);
+			RecordCycleAnswer(true);
 			for (const auto &word : type4_left_words_) {
 				AddLearnedWordsFromText(word);
 			}
@@ -3913,7 +4057,7 @@ void WordPracticeApp::HandleType4Action(AppButton button) {
 		return;
 	}
 
-	session_module_.RecordAnswer(false);
+	RecordCycleAnswer(false);
 	if (image_bad_) {
 		image_bad_->SetText("word_practice_bad.bin");
 		image_bad_->SetVisible(true);
@@ -3979,23 +4123,23 @@ void WordPracticeApp::HandleSpeakAction(const ButtonEvent &event) {
 
 	ESP_LOGI(kTag, "type7-10 manual skip by D");
 	current_speak_asr_failure_count_ = practice_flow_controller_.MaxSpeakRetryCount();
-	session_module_.RecordAnswer(false);
+	RecordCycleSkip();
+	question_scheduler_.RecordSkip(current_scheduled_question_);
 	if (image_bad_) {
-		image_bad_->SetText("word_practice_bad.bin");
-		image_bad_->SetVisible(true);
+		image_bad_->SetVisible(false);
 	}
 	if (image_good_) {
 		image_good_->SetVisible(false);
 	}
 	if (label_alert_) {
-		label_alert_->SetText("回答错误");
+		label_alert_->SetText("本题已跳过");
 	}
 	UpdateAsrResultPresentation(current_question_type_, "");
 	if (bottom_bar_) {
 		bottom_bar_->SetText("按方向键或ABCD进入下一题");
 	}
-
-	SaveAnswerStats(q, false);
+	UpdateSessionState();
+	SyncScoreLabels();
 }
 
 void WordPracticeApp::OnChatMessage(const char* role, const char* content) {
@@ -4033,14 +4177,14 @@ void WordPracticeApp::OnChatMessage(const char* role, const char* content) {
 		const auto asr_words = NormalizeSentenceWordsLower(content);
 		const auto expected_words = NormalizeSentenceWordsLower(answer_text);
 		const float coverage = ComputeWordCoverageRatio(asr_words, expected_words);
-		correct = coverage >= 0.8f;
+		correct = coverage >= word_practice::config::kSpeakSentenceCoverageThreshold;
 		ESP_LOGI(kTag, "type9-10 asr coverage=%.3f", static_cast<double>(coverage));
 	}
 
 	UpdateAsrResultPresentation(current_question_type_, display_asr);
 	if (correct) {
 		current_speak_asr_failure_count_ = 0;
-		session_module_.RecordAnswer(true);
+		RecordCycleAnswer(true);
 		AddLearnedWordsFromText(answer_text);
 		if (image_good_) {
 			image_good_->SetText("word_practice_good.bin");
@@ -4073,7 +4217,7 @@ void WordPracticeApp::OnChatMessage(const char* role, const char* content) {
 			if (bottom_bar_) {
 				bottom_bar_->SetText("按方向键或ABCD进入下一题");
 			}
-			session_module_.RecordAnswer(false);
+			RecordCycleAnswer(false);
 			SaveAnswerStats(q, false);
 		} else {
 			UpdateAsrResultPresentation(current_question_type_, display_asr);
@@ -4302,7 +4446,7 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 	const std::string input_text = NormalizeType56ForCompare(type56_input_answer_);
 	const std::string answer_text = NormalizeType56ForCompare(expected_display);
 	const bool correct = (!input_text.empty() && input_text == answer_text);
-	session_module_.RecordAnswer(correct);
+	RecordCycleAnswer(correct);
 
 	if (correct) {
 		type56_show_correct_answer_ = false;
@@ -4350,34 +4494,23 @@ void WordPracticeApp::HandleType56Action(AppButton button) {
 	SaveAnswerStats(q, correct);
 }
 
-bool WordPracticeApp::IsSessionPassed() const {
+word_practice::SessionEvaluation WordPracticeApp::EvaluateSession() const {
 	const word_practice::BatchProgressSummary batch_summary = batch_progress_tracker_.BuildSummary();
-	const word_practice::SessionPassContext pass_context =
-		word_practice::SessionPassPolicy::BuildContext(session_module_, batch_summary);
-	return result_module_.IsPassed(pass_context);
-}
-
-std::string WordPracticeApp::SelectSceneIdByType(int question_type) const {
-	return quiz_module_.SelectSceneId(question_type);
-}
-
-std::string WordPracticeApp::TypeTitle(int question_type) const {
-	return quiz_module_.TypeTitle(question_type);
-}
-
-std::string WordPracticeApp::TypeInstruction(int question_type) const {
-	return quiz_module_.TypeInstruction(question_type);
-}
-WordPracticeApp::ChoiceState WordPracticeApp::BuildChoiceState(const QuestionData &q) const {
-	return quiz_module_.Generate(q);
-}
-
-std::string WordPracticeApp::NormalizeAnswerToken(std::string value) const {
-	return quiz_module_.NormalizeAnswerToken(std::move(value));
-}
-
-std::string WordPracticeApp::NormalizePairWord(const std::string &value) const {
-	return quiz_module_.NormalizePairWord(value);
+	std::vector<word_practice::WordMasteryProfile> profiles = mastery_profiles_;
+	if (!mastery_profile_cache_.empty()) {
+		for (auto &profile : profiles) {
+			const auto it = mastery_profile_cache_.find(profile.word_id);
+			if (it != mastery_profile_cache_.end()) {
+				profile = it->second;
+			}
+		}
+	}
+	return word_practice::SessionEvaluator::Evaluate(
+		session_module_,
+		learning_batch_,
+		batch_summary,
+		profiles,
+		session_scheduler_exhausted_);
 }
 
 std::string WordPracticeApp::ButtonToken(AppButton button) const {
@@ -4395,15 +4528,11 @@ std::string WordPracticeApp::ButtonToken(AppButton button) const {
 	}
 }
 
-std::string WordPracticeApp::DiscoverUserDbPath() const {
-	return result_module_.ProgressDao().DiscoverUserDbPath();
-}
-
 void WordPracticeApp::SaveAnswerStats(const QuestionData &q, bool correct) {
 	InvalidateQuestionPoolCache();
 	const std::string textbook_name = current_choice_.textbook_name.empty() ? (q.stage.empty() ? "default" : q.stage) : current_choice_.textbook_name;
 	const word_practice::BatchProgressSummary before_summary = batch_progress_tracker_.BuildSummary();
-	const std::string user_db = DiscoverUserDbPath();
+	const std::string user_db = result_module_.ProgressDao().DiscoverUserDbPath();
 	if (user_db.empty()) {
 		WP_PERSIST_LOGW(kTag, "answer stats skipped: user db path missing word_id=%d qtype=%d", current_scheduled_question_.word_id, q.type);
 		return;
@@ -4428,17 +4557,13 @@ void WordPracticeApp::SaveAnswerStats(const QuestionData &q, bool correct) {
 
 	const bool attempt_ok = RecordCurrentAttempt(db, q, correct);
 	const word_practice::BatchProgressSummary batch_summary = batch_progress_tracker_.BuildSummary();
-	user_json_.today_mission.target_words = std::max(1, user_json_.today_mission.new_word_count + user_json_.today_mission.review_word_count);
+	const int updated_daily_completed_words = std::max(0, user_json_.today_mission.completed_words) + (correct ? 1 : 0);
+	const int mission_target_words = std::max(1, user_json_.today_mission.today_mission_count);
 	const bool daily_progress_ok = result_module_.ProgressDao().UpdateDailyProgress(
 		db,
 		textbook_name,
-		batch_summary.completed_items,
-		user_json_.today_mission.target_words);
-	if (correct && (session_module_.ConsecutiveCorrectAnswers() == 3 ||
-		current_scheduled_question_.reason_type == word_practice::QuestionReasonType::MistakeFollowup ||
-		current_scheduled_question_.reason_type == word_practice::QuestionReasonType::WeakReinforce)) {
-		easy_confirmation_pending_ = true;
-	}
+		updated_daily_completed_words,
+		mission_target_words);
 	const bool answer_stats_ok = result_module_.ProgressDao().SaveAnswerStats(
 		db,
 		session_module_,
@@ -4447,10 +4572,10 @@ void WordPracticeApp::SaveAnswerStats(const QuestionData &q, bool correct) {
 		textbook_name,
 		correct,
 		session_module_.IsFinished(),
-		IsSessionPassed());
+		EvaluateSession().success);
 	bool round_completion_ok = true;
 	if (session_module_.IsFinished() && !round_completion_recorded_) {
-		round_completion_ok = result_module_.ProgressDao().RecordRoundCompletion(db, current_textbook_name_, IsSessionPassed());
+		round_completion_ok = result_module_.ProgressDao().RecordRoundCompletion(db, current_textbook_name_, EvaluateSession().success);
 	}
 	const bool persist_ok = attempt_ok && daily_progress_ok && answer_stats_ok && round_completion_ok;
 	if (persist_ok && eteacher::database_manager::CommitTransaction(db, kTag)) {
@@ -4473,7 +4598,7 @@ void WordPracticeApp::SaveAnswerStats(const QuestionData &q, bool correct) {
 	sqlite3_close(db);
 	SyncUserProgressState();
 	WP_PERSIST_LOGW(kTag,
-		"answer stats word_id=%d qtype=%d correct=%d persist=%d score=%d correct_count=%d wrong_count=%d answered=%d awaiting=%d finished=%d batch=%d/%d->%d/%d today=%d/%d progress=%d%% easy_confirm=%d",
+		"answer stats word_id=%d qtype=%d correct=%d persist=%d score=%d correct_count=%d wrong_count=%d skip_count=%d answered=%d awaiting=%d finished=%d batch=%d/%d->%d/%d today=%d/%d progress=%d%% easy_confirm=%d",
 		current_scheduled_question_.word_id,
 		q.type,
 		correct ? 1 : 0,
@@ -4481,6 +4606,7 @@ void WordPracticeApp::SaveAnswerStats(const QuestionData &q, bool correct) {
 		session_module_.Score(),
 		session_module_.CorrectCount(),
 		session_module_.WrongCount(),
+		session_module_.SkipCount(),
 		session_module_.TotalAnswered(),
 		session_module_.AwaitingNextQuestion() ? 1 : 0,
 		session_module_.IsFinished() ? 1 : 0,
@@ -4489,9 +4615,9 @@ void WordPracticeApp::SaveAnswerStats(const QuestionData &q, bool correct) {
 		batch_summary.completed_items,
 		batch_summary.total_items,
 		user_json_.today_mission.completed_words,
-		user_json_.today_mission.target_words,
+		mission_target_words,
 		user_json_.today_progress_percent,
-		easy_confirmation_pending_ ? 1 : 0);
+		batch_summary.skill_coverage_ok ? 1 : 0);
 	WP_PERSIST_LOGW(kTag,
 		"answer persistence word_id=%d textbook=%s daily_progress_ok=%d feedback=%s",
 		current_scheduled_question_.word_id,

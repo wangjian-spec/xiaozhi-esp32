@@ -44,12 +44,12 @@ class LearningBatchPlanner {
 public:
 	LearningBatch Build(const std::vector<SelectedWord> &selected_words,
 			    const std::vector<WordMasteryProfile> &profiles,
-			    bool cold_start_mode) const;
+			    LearningMode learning_mode) const;
 };
 
 class BatchProgressTracker {
 public:
-	void Reset(const LearningBatch &batch);
+	void Reset(const LearningBatch &batch, LearningMode learning_mode);
 	void MarkPresented(int word_id);
 	void MarkOutcome(int word_id,
 			 BatchWordKind kind,
@@ -66,14 +66,21 @@ public:
 private:
 	struct ItemProgress {
 		BatchWordKind kind = BatchWordKind::ReviewWord;
+		CompletionRule completion_rule{};
 		WordProgressState state = WordProgressState::NotStarted;
 		bool recognition_done = false;
 		bool recall_done = false;
+		bool output_attempted = false;
 		int shown_count = 0;
 		int correct_count = 0;
+		int any_correct_count = 0;
+		int recognition_count = 0;
+		int recall_count = 0;
+		int output_count = 0;
 	};
 
 	std::unordered_map<int, ItemProgress> items_{};
+	LearningMode learning_mode_ = LearningMode::Normal;
 };
 
 class QuestionScheduler {
@@ -85,32 +92,19 @@ public:
 				       const LearningBatch &batch,
 				       const std::vector<WordMasteryProfile> &profiles,
 				       const BatchProgressTracker &tracker,
-				       bool cold_start_mode,
+				       LearningMode learning_mode,
 				       int total_answered,
-				       int hard_limit,
-				       bool prefer_easy_confirmation);
+				       int hard_limit);
+	void RecordSkip(const ScheduledQuestion &scheduled);
 	void RecordResult(const ScheduledQuestion &scheduled,
 			 const WordMasteryProfile &profile,
-			 bool correct,
-			 bool cold_start_mode,
-			 int total_answered,
-			 int hard_limit);
+			 bool correct);
 
 private:
-	struct MistakeFollowup {
-		int word_id = 0;
-		TrainingSkill forced_skill = TrainingSkill::Unknown;
-	};
-
-	int ExtractWordId(const QuestionData &question) const;
-	double QuestionQualityScore(const QuestionData &question) const;
 	TrainingSkill ChooseSkill(const BatchWordPlan &plan,
 				 const WordMasteryProfile *profile,
 				 const BatchProgressTracker &tracker,
-				 bool forced_by_mistake_chain,
-				 TrainingSkill forced_skill,
-				 bool cold_start_mode,
-				 bool prefer_easy_confirmation) const;
+				 LearningMode learning_mode) const;
 	ScheduledQuestion BuildScheduledQuestion(int question_type,
 					      int word_id,
 					      TrainingSkill skill,
@@ -123,30 +117,12 @@ private:
 					   const WordMasteryProfile *profile) const;
 	const BatchWordPlan *FindPlan(const LearningBatch &batch, int word_id) const;
 	const WordMasteryProfile *FindProfile(const std::vector<WordMasteryProfile> &profiles, int word_id) const;
-	int RecentWordRounds(int word_id) const;
-	void TouchRecentWord(int word_id);
-	void MaybeRotateRecentWord(const LearningBatch &batch);
-	bool CanTriggerMistakeChain(int word_id, int total_answered) const;
-	TrainingSkill DowngradedSkill(TrainingSkill skill) const;
 	void AdvanceSkillQuestionCursor(TrainingSkill skill, int question_type);
 	std::vector<int> QuestionTypesForSkill(TrainingSkill skill) const;
-	std::string BuildReasonJson(QuestionReasonType reason_type,
-				    const WordMasteryProfile *profile,
-				    TrainingSkill target_skill) const;
 
-	std::deque<int> recent_words_{};
-	std::unordered_map<int, int> recent_rounds_{};
 	std::unordered_map<int, int> word_seen_count_{};
 	std::unordered_map<int, int> last_question_type_by_word_{};
-	std::unordered_map<int, TrainingSkill> last_skill_by_word_{};
 	std::unordered_map<int, size_t> skill_question_cursor_{};
-	std::unordered_map<int, int> mistake_cooldown_until_{};
-	std::deque<MistakeFollowup> mistake_queue_{};
-	std::deque<TrainingSkill> recent_skill_history_{};
-	int last_presented_word_id_ = 0;
-	int consecutive_same_word_count_ = 0;
-	int mistake_chain_trigger_count_ = 0;
-	int mistake_chain_question_count_ = 0;
 };
 
 const char *ToString(TrainingSkill skill);

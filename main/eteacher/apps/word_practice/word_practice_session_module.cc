@@ -7,6 +7,7 @@ namespace word_practice {
 void SessionModule::ResetForNewRound(int pass_target_questions) {
 	correct_count_ = 0;
 	wrong_count_ = 0;
+	skip_count_ = 0;
 	score_ = 0;
 	total_answered_ = 0;
 	consecutive_correct_answers_ = 0;
@@ -21,6 +22,10 @@ int SessionModule::CorrectCount() const {
 
 int SessionModule::WrongCount() const {
 	return wrong_count_;
+}
+
+int SessionModule::SkipCount() const {
+	return skip_count_;
 }
 
 int SessionModule::Score() const {
@@ -75,6 +80,13 @@ void SessionModule::RecordAnswer(bool correct, int correct_reward, int wrong_pen
 		consecutive_correct_answers_ = 0;
 	}
 	++total_answered_;
+	awaiting_next_question_ = !force_finished_ && total_answered_ < pass_target_questions_;
+}
+
+void SessionModule::RecordSkip() {
+	++skip_count_;
+	++total_answered_;
+	consecutive_correct_answers_ = 0;
 	awaiting_next_question_ = !force_finished_ && total_answered_ < pass_target_questions_;
 }
 

@@ -394,22 +394,35 @@ static const app_ui::desc::TextDesc kText_public_label_question = {
     0x00000000u
 };
 
+static const app_ui::desc::ProgressDesc kProgress_public_progress_cbdf9e = {
+    "",
+    0x00000000u,
+    0
+};
+
+static const app_ui::desc::TextDesc kText_public_label_progress_percent = {
+    "",
+    0x00000000u
+};
+
 static const app_ui::desc::WidgetDesc kScene_public_widgets[] = {
     { 0xDE440657u, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
     { 0xCCF6B1E4u, 0xDE440657u, app_ui::WidgetType::TopBar, {0, 0, 400, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_topbar_408adc },
     { 0x80DAA8ADu, 0xDE440657u, app_ui::WidgetType::BottomBar, {0, 284, 400, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_bottombar_aabb85 },
     { 0xB1B2CF12u, 0xDE440657u, app_ui::WidgetType::Image, {5, 22, 32, 32}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_teacher },
     { 0x7BDF1BB3u, 0xDE440657u, app_ui::WidgetType::Label, {43, 30, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_question_type },
-    { 0x1F95DB60u, 0xDE440657u, app_ui::WidgetType::Image, {196, 22, 32, 32}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_cup },
-    { 0x88D31A8Bu, 0xDE440657u, app_ui::WidgetType::Label, {261, 31, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_CorrectCount },
-    { 0x85C7B0CAu, 0xDE440657u, app_ui::WidgetType::Label, {338, 31, 50, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_WrongCount },
-    { 0x7A89E02Au, 0xDE440657u, app_ui::WidgetType::Image, {239, 31, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_prictice_correct },
-    { 0x845D7D71u, 0xDE440657u, app_ui::WidgetType::Image, {318, 31, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_wrong },
+    { 0x1F95DB60u, 0xDE440657u, app_ui::WidgetType::Image, {166, 23, 32, 32}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_cup },
+    { 0x88D31A8Bu, 0xDE440657u, app_ui::WidgetType::Label, {222, 33, 15, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_CorrectCount },
+    { 0x85C7B0CAu, 0xDE440657u, app_ui::WidgetType::Label, {267, 33, 15, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_WrongCount },
+    { 0x7A89E02Au, 0xDE440657u, app_ui::WidgetType::Image, {201, 33, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_prictice_correct },
+    { 0x845D7D71u, 0xDE440657u, app_ui::WidgetType::Image, {246, 33, 16, 16}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_wrong },
     { 0xCB906C69u, 0xDE440657u, app_ui::WidgetType::Image, {15, 262, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 5, &kText_public_word_practice_good },
     { 0xBD6C3E3Fu, 0xDE440657u, app_ui::WidgetType::Image, {15, 262, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 5, &kText_public_word_prictice_bad },
     { 0x2C695914u, 0xDE440657u, app_ui::WidgetType::Label, {44, 264, 350, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_alert },
     { 0x12756A55u, 0xDE440657u, app_ui::WidgetType::Image, {10, 60, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_word_practice_speaker },
     { 0x5B4BF056u, 0xDE440657u, app_ui::WidgetType::Label, {40, 60, 350, 60}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_question },
+    { 0x89DAD822u, 0xDE440657u, app_ui::WidgetType::Progress, {287, 35, 80, 15}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kProgress_public_progress_cbdf9e },
+    { 0xEFA86CF3u, 0xDE440657u, app_ui::WidgetType::Label, {371, 33, 20, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_public_label_progress_percent },
 };
 
 static const app_ui::desc::SceneDesc kScene_public = {

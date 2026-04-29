@@ -88,7 +88,105 @@ bool ValidateUserDataSchema(sqlite3 *db, const char *required_table, const char 
     return false;
 }
 
-bool ValidateUserDataDbFile(const char *path, const char *required_table, const char *log_tag) {
+bool IsSqliteCorruptionCode(int rc) {
+    return rc == SQLITE_CORRUPT || rc == SQLITE_NOTADB;
+}
+
+bool MessageIndicatesCorruption(const char *message) {
+    return message != nullptr &&
+           (std::strstr(message, "malformed") != nullptr || std::strstr(message, "corrupt") != nullptr ||
+            std::strstr(message, "not a database") != nullptr);
+}
+
+bool ValidateSqliteIntegrity(sqlite3 *db, const char *scope, const char *log_tag, bool *isCorrupt) {
+    if (isCorrupt != nullptr) {
+        *isCorrupt = false;
+    }
+    if (db == nullptr) {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = nullptr;
+    const int rc = sqlite3_prepare_v2(db, "PRAGMA integrity_check;", -1, &stmt, nullptr);
+    if (rc != SQLITE_OK || stmt == nullptr) {
+        DB_LOGW(SafeTag(log_tag),
+                "%s integrity check prepare failed rc=%d xrc=%d msg=%s",
+                scope ? scope : "userdb",
+                rc,
+                sqlite3_extended_errcode(db),
+                sqlite3_errmsg(db));
+        if (isCorrupt != nullptr && (IsSqliteCorruptionCode(rc) || MessageIndicatesCorruption(sqlite3_errmsg(db)))) {
+            *isCorrupt = true;
+        }
+        if (stmt != nullptr) {
+            sqlite3_finalize(stmt);
+        }
+        return false;
+    }
+
+    const int stepRc = sqlite3_step(stmt);
+    const unsigned char *resultText = stepRc == SQLITE_ROW ? sqlite3_column_text(stmt, 0) : nullptr;
+    const std::string result = resultText != nullptr ? reinterpret_cast<const char *>(resultText) : std::string();
+    sqlite3_finalize(stmt);
+
+    if (stepRc == SQLITE_ROW && result == "ok") {
+        return true;
+    }
+
+    if (stepRc == SQLITE_DONE && result.empty()) {
+        DB_LOGW(SafeTag(log_tag),
+                "%s integrity check returned no rows step_rc=%d msg=%s; treating db as readable",
+                scope ? scope : "userdb",
+                stepRc,
+                sqlite3_errmsg(db));
+        return true;
+    }
+
+    DB_LOGW(SafeTag(log_tag),
+            "%s integrity check failed step_rc=%d result=%s msg=%s",
+            scope ? scope : "userdb",
+            stepRc,
+            result.empty() ? "(empty)" : result.c_str(),
+            sqlite3_errmsg(db));
+    if (isCorrupt != nullptr) {
+        *isCorrupt = true;
+    }
+    return false;
+}
+
+bool QuarantineCorruptUserDataDb(const char *path, const char *log_tag) {
+    if (!path || !path[0] || !FileExists(path)) {
+        return false;
+    }
+
+    const std::string backupPath = std::string(path) + ".corrupt";
+    (void)std::remove(backupPath.c_str());
+    if (std::rename(path, backupPath.c_str()) != 0) {
+        const int rename_errno = errno;
+        DB_LOGW(SafeTag(log_tag),
+                "failed to quarantine corrupt user db path=%s backup=%s errno=%d",
+                path,
+                backupPath.c_str(),
+                rename_errno);
+        if (std::remove(path) == 0) {
+            DB_LOGW(SafeTag(log_tag),
+                    "deleted corrupt user db after quarantine failure path=%s errno=%d",
+                    path,
+                    rename_errno);
+            return true;
+        }
+        DB_LOGW(SafeTag(log_tag), "failed to delete corrupt user db path=%s errno=%d", path, errno);
+        return false;
+    }
+
+    DB_LOGW(SafeTag(log_tag), "quarantined corrupt user db path=%s backup=%s", path, backupPath.c_str());
+    return true;
+}
+
+bool ValidateUserDataDbFile(const char *path, const char *required_table, const char *log_tag, bool *isCorrupt) {
+    if (isCorrupt != nullptr) {
+        *isCorrupt = false;
+    }
     if (!path || !path[0]) {
         return false;
     }
@@ -97,6 +195,9 @@ bool ValidateUserDataDbFile(const char *path, const char *required_table, const 
     }
     if (!HasSqliteMagicHeader(path) || !ValidateSqliteFileLayout(path)) {
         DB_LOGW(SafeTag(log_tag), "skip invalid sqlite user db file: %s", path);
+        if (isCorrupt != nullptr) {
+            *isCorrupt = true;
+        }
         return false;
     }
 
@@ -104,9 +205,17 @@ bool ValidateUserDataDbFile(const char *path, const char *required_table, const 
     const int rc = sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nullptr);
     if (rc != SQLITE_OK || !db) {
         DB_LOGW(SafeTag(log_tag), "open user db failed path=%s rc=%d msg=%s", path, rc, db ? sqlite3_errmsg(db) : "null");
+        if (isCorrupt != nullptr && (IsSqliteCorruptionCode(rc) || MessageIndicatesCorruption(db ? sqlite3_errmsg(db) : nullptr))) {
+            *isCorrupt = true;
+        }
         if (db) {
             sqlite3_close(db);
         }
+        return false;
+    }
+
+    if (!ValidateSqliteIntegrity(db, path, log_tag, isCorrupt)) {
+        sqlite3_close(db);
         return false;
     }
 
@@ -297,11 +406,27 @@ std::string DiscoverQuestionDbPath(const char *log_tag) {
 }
 
 std::string DiscoverUserDataDbPath(const char *log_tag, const char *required_table) {
-    if (ValidateUserDataDbFile(kUserDbPathPrimary, required_table, log_tag)) {
+    bool isCorrupt = false;
+    if (ValidateUserDataDbFile(kUserDbPathPrimary, required_table, log_tag, &isCorrupt)) {
         DB_LOGI(SafeTag(log_tag), "user db discovered by fixed path: %s", kUserDbPathPrimary);
         DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=user action=discover path=%s method=ValidateUserDataDbFile(fixed)", kUserDbPathPrimary);
         return std::string(kUserDbPathPrimary);
     }
+    if (isCorrupt && QuarantineCorruptUserDataDb(kUserDbPathPrimary, log_tag)) {
+        DB_LOGW(SafeTag(log_tag), "user db will be recreated after corruption quarantine path=%s", kUserDbPathPrimary);
+        return std::string(kUserDbPathPrimary);
+    }
+    if (!FileExists(kUserDbPathPrimary)) {
+        DB_LOGI(SafeTag(log_tag), "user db target path reserved for create: %s", kUserDbPathPrimary);
+        DB_LOGI(SafeTag(log_tag), "RESOURCE_OK kind=db scope=user action=discover path=%s method=FileExists(missing-create-target)", kUserDbPathPrimary);
+        return std::string(kUserDbPathPrimary);
+    }
+    DB_LOGW(SafeTag(log_tag),
+            "discover user db failed path=%s exists=%d corrupt=%d required_table=%s",
+            kUserDbPathPrimary,
+            FileExists(kUserDbPathPrimary) ? 1 : 0,
+            isCorrupt ? 1 : 0,
+            required_table != nullptr ? required_table : "(null)");
     return {};
 }
 

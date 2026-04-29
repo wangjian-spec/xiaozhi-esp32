@@ -30,8 +30,8 @@ public:
 
 private:
 	struct TodayMissionData {
-		int new_word_count = 5;
-		int review_word_count = 10;
+		int today_mission_count = 15;
+		int today_practice_word = 15;
 		int completed_words = 0;
 		int target_words = 15;
 	};
