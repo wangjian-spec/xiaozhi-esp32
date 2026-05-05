@@ -22,6 +22,10 @@ public:
 
 	std::string DiscoverUserDbPath() const;
 	bool EnsureStatsTables(sqlite3 *db) const;
+	int QueryAppStateInt(const std::string &key, int fallback_value = 0) const;
+	int QueryAppStateInt(sqlite3 *db, const std::string &key, int fallback_value = 0) const;
+	bool SaveAppStateInt(const std::string &key, int value) const;
+	bool SaveAppStateInt(sqlite3 *db, const std::string &key, int value) const;
 	DailyProgressState QueryDailyProgress(const std::string &textbook_name) const;
 	bool UpdateDailyProgress(const std::string &textbook_name, int completed_words, int target_words) const;
 	bool UpdateDailyProgress(sqlite3 *db, const std::string &textbook_name, int completed_words, int target_words) const;

@@ -21,8 +21,12 @@ public:
 	std::string DiscoverUserDbPath() const;
 	bool EnsureTables(sqlite3 *db) const;
 	WordMasteryProfile LoadProfile(int word_id, const std::string &textbook_name) const;
+	std::vector<WordMasteryProfile> LoadProfiles(sqlite3 *db,
+					      const std::vector<SelectedWord> &selected_words,
+					      const std::string &textbook_name) const;
 	std::vector<WordMasteryProfile> LoadProfiles(const std::vector<SelectedWord> &selected_words,
 						      const std::string &textbook_name) const;
+	int ApplyDueDecayIfNeeded(sqlite3 *db, std::vector<WordMasteryProfile> *profiles) const;
 	int ApplyDueDecayIfNeeded(std::vector<WordMasteryProfile> *profiles) const;
 	bool ApplyAttempt(WordMasteryProfile *profile, const QuestionAttemptRecord &attempt) const;
 	bool ApplyAttempt(sqlite3 *db, WordMasteryProfile *profile, const QuestionAttemptRecord &attempt) const;
@@ -54,7 +58,6 @@ public:
 	void MarkOutcome(int word_id,
 			 BatchWordKind kind,
 			 TrainingSkill skill,
-			 QuestionReasonType reason_type,
 			 bool correct);
 	WordProgressState ProgressState(int word_id) const;
 	bool HasRecognitionCheckpoint(int word_id) const;
@@ -96,15 +99,12 @@ public:
 				       int total_answered,
 				       int hard_limit);
 	void RecordSkip(const ScheduledQuestion &scheduled);
-	void RecordResult(const ScheduledQuestion &scheduled,
-			 const WordMasteryProfile &profile,
-			 bool correct);
+	void RecordResult(const ScheduledQuestion &scheduled);
 
 private:
 	TrainingSkill ChooseSkill(const BatchWordPlan &plan,
 				 const WordMasteryProfile *profile,
-				 const BatchProgressTracker &tracker,
-				 LearningMode learning_mode) const;
+				 const BatchProgressTracker &tracker) const;
 	ScheduledQuestion BuildScheduledQuestion(int question_type,
 					      int word_id,
 					      TrainingSkill skill,

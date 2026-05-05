@@ -192,4 +192,19 @@ inline constexpr int kMaxSpeakRetryCount = 3;
 inline constexpr std::size_t kInitialQuestionSeedWarmupCount = 4;
 inline constexpr std::size_t kIncrementalQuestionSeedWarmupCount = 2;
 
+// 题型常量。替代散落各处的魔数 1-12。
+// 映射关系见 word_practice_detail_design_doc.md §8.4。
+inline constexpr int kQuestionTypeImageChoice = 1;
+inline constexpr int kQuestionTypeMeaningChoice = 2;
+inline constexpr int kQuestionTypeWordToMeaning = 3;
+inline constexpr int kQuestionTypePairMatch = 4;
+inline constexpr int kQuestionTypeSentenceFillZh = 5;
+inline constexpr int kQuestionTypeSentenceBuildEn = 6;
+inline constexpr int kQuestionTypeSpeakWord = 7;
+inline constexpr int kQuestionTypeSpeakMeaning = 8;
+inline constexpr int kQuestionTypeSpeakSentence = 9;
+inline constexpr int kQuestionTypeSpeakTranslate = 10;
+inline constexpr int kQuestionTypeAudioWordChoice = 11;
+inline constexpr int kQuestionTypeAudioMeaningChoice = 12;
+
 }  // namespace word_practice::config

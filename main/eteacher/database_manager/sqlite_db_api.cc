@@ -134,11 +134,15 @@ bool ValidateSqliteIntegrity(sqlite3 *db, const char *scope, const char *log_tag
     }
 
     if (stepRc == SQLITE_DONE && result.empty()) {
-        DB_LOGW(SafeTag(log_tag),
-                "%s integrity check returned no rows step_rc=%d msg=%s; treating db as readable",
-                scope ? scope : "userdb",
-                stepRc,
-                sqlite3_errmsg(db));
+        static bool logged_no_rows_as_readable = false;
+        if (!logged_no_rows_as_readable) {
+            DB_LOGI(SafeTag(log_tag),
+                    "%s integrity check returned no rows step_rc=%d msg=%s; treating db as readable",
+                    scope ? scope : "userdb",
+                    stepRc,
+                    sqlite3_errmsg(db));
+            logged_no_rows_as_readable = true;
+        }
         return true;
     }
 

@@ -656,6 +656,7 @@ class DatabaseService:
 			"learning_stats_daily",
 			"game_profile",
 			"sync_state",
+			"app_state",
 			"word_learning_profile",
 			"word_practice_history",
 			"ai_speech_evaluations",
@@ -1721,6 +1722,14 @@ class DatabaseService:
 					last_round_passed INTEGER DEFAULT 0,
 					last_round_at INTEGER DEFAULT 0,
 					PRIMARY KEY (user_id, textbook_name)
+				);
+
+				CREATE TABLE IF NOT EXISTS app_state (
+					user_id INTEGER NOT NULL,
+					key TEXT NOT NULL,
+					value TEXT NOT NULL,
+					updated_at INTEGER DEFAULT 0,
+					PRIMARY KEY (user_id, key)
 				);
 
 				CREATE TABLE IF NOT EXISTS ai_sessions (

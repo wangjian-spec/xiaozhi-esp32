@@ -7,8 +7,12 @@
 
 #include <cJSON.h>
 
+#include "eteacher/apps/word_practice/word_practice_config.h"
+
 namespace word_practice {
 namespace {
+
+using namespace word_practice::config;
 
 std::string Trim(const std::string &value) {
 	size_t start = 0;
@@ -146,12 +150,12 @@ std::string ExtractOptionTextForType(cJSON *obj, int question_type) {
 
 	std::string text;
 	switch (question_type) {
-		case 1:
-		case 3:
+		case kQuestionTypeImageChoice:
+		case kQuestionTypeWordToMeaning:
 		case 12:
 			text = ExtractMeaningZhText(obj);
 			break;
-		case 2:
+		case kQuestionTypeMeaningChoice:
 		case 11:
 			text = ExtractWordText(obj);
 			break;
@@ -183,11 +187,11 @@ std::string NormalizeComparableText(const std::string &value) {
 
 bool IsChoiceAnswerType(int question_type) {
 	switch (question_type) {
-		case 1:
-		case 2:
-		case 3:
-		case 11:
-		case 12:
+		case kQuestionTypeImageChoice:
+		case kQuestionTypeMeaningChoice:
+		case kQuestionTypeWordToMeaning:
+		case kQuestionTypeAudioWordChoice:
+		case kQuestionTypeAudioMeaningChoice:
 			return true;
 		default:
 			return false;
@@ -255,21 +259,21 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 		state.source_word_id = std::atoi(word_id_text.c_str());
 	}
 	switch (question.type) {
-		case 1:
-		case 3:
+		case kQuestionTypeImageChoice:
+		case kQuestionTypeWordToMeaning:
 			if (!word_text.empty()) {
 				state.prompt = word_text;
 			}
 			break;
-		case 2:
+		case kQuestionTypeMeaningChoice:
 			if (!meaning_zh_text.empty()) {
 				state.prompt = meaning_zh_text;
 			} else if (!word_text.empty()) {
 				state.prompt = word_text;
 			}
 			break;
-		case 11:
-		case 12:
+		case kQuestionTypeAudioWordChoice:
+		case kQuestionTypeAudioMeaningChoice:
 			state.prompt.clear();
 			break;
 		default:
@@ -424,22 +428,22 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 
 QuizType QuizModule::ResolveQuizType(int question_type) const {
 	switch (question_type) {
-		case 1:
+		case kQuestionTypeImageChoice:
 			return QuizType::ImageChoice;
-		case 2:
+		case kQuestionTypeMeaningChoice:
 		case 3:
-		case 11:
-		case 12:
+		case kQuestionTypeAudioWordChoice:
+		case kQuestionTypeAudioMeaningChoice:
 			return QuizType::TranslationChoice;
-		case 4:
+		case kQuestionTypePairMatch:
 			return QuizType::Match;
-		case 5:
-		case 6:
+		case kQuestionTypeSentenceFillZh:
+		case kQuestionTypeSentenceBuildEn:
 			return QuizType::SentenceBuild;
-		case 7:
-		case 8:
-		case 9:
-		case 10:
+		case kQuestionTypeSpeakWord:
+		case kQuestionTypeSpeakMeaning:
+		case kQuestionTypeSpeakSentence:
+		case kQuestionTypeSpeakTranslate:
 			return QuizType::Speak;
 		default:
 			return QuizType::Unknown;
@@ -455,16 +459,16 @@ bool QuizModule::IsSentenceBuildType(int question_type) const {
 }
 
 std::string QuizModule::SelectSceneId(int question_type) const {
-	if (question_type == 1) {
+	if (question_type == kQuestionTypeImageChoice) {
 		return "page_3b66";
 	}
-	if (question_type == 2 || question_type == 3 || question_type == 11 || question_type == 12) {
+	if (question_type == kQuestionTypeMeaningChoice || question_type == kQuestionTypeWordToMeaning || question_type == kQuestionTypeAudioWordChoice || question_type == kQuestionTypeAudioMeaningChoice) {
 		return "page_0b9a";
 	}
-	if (question_type == 4) {
+	if (question_type == kQuestionTypePairMatch) {
 		return "page_1faf";
 	}
-	if (question_type == 5 || question_type == 6) {
+	if (question_type == kQuestionTypeSentenceFillZh || question_type == kQuestionTypeSentenceBuildEn) {
 		return "page_d55e";
 	}
 	return "page_5d74";
@@ -472,29 +476,29 @@ std::string QuizModule::SelectSceneId(int question_type) const {
 
 std::string QuizModule::TypeTitle(int question_type) const {
 	switch (question_type) {
-		case 1:
+		case kQuestionTypeImageChoice:
 			return "选择对应的图片";
-		case 2:
+		case kQuestionTypeMeaningChoice:
 			return "选择英文翻译";
-		case 3:
+		case kQuestionTypeWordToMeaning:
 			return "选择中文翻译";
-		case 4:
+		case kQuestionTypePairMatch:
 			return "单词配对";
-		case 5:
+		case kQuestionTypeSentenceFillZh:
 			return "翻译成英文";
-		case 6:
+		case kQuestionTypeSentenceBuildEn:
 			return "输入听到的句子";
-		case 7:
+		case kQuestionTypeSpeakWord:
 			return "朗读单词";
-		case 8:
+		case kQuestionTypeSpeakMeaning:
 			return "翻译并朗读单词";
-		case 9:
+		case kQuestionTypeSpeakSentence:
 			return "朗读句子";
-		case 10:
+		case kQuestionTypeSpeakTranslate:
 			return "翻译并朗读句子";
-		case 11:
+		case kQuestionTypeAudioWordChoice:
 			return "选择听到的单词";
-		case 12:
+		case kQuestionTypeAudioMeaningChoice:
 			return "翻译听到的单词";
 		default:
 			return "题型未知";
@@ -503,29 +507,29 @@ std::string QuizModule::TypeTitle(int question_type) const {
 
 std::string QuizModule::TypeInstruction(int question_type) const {
 	switch (question_type) {
-		case 1:
+		case kQuestionTypeImageChoice:
 				return "请选择对应的图片(A/B/C)";
-		case 2:
+		case kQuestionTypeMeaningChoice:
 			return "请选择正确英文翻译(A/B/C/D)";
-		case 3:
+		case kQuestionTypeWordToMeaning:
 			return "请选择正确中文翻译(A/B/C/D)";
-		case 4:
+		case kQuestionTypePairMatch:
 			return "请选择正确配对(A/B/C/D)";
-		case 5:
+		case kQuestionTypeSentenceFillZh:
 			return "Start播放音频，C选词，B删除，D确认英文";
-		case 6:
+		case kQuestionTypeSentenceBuildEn:
 			return "Start播放音频，C选词，B删除，D确认句子";
-		case 7:
+		case kQuestionTypeSpeakWord:
 			return "按住Start录音，朗读单词，D跳过";
-		case 8:
+		case kQuestionTypeSpeakMeaning:
 			return "按住Start录音，翻译并朗读单词，D跳过";
-		case 9:
+		case kQuestionTypeSpeakSentence:
 			return "按住Start录音，朗读句子，D跳过";
-		case 10:
+		case kQuestionTypeSpeakTranslate:
 			return "按住Start录音，翻译并朗读句子，D跳过";
-		case 11:
+		case kQuestionTypeAudioWordChoice:
 			return "按Start重听，选择听到的单词(A/B/C/D)";
-		case 12:
+		case kQuestionTypeAudioMeaningChoice:
 			return "按Start重听，选择听到单词的翻译(A/B/C/D)";
 		default:
 			return "按键作答";

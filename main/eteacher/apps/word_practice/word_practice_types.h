@@ -74,6 +74,14 @@ enum class QuizType {
 	Speak,
 	Unknown,
 };
+
+enum class MasteredState : uint8_t {
+	Active = 0,
+	AutoMastered = 1,
+	UserMastered = 2,
+	Suppressed = 3,
+};
+
 struct WordSelectionConfig {
 	int total_word_count = 0;
 };
@@ -89,10 +97,6 @@ struct VocabularySeed {
 	int word_id = 0;
 	int meaning_id = 0;
 	int example_id = 0;
-	int meaning_count = 0;
-	int meaning_with_example_count = 0;
-	int word_example_count = 0;
-	int selected_meaning_example_count = 0;
 	std::string word;
 	std::string meaning_zh;
 	std::string meaning_en;
@@ -120,7 +124,7 @@ struct WordMasteryProfile {
 	int64_t last_reviewed_at = 0;
 	int last_response_time_ms = 0;
 	int persistent_boost = 0;
-	bool mastered = false;
+	MasteredState mastered = MasteredState::Active;
 };
 
 struct BatchWordPlan {

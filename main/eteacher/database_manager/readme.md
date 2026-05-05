@@ -1,9 +1,9 @@
-# 数据库总览（EnglishTeacher）
+# 数据库总览（eteacher）
 
 本文档用于统一说明：
 
 1. SD 卡数据库与资源目录结构
-2. `user.db` / `words.db` 的核心表模型
+2. `user.db` / `stage_x.db` 的核心表模型
 3. 统一数据库 API 的使用方式与约束
 4. 新 App 接入数据库的标准流程
 
@@ -13,8 +13,10 @@
 
 ### 1.1 静态资源（只读）
 
-- 词典数据库：`/sdcard/resource/database/words.db`
+- 数据库：`/sdcard/resource/database/stage_x.db`
+  该单词库用于 word_practice app 出题的题库；
 - 题库数据库：`/sdcard/resource/database/question.db`
+  该题库用于 待定 app 出题的题库；
 - 图片资源：`/sdcard/resource/image/`
 - 音频资源：`/sdcard/resource/audio/`
 
@@ -28,7 +30,7 @@
 
 > 说明：以下为当前项目使用的核心表。字段含义以注释为准，新增字段请同步更新本文档。
 
-### 2.1 静态词典库 `words.db`
+### 2.1 静态词典库 `stage_x.db`
 
 #### `word`
 
@@ -77,8 +79,7 @@ CREATE TABLE word_example (
     selection_en TEXT
 );
 
-
-    阶段定义
+  数据库名称定义为stage_x.db，其中x定义为不同阶段：
     1 小学
     2 初中
     3 高中
@@ -106,12 +107,6 @@ CREATE TABLE question_bank (
 );
 ```
 
-  `DatabaseCreate.py` 生成规则（`question_bank`）：
-
-  - `question_type`：随机生成 `1~10`数字
-  - `audio_path`：每条记录都写入有效路径（非空）
-  - `image_path`：每条记录都写入有效路径（非空）
-
 ### 2.3 动态用户库 `user.db`
 
 #### A. 账号与设备
@@ -120,7 +115,6 @@ CREATE TABLE question_bank (
 
 - `users.name`
 - `users.current_stage`
-- `users.level`
 - `learning_preferences.today_mission_count`
 - `learning_preferences.today_practice_word`
 - `settings.enable_read_questions`
@@ -173,7 +167,7 @@ CREATE TABLE word_learning_profile (
 - **user_id**: 用户标识，整型，表示该记录所属用户。
 - **word_id**: 单词 ID，整型，对应静态词典 `word.id`。
 - **textbook_name**: 教材或来源名称，文本，用于区分同一单词在不同教材下的学习记录。
-- **stage**: UI 展示阶段，基于 `strength` 和 `mastered` 推导后持久化。
+- **stage**: UI 展示阶段，基于当前画像派生后持久化。
 - **strength**: 当前综合掌握强度，范围 `0~100`，是晋级、掌握、弱词判定的核心数值。
 - **recall_score**: 主动回忆能力分数，达到阈值后才会放行 Output 训练。
 - **output_score**: 输出能力分数，达到阈值后才会放行 Advanced Speak 训练。
@@ -184,17 +178,16 @@ CREATE TABLE word_learning_profile (
 - **last_reviewed_at**: 最近一次真正参与复习调度的时间戳，Unix 秒。
 - **last_response_time_ms**: 最近一次答题耗时，毫秒。
 - **persistent_boost**: 长期弱词强化值，错误累计较多时会置高，帮助调度器重复强化。
-- **mastered**: 是否达到“掌握”门槛的持久化标记。
+- **mastered**: 掌握状态枚举。当前实现约定 `0=Active`、`1=AutoMastered`、`2=UserMastered`、`3=Suppressed`。其中 `UserMastered` / `Suppressed` 作为用户覆盖态持久化，`AutoMastered` 仍允许运行时根据画像阈值回退。
 
 上面表用于单词练习 App 的词级掌握状态。当前版本按 `word_id` 维护 `strength / recall_score / output_score / persistent_boost` 四类核心信号。
 
 运行时约束补充：
 
-- 当前 `word_practice` 运行时以 `PRAGMA user_version = 4` 为目标版本。
-- `EnsureSchemaVersion()` 会为 `word_learning_profile` 自动补齐运行时依赖列，并在发现旧主键不包含 `textbook_name` 时执行表重建迁移。
-- `json_database_create/DatabaseCreate.py` 创建 `user.db` 时使用与运行时一致的 `word_learning_profile`、`word_practice_history` 和结果统计表结构，并设置 `PRAGMA user_version = 4`。
-- `DatabaseCreate.py` 对已有旧版 `user.db` 不是只执行 `CREATE TABLE IF NOT EXISTS`：它会补齐 `textbook_name / stage / strength / recall_score / output_score / next_review_at / lapse_count / last_practiced_at / last_decay_at / last_reviewed_at / last_response_time_ms / persistent_boost / mastered`，并在主键不是 `(user_id, word_id, textbook_name)` 时重建 `word_learning_profile`。这保证 `word_practice` 启动后可以直接打开 `user.db`，并能通过 `INSERT INTO word_learning_profile(user_id, word_id, textbook_name, ...)` 写入或补种 profile。
-- `DatabaseCreate.py` 与运行时已统一使用相同的 `word_learning_profile` 字段集合，不再保留旧版 `familiarity / stability / recognition_score` 字段。
+- 当前仓库约定 `user.db` 由 `json_database_create/DatabaseCreate.py` 重新创建，`word_practice` 只接受当前 schema，不兼容历史版本 `user.db`。
+- 运行时只负责 `CREATE TABLE IF NOT EXISTS` 保证当前表存在，并校验 `word_learning_profile` 是否符合当前字段集合与主键 `(user_id, word_id, textbook_name)`；若不符合，会直接报错并要求重新生成 `user.db`。
+- `json_database_create/DatabaseCreate.py` 创建 `user.db` 时使用与运行时一致的 `word_learning_profile`、`word_practice_history` 和结果统计表结构。
+- 当前正式字段集合仅包括 `textbook_name / stage / strength / recall_score / output_score / next_review_at / lapse_count / last_practiced_at / last_decay_at / last_reviewed_at / last_response_time_ms / persistent_boost / mastered`，不再保留旧版 `familiarity / stability / recognition_score`，也不再提供运行时补列或主键迁移。
 
 `word_practice_history` 用于保存逐题作答历史：
 
@@ -258,7 +251,17 @@ CREATE TABLE word_practice_runtime_state (
   last_round_at     INTEGER DEFAULT 0,
   PRIMARY KEY (user_id, textbook_name)
 );
+
+CREATE TABLE app_state (
+  user_id    INTEGER NOT NULL,
+  key        TEXT NOT NULL,
+  value      TEXT NOT NULL,
+  updated_at INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, key)
+);
 ```
+
+其中 `app_state` 用于保存 word_practice 的轻量运行状态，例如 `word_practice.stage1_cursor` 这类新词游标；这些状态不再放在 `/sdcard/user/user.json`。
 
 其他表字段说明（根据代码实现整理）：
 

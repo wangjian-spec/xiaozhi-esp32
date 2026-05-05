@@ -20,6 +20,7 @@
 - `word_practice_result_module.h/.cc`
 - `word_practice_db_utils.h`
 - `word_practice_time_utils.h/.cc`
+- `word_practice_utils.h/.cc`
 
 一句话概括：
 
@@ -85,11 +86,12 @@
 
 `StartPracticeRound()` 的主流程：
 
-1. 清理上一轮运行态。
-2. 从 `PracticeFlowController::BuildRoundPlan()` 读取本轮目标词数。
-3. 调用 `LoadQuestionPool()` 建立当前题目候选池。
-4. 调用 `PickNextQuestion()` 获取第一题。
-5. 调用 `CommitScheduledQuestion()` 即时生成题目并展示。
+1. 清理本轮错词列表和学习词列表。
+2. 从 `PracticeFlowController::BuildRoundPlan()` 读取本轮目标词数，存入 `word_selection_config_`。
+3. 调用 `ResetRoundState()` 清理 Session、Scheduler、当前题目等运行态。
+4. 调用 `CanReuseQuestionPool()` 检查是否可复用上一轮的题目池（阶段、游标、speak 开关、selection_config 均未变化时复用）。
+5. 若不可复用，调用 `LoadQuestionPool()` 建立当前题目候选池。
+6. 调用 `PickNextQuestion()` 获取第一题（内部会自动调用 `CommitScheduledQuestion()` 和 `PresentCurrentQuestion()`）。
 
 ### 3.3 `LoadQuestionPool()` 的完整步骤
 
@@ -98,7 +100,7 @@
 1. 清空 `selected_words_`、`question_seed_pool_`、`available_question_types_by_word_`、`mastery_profiles_`、`learning_batch_` 等缓存。
 2. 解析 `CurrentStageIndex()`，得到当前 `stage_index`。
 3. 映射 `current_textbook_name_`，例如 `primary`、`middle`、`high`。
-4. 读取 `user_json_.stage_new_word_cursor[stage_index - 1]`，作为新词游标。
+4. 读取 `app_state[word_practice.stageN_cursor]`，作为新词游标。
 5. 调用 `SelectionModule::SelectWordsFromVocabulary(...)` 选出本轮 `selected_words`，并回写新的新词游标。
 6. 调用 `mastery_dao_.LoadProfiles(...)` 读取这些词的画像。
 7. 调用 `mastery_dao_.ApplyDueDecayIfNeeded(...)` 对过期过久未练的词做衰减。
@@ -158,7 +160,6 @@
 - `users.user_id`
 - `users.name`
 - `users.current_stage`
-- `users.level`
 - `learning_preferences.enable_read_questions`
 - `learning_preferences.today_mission_count`
 - `learning_preferences.today_practice_word`
@@ -166,8 +167,8 @@
 - `practice_stats.continuous_days`
 - `practice_stats.last_practice_date`
 - `stage_levelup_count`
-- `stage_words_quantity`
-- `stage_new_word_cursor`
+
+`users.level`、`stage_words_quantity`、`stage_new_word_cursor` 若在旧版 JSON 中存在，当前实现会忽略，不再作为运行时权威状态。
 
 ### 4.3 保存结构
 
@@ -178,8 +179,7 @@
   "users": {
     "user_id": 0,
     "name": "student",
-    "current_stage": "stage1",
-    "level": 0
+      "current_stage": "stage1"
   },
   "devices": {
     "device_id": "",
@@ -197,11 +197,15 @@
     "continuous_days": 1,
     "last_practice_date": ""
   },
-  "stage_levelup_count": [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48],
-  "stage_words_quantity": [0, ...],
-  "stage_new_word_cursor": [0, ...]
+   "stage_levelup_count": [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
 }
 ```
+
+其中：
+
+- `level` 改为运行时根据 `mastered_words + stage_levelup_count` 派生。
+- `stage_new_word_cursor` 改为保存在 `user.db.app_state`。
+- `stage_words_quantity` 不再持久化。
 
 ### 4.4 阶段映射
 
@@ -249,8 +253,10 @@ struct QuestionData {
 - `source_word_id`
 - `option_keys` / `options` / `option_images`
 - `hints`
-- `pair_left` / `pair_right`
+- `pair_left` / `pair_left_audio` / `pair_right`
 - `expected`
+
+其中 `pair_left_audio` 为题型4配对题左侧每个单词对应的音频文件名，与 `pair_left` 按索引一一对应。
 
 ### 5.3 `SelectedWord`
 
@@ -300,7 +306,7 @@ struct WordMasteryProfile {
   int64_t last_reviewed_at = 0;
   int last_response_time_ms = 0;
   int persistent_boost = 0;
-  bool mastered = false;
+   MasteredState mastered = MasteredState::Active;
 };
 ```
 
@@ -312,7 +318,8 @@ struct WordMasteryProfile {
 - `next_review_at`：下次建议复习时间。
 - `lapse_count`：遗忘或错误累计次数。
 - `persistent_boost`：长期弱词强化权重，非 0 表示近期应被优先拉起。
-- `stage`：UI 展示阶段，由 `strength` 与 `mastered` 派生。
+- `stage`：UI 展示阶段，由 `strength` 与 `mastered` 派生并缓存。
+- `mastered`：调度与掌握状态枚举。当前实现约定 `0=Active`、`1=AutoMastered`、`2=UserMastered`、`3=Suppressed`。
 
 ### 5.6 `LearningMode`
 
@@ -383,7 +390,7 @@ CREATE TABLE IF NOT EXISTS word_learning_profile (
   last_reviewed_at INTEGER DEFAULT 0,
   last_response_time_ms INTEGER DEFAULT 0,
   persistent_boost INTEGER DEFAULT 0,
-  mastered INTEGER DEFAULT 0,
+   mastered INTEGER DEFAULT 0,
   PRIMARY KEY(user_id, word_id, textbook_name)
 );
 ```
@@ -391,7 +398,7 @@ CREATE TABLE IF NOT EXISTS word_learning_profile (
 说明：
 
 - 当前运行时主逻辑以 `strength` 为准。
-- `EnsureSchemaVersion()` 当前会逐列补齐运行时依赖字段，并把 `PRAGMA user_version` 升到 4。
+- 当前运行时只接受 `DatabaseCreate.py` 生成的正式 schema；若 `word_learning_profile` 字段或主键不匹配，`EnsureTables()` 会直接返回失败。
 
 索引：
 
@@ -436,6 +443,9 @@ CREATE TABLE IF NOT EXISTS word_practice_history (
 4. `word_practice_runtime_state`
    - 记录某教材已完成轮次、上一轮是否通过、上一轮时间。
 
+5. `app_state`
+   - 记录 word_practice 的轻量运行状态，例如 `word_practice.stage1_cursor` 这类新词游标。
+
 ## 7. 选词机制
 
 ### 7.1 设计目标
@@ -452,12 +462,13 @@ CREATE TABLE IF NOT EXISTS word_practice_history (
 选词前会做以下事情：
 
 1. 打开 user.db。
-2. 调用 `WordMasteryDao::EnsureTables()` 确保画像表和迁移完成。
+2. 调用 `WordMasteryDao::EnsureTables()` 确保画像表存在且当前 schema 校验通过。
+3. 调用 `ConfigureWriteConnection(...)` 应用统一写连接配置。
 3. `ATTACH` 当前阶段词典数据库为 `dictdb`。
-4. 统计当前教材下到期复习词数量。
-5. 若活跃词少于 `kMinimumActiveProfileWords = 20`，则从词典 `word` 表按 `word_id` 游标补写新的 `word_learning_profile`。
-6. 补种固定放在显式事务里执行；若 `BEGIN IMMEDIATE` 或 `COMMIT` 失败，则本次补种终止并回滚。
-7. 由于设备端 SQLite 连接在 `ATTACH dictdb` 后直接提交 user.db 写事务时，曾出现 `COMMIT -> unable to open database file`，当前实现先收集候选 `word_id`，再 `DETACH dictdb`，只对主库 `user.db` 执行补种提交，提交后再重新附加 `dictdb` 继续后续查询。
+4. 统计当前教材下到期复习词数量（未达到掌握门槛，且 `last_practiced_at>0` 且 `next_review_at<=now` 或为空）。
+5. 若到期复习词数量少于 `kMinimumActiveProfileWords = 20`，则从词典 `word` 表按 `word_id` 游标补写新的 `word_learning_profile`。
+6. 补种固定放在显式事务里执行，事务边界统一走 `BeginTransaction(...) / CommitTransaction(...) / RollbackTransaction(...)`。
+7. 由于设备端 SQLite 连接在 `ATTACH dictdb` 后直接提交 user.db 写事务时，曾出现 `COMMIT -> unable to open database file`，当前实现先收集候选 `word_id`，再临时 `DETACH dictdb`，只对主库 `user.db` 执行补种提交，提交后再重新附加 `dictdb` 继续后续查询。
 
 补写的新 profile 初始值为：
 
@@ -470,16 +481,16 @@ CREATE TABLE IF NOT EXISTS word_practice_history (
 `AppendSelectedProfileWords(...)` 固定按以下顺序选词：
 
 1. 到期复习词
-   - `mastered = 0`
+   - 未达到掌握门槛
    - `last_practiced_at > 0`
    - `next_review_at <= now` 或为空
 
 2. 新词
-   - `mastered = 0`
+   - 未达到掌握门槛
    - `last_practiced_at = 0`
 
 3. backlog 复习词
-   - `mastered = 0`
+   - 未达到掌握门槛
    - `last_practiced_at > 0`
    - `next_review_at > now`
 
@@ -582,8 +593,10 @@ seed 层只负责“把一个词当前可出题所需的词典素材拉齐”，
 词分类规则：
 
 - `selected.is_review == false` -> `NewWord`
-- 否则，若 `persistent_boost > 0` 或 `lapse_count >= 3` 或 `strength < 45` -> `WeakWord`
+- 否则（`is_review == true`），在**非 ColdStart 模式**下，若 `persistent_boost > 0` 或 `lapse_count >= 3` 或 `strength < 45` -> `WeakWord`
 - 其他 -> `ReviewWord`
+
+注意：ColdStart 模式下不会将任何词归类为 WeakWord，所有复习词统一按 ReviewWord 处理。
 
 填充顺序：
 
@@ -659,6 +672,8 @@ skill_coverage_ok = recognition_coverage_ok && recall_coverage_ok && output_cove
 
 ### 11.3 技能选择 `ChooseSkill()`
 
+签名：`ChooseSkill(plan, profile, tracker)` — 不再接收 `learning_mode` 参数。
+
 当前策略：
 
 1. 对 `NewWord`：
@@ -673,12 +688,12 @@ skill_coverage_ok = recognition_coverage_ok && recall_coverage_ok && output_cove
 
 ### 11.4 题型选择 `FindQuestionForWord()`
 
-当前技能偏好序列：
+当前技能偏好序列（使用 `word_practice::config` 命名常量）：
 
-- `Recognition` -> `[1, 2, 11, 12]`
-- `Recall` -> `[1, 3, 4, 8]`
-- `Output` -> `[1, 5, 6, 7]`
-- `AdvancedSpeak` -> `[9, 10]`
+- `Recognition` -> `[kQuestionTypeImageChoice, kQuestionTypeMeaningChoice, kQuestionTypeAudioWordChoice, kQuestionTypeAudioMeaningChoice]`
+- `Recall` -> `[kQuestionTypeImageChoice, kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning]`
+- `Output` -> `[kQuestionTypeImageChoice, kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord]`
+- `AdvancedSpeak` -> `[kQuestionTypeSpeakSentence, kQuestionTypeSpeakTranslate]`
 
 回退规则：
 
@@ -696,7 +711,7 @@ skill_coverage_ok = recognition_coverage_ok && recall_coverage_ok && output_cove
 - `strength` 到 0 到 100
 - `recall_score` / `output_score` 到 0 到 5
 - `persistent_boost` 到 0 到 100
-- `mastered = (recall_score >= 3 && output_score >= 3 && strength >= 60 && lapse_count <= 3)`
+- 若当前 `mastered` 不是 `UserMastered` 或 `Suppressed`，则根据 `recall_score >= 3 && output_score >= 3 && strength >= 60 && lapse_count <= 3` 在 `Active` 与 `AutoMastered` 之间自动收敛
 - `stage = 1 + strength / 20`，范围 1 到 5；若已掌握但阶段低于 4，则至少提升到 4
 
 ### 12.2 正确作答
@@ -704,7 +719,7 @@ skill_coverage_ok = recognition_coverage_ok && recall_coverage_ok && output_cove
 答对时：
 
 - `strength += round(7.0 * skill_weight * confidence_factor)`，最少加 1
-- `persistent_boost -= 5`
+- `persistent_boost = max(0, persistent_boost - 5)`（衰减后 clamp 到 0）
 - Recall 正确：`recall_score++`
 - Output / AdvancedSpeak 正确：`output_score++`
 - 更新 `last_practiced_at`
@@ -824,8 +839,8 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 2. 构造 `QuestionAttemptRecord`。
 3. 调用 `mastery_dao_.ApplyAttempt(db, profile, attempt)` 更新画像和历史。
 4. 更新内存缓存中的画像。
-5. 调用 `batch_progress_tracker_.MarkOutcome(...)` 更新当前批次短期进度。
-6. 调用 `question_scheduler_.RecordResult(...)` 更新调度器去重与展示统计。
+5. 调用 `batch_progress_tracker_.MarkOutcome(word_id, kind, skill, correct)` 更新当前批次短期进度。
+6. 调用 `question_scheduler_.RecordResult(scheduled)` 更新调度器去重与展示统计。
 7. 更新本题反馈文案与错词列表。
 8. 调用 `UpdateSessionState()` 重新评估当前 Session。
 
@@ -868,7 +883,12 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 2. `UserProgressDao`
    - 当前教材的当日完成词数与进度百分比
 
-`QueryMasteredWordCount()` 会直接统计 `word_learning_profile` 中已掌握的词数，用于刷新首页等级与掌握量显示。
+`QueryMasteredWordCount()` 直接按掌握门槛统计已掌握词数：
+```sql
+SELECT COUNT(1) FROM word_learning_profile
+WHERE user_id=? AND (mastered=2 OR (mastered<>3 AND recall_score>=3 AND output_score>=3 AND strength>=60 AND lapse_count<=3));
+```
+当前 `mastered` 字段只对用户覆盖态起权威作用：`UserMastered` 会强制计入掌握，`Suppressed` 会强制排除；系统自动掌握仍以画像阈值为准，避免数据库中的 `AutoMastered` 缓存过期后影响调度正确性。该值用于刷新首页等级与掌握量显示。
 
 ### 15.2 结算页
 
@@ -894,7 +914,6 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 - `users.user_id`
 - `users.name`
 - `users.current_stage`
-- `users.level`
 - `learning_preferences.enable_read_questions`
 - `learning_preferences.today_mission_count`
 - `learning_preferences.today_practice_word`
@@ -902,8 +921,8 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 - `practice_stats.continuous_days`
 - `practice_stats.last_practice_date`
 - `stage_levelup_count`
-- `stage_words_quantity`
-- `stage_new_word_cursor`
+
+其中 `users.level`、`stage_words_quantity`、`stage_new_word_cursor` 已从正式持久化契约中移除，不属于当前运行时输入。
 
 ### 16.2 `word_learning_profile`
 
@@ -922,7 +941,7 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 - `persistent_boost`
 - `mastered`
 
-`EnsureSchemaVersion()` 会确保这些运行时依赖字段存在，并把 `PRAGMA user_version` 升到 4。`SelectionModule` 在选词前保证 `EnsureTables()` 已完成；若当前教材下 `word_learning_profile` 为空，选词阶段会先补种至少 `20` 个新 profile，再从中选出本轮目标词。
+运行时假定 `word_learning_profile` 已满足当前 schema；`SelectionModule` 在选词前保证 `EnsureTables()` 已完成，若 schema 不匹配则直接失败，不再执行旧库迁移。若当前教材下 `word_learning_profile` 为空，选词阶段会先补种至少 `20` 个新 profile，再从中选出本轮目标词。
 
 ## 17. 问题诊断建议
 
@@ -932,7 +951,7 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 
 1. 设备端 SQLite 3.25.2 上，`PRAGMA integrity_check(1)` 返回了 `SQLITE_DONE + 空结果`，旧代码把它直接判成数据库损坏。
 2. 即使 `user.db` 实际可读，也会被误判为 corrupt，导致 `DiscoverUserDataDbPath()` 早期返回空路径，选词阶段直接 `selection abort missing db`。
-3. 修正发现逻辑后，又暴露出 `word_learning_profile` 的历史主键迁移问题。设备端环境对 `ALTER TABLE ... RENAME ...` 路径不稳定，导致 `EnsureTables()` 失败，选词仍无法继续。
+3. 修正发现逻辑后，又暴露出旧实现曾承担 `word_learning_profile` 历史主键迁移的问题。设备端环境对 `ALTER TABLE ... RENAME ...` 路径不稳定，导致当时的 `EnsureTables()` 失败，选词仍无法继续。
 4. 再修正迁移后，又暴露出一个只在 `ATTACH dictdb` 后写 user.db 时出现的问题：补种插入本身成功，但 `COMMIT` 失败为 `unable to open database file`，所以新 profile 没有真正落盘。
 5. 选题链路打通后，首题展示阶段又因为一条调试日志向 `printf` 传递了不安全的字符串参数，触发 `LoadProhibited` 崩溃。
 
@@ -948,9 +967,9 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 
 1. 不要把 `PRAGMA integrity_check(1)` 的“空结果”直接等价为数据库损坏。设备端 SQLite 版本可能与桌面版行为不同。
 2. `DiscoverUserDataDbPath()` 允许在“文件缺失但路径合法”时返回创建目标路径；否则业务层会把“可创建”误判成“库不存在”。
-3. `word_learning_profile` 的历史 schema 迁移不能依赖 `ALTER TABLE ... RENAME ...`。当前实现使用“备份表复制 -> 删除原表 -> 重建 -> 回拷”的方式避开设备端 rename 问题。
-4. 主键是否已迁移完成，优先检查 `sqlite_master.sql` 中的建表定义，不要只依赖 `PRAGMA table_info` 结果做判断。
-5. 不要在已有事务内部再次触发 schema 重建。`EnsureTables()` 允许被频繁调用，但迁移逻辑必须避免在 `autocommit=0` 时再次开启事务。
+3. `word_practice` 不再承担历史 `user.db` 的 schema 迁移；若库结构与当前设计不一致，应直接重新生成 `user.db`。
+4. 当前运行时只校验 `word_learning_profile` 是否满足正式字段集合和主键 `(user_id, word_id, textbook_name)`，不再尝试补列或重建。
+5. `EnsureTables()` 允许被频繁调用，但只负责当前 schema 的建表与校验，不在运行时执行历史数据迁移。
 6. 当连接已 `ATTACH dictdb` 时，不要直接在同一连接上对 `user.db` 执行补种事务提交。当前稳定路径是：先查候选 `word_id`，再 `DETACH dictdb`，提交主库写事务，最后重新 `ATTACH`。
 7. 设备端 `esp_log_write` 中不要把可空字符串直接作为 `%s` 参数传入，也不要假定所有 `printf` 长整型格式在目标环境上都稳定可读。调试日志应优先输出长度、布尔状态、ID 等纯值字段。
 8. `user.json save failed` 目前不是“无法出题”的根因，但它说明 `/sdcard/user/` 的普通文件写入链路仍有独立问题，不能因为题目已能展示就忽略该风险。

@@ -1,6 +1,7 @@
 #include "eteacher/apps/word_practice/word_practice_result_module.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <string>
 
 #include "eteacher/apps/word_practice/word_practice_db_utils.h"
@@ -96,6 +97,15 @@ bool UserProgressDao::EnsureStatsTables(sqlite3 *db) const {
 		"PRIMARY KEY (user_id, textbook_name)"
 		");";
 
+	const char *sql_app_state =
+		"CREATE TABLE IF NOT EXISTS app_state ("
+		"user_id INTEGER NOT NULL,"
+		"key TEXT NOT NULL,"
+		"value TEXT NOT NULL,"
+		"updated_at INTEGER DEFAULT 0,"
+		"PRIMARY KEY (user_id, key)"
+		");";
+
 	char *err = nullptr;
 	if (sqlite3_exec(db, sql_learned, nullptr, nullptr, &err) != SQLITE_OK) {
 		ESP_LOGE(log_tag_, "create learned failed: %s", err ? err : "unknown");
@@ -125,7 +135,128 @@ bool UserProgressDao::EnsureStatsTables(sqlite3 *db) const {
 		}
 		return false;
 	}
+	if (sqlite3_exec(db, sql_app_state, nullptr, nullptr, &err) != SQLITE_OK) {
+		ESP_LOGE(log_tag_, "create app_state failed: %s", err ? err : "unknown");
+		if (err) {
+			sqlite3_free(err);
+		}
+		return false;
+	}
 	return true;
+}
+
+int UserProgressDao::QueryAppStateInt(const std::string &key, int fallback_value) const {
+	const std::string user_db = DiscoverUserDbPath();
+	if (user_db.empty()) {
+		return fallback_value;
+	}
+
+	sqlite3 *db = nullptr;
+	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || !db) {
+		if (db) {
+			sqlite3_close(db);
+		}
+		return fallback_value;
+	}
+	if (!EnsureStatsTables(db)) {
+		sqlite3_close(db);
+		return fallback_value;
+	}
+	const int value = QueryAppStateInt(db, key, fallback_value);
+	sqlite3_close(db);
+	return value;
+}
+
+int UserProgressDao::QueryAppStateInt(sqlite3 *db, const std::string &key, int fallback_value) const {
+	if (!db || key.empty()) {
+		return fallback_value;
+	}
+	const char *sql = "SELECT value FROM app_state WHERE user_id=? AND key=? LIMIT 1;";
+	sqlite3_stmt *stmt = nullptr;
+	if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		return fallback_value;
+	}
+	sqlite3_bind_int(stmt, 1, user_id_);
+	sqlite3_bind_text(stmt, 2, key.c_str(), -1, SQLITE_TRANSIENT);
+	int value = fallback_value;
+	if (sqlite3_step(stmt) == SQLITE_ROW) {
+		const unsigned char *text = sqlite3_column_text(stmt, 0);
+		if (text != nullptr) {
+			value = std::atoi(reinterpret_cast<const char *>(text));
+		}
+	}
+	sqlite3_finalize(stmt);
+	return value;
+}
+
+bool UserProgressDao::SaveAppStateInt(const std::string &key, int value) const {
+	const std::string user_db = DiscoverUserDbPath();
+	if (user_db.empty()) {
+		return false;
+	}
+
+	sqlite3 *db = nullptr;
+	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || !db) {
+		if (db) {
+			sqlite3_close(db);
+		}
+		return false;
+	}
+	if (!EnsureStatsTables(db) || !eteacher::database_manager::ConfigureWriteConnection(db, log_tag_)) {
+		sqlite3_close(db);
+		return false;
+	}
+	if (!eteacher::database_manager::BeginTransaction(db, log_tag_)) {
+		sqlite3_close(db);
+		return false;
+	}
+	const bool ok = SaveAppStateInt(db, key, value);
+	if (!ok || !eteacher::database_manager::CommitTransaction(db, log_tag_)) {
+		eteacher::database_manager::RollbackTransaction(db, log_tag_);
+		sqlite3_close(db);
+		return false;
+	}
+	sqlite3_close(db);
+	return true;
+}
+
+bool UserProgressDao::SaveAppStateInt(sqlite3 *db, const std::string &key, int value) const {
+	if (!db || key.empty()) {
+		return false;
+	}
+	const char *update_sql =
+		"UPDATE app_state SET value=?, updated_at=? WHERE user_id=? AND key=?;";
+	sqlite3_stmt *stmt = nullptr;
+	if (sqlite3_prepare_v2(db, update_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		return false;
+	}
+	const std::string value_text = std::to_string(value);
+	const int64_t now_sec = NowSec();
+	sqlite3_bind_text(stmt, 1, value_text.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int64(stmt, 2, now_sec);
+	sqlite3_bind_int(stmt, 3, user_id_);
+	sqlite3_bind_text(stmt, 4, key.c_str(), -1, SQLITE_TRANSIENT);
+	if (!word_practice::db::StepDone(stmt)) {
+		sqlite3_finalize(stmt);
+		return false;
+	}
+	sqlite3_finalize(stmt);
+	if (sqlite3_changes(db) > 0) {
+		return true;
+	}
+
+	const char *insert_sql =
+		"INSERT INTO app_state(user_id, key, value, updated_at) VALUES(?, ?, ?, ?);";
+	if (sqlite3_prepare_v2(db, insert_sql, -1, &stmt, nullptr) != SQLITE_OK || !stmt) {
+		return false;
+	}
+	sqlite3_bind_int(stmt, 1, user_id_);
+	sqlite3_bind_text(stmt, 2, key.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 3, value_text.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int64(stmt, 4, now_sec);
+	const bool ok = word_practice::db::StepDone(stmt);
+	sqlite3_finalize(stmt);
+	return ok;
 }
 
 DailyProgressState UserProgressDao::QueryDailyProgress(const std::string &textbook_name) const {

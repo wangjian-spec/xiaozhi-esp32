@@ -93,8 +93,6 @@ private:
 		int today_progress_percent = 0;
 		int mastered_words = 0;
 		std::vector<int> stage_levelup_count = std::vector<int>(12, 20);
-		std::vector<int> stage_words_quantity = std::vector<int>(12, 0);
-		std::vector<int> stage_new_word_cursor = std::vector<int>(12, 0);
 		DeviceJsonData device{};
 		PracticeStatsData practice_stats{};
 	};
@@ -190,6 +188,8 @@ private:
 	int CurrentStageIndex() const;
 	int ComputeDisplayLevel() const;
 	int QueryMasteredWordCount() const;
+	int LoadStageCursorState(int stage_index) const;
+	void SaveStageCursorState(int stage_index, int cursor_value);
 	void SyncUserProgressState();
 	bool LoadUserJson();
 	bool SaveUserJson() const;

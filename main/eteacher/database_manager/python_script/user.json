@@ -2,8 +2,7 @@
   "users": {
     "user_id": 0,
     "name": "student",
-    "current_stage": "stage1",
-    "level": 0
+      "current_stage": "stage1"
   },
   "devices": {
     "device_id": "",
@@ -14,16 +13,12 @@
   },
   "learning_preferences": {
     "enable_read_questions": true,
-    "today_mission_count": 20,
+    "today_mission_count": 15,
     "today_practice_word": 15
   },
   "practice_stats": {
     "continuous_days": 1,
-    "last_practice_date": "YYYY-MM-DD"
+    "last_practice_date": ""
   },
-
-
-  "stage_levelup_count": [4, 10, 20, 20, 20, 20, 3, 30, 40, 40, 40, 50],
-  "stage_words_quantity": [1998, 3000, 4000, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  "stage_new_word_cursor": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+   "stage_levelup_count": [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
 }

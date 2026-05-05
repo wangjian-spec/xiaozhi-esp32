@@ -33,6 +33,8 @@
 namespace word_practice {
 namespace {
 
+using namespace word_practice::config;
+
 constexpr const char *kLearningLogTag = "WordPracticeLearning";
 
 constexpr int kRecentWordWindowSize = 5;
@@ -150,84 +152,11 @@ bool IsProgressComplete(const CompletionRule &rule,
 using db::PrepareStatement;
 using db::StatementPtr;
 
-constexpr int kWordPracticeSchemaVersion = 4;
-
-struct ColumnSpec {
-	const char *name;
-	const char *definition;
-};
-
-bool ExecSqlWithLog(sqlite3 *db, const std::string &sql, const char *context) {
-	if (db == nullptr) {
-		return false;
-	}
-	char *err = nullptr;
-	const int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &err);
-	if (rc == SQLITE_OK) {
-		return true;
-	}
-	WP_LEARNING_LOGW(kLearningLogTag,
-		"%s failed rc=%d msg=%s sql=%s",
-		context != nullptr ? context : "exec sql",
-		rc,
-		err != nullptr ? err : sqlite3_errmsg(db),
-		sql.c_str());
-	if (err != nullptr) {
-		sqlite3_free(err);
-	}
-	return false;
-}
-
 bool HasColumn(sqlite3 *db, const char *table_name, const char *column_name) {
 	if (db == nullptr || table_name == nullptr || column_name == nullptr) {
 		return false;
 	}
 	return sqlite3_table_column_metadata(db, nullptr, table_name, column_name, nullptr, nullptr, nullptr, nullptr, nullptr) == SQLITE_OK;
-}
-
-bool EnsureColumn(sqlite3 *db, const char *table_name, const char *column_definition, const char *column_name) {
-	if (db == nullptr || table_name == nullptr || column_definition == nullptr || column_name == nullptr) {
-		return false;
-	}
-	if (HasColumn(db, table_name, column_name)) {
-		return true;
-	}
-	const std::string sql = "ALTER TABLE " + std::string(table_name) + " ADD COLUMN " + std::string(column_definition) + ";";
-	char *err = nullptr;
-	const int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &err);
-	if (rc == SQLITE_OK) {
-		return true;
-	}
-	const std::string err_text = err != nullptr ? err : sqlite3_errmsg(db);
-	if (err != nullptr) {
-		sqlite3_free(err);
-	}
-	if (rc == SQLITE_ERROR && err_text.find("duplicate column name") != std::string::npos) {
-		WP_LEARNING_LOGI(kLearningLogTag,
-			"ensure column already satisfied table=%s column=%s msg=%s",
-			table_name,
-			column_name,
-			err_text.c_str());
-		return true;
-	}
-	WP_LEARNING_LOGW(kLearningLogTag,
-		"ensure column failed rc=%d msg=%s sql=%s",
-		rc,
-		err_text.c_str(),
-		sql.c_str());
-	return false;
-}
-
-bool EnsureColumns(sqlite3 *db, const char *table_name, const std::initializer_list<ColumnSpec> &columns) {
-	if (db == nullptr || table_name == nullptr) {
-		return false;
-	}
-	for (const ColumnSpec &column : columns) {
-		if (!EnsureColumn(db, table_name, column.definition, column.name)) {
-			return false;
-		}
-	}
-	return true;
 }
 
 std::string NormalizeSqlDefinition(const std::string &sql) {
@@ -294,83 +223,39 @@ bool HasExpectedWordLearningProfilePrimaryKey(sqlite3 *db) {
 		pk_columns[2].second == "textbook_name";
 }
 
-bool RebuildWordLearningProfileTable(sqlite3 *db) {
+bool ValidateWordLearningProfileSchema(sqlite3 *db) {
 	if (db == nullptr) {
 		return false;
 	}
-	if (sqlite3_get_autocommit(db) == 0) {
-		WP_LEARNING_LOGW(kLearningLogTag, "rebuild word_learning_profile skipped inside active transaction");
+	constexpr std::array<const char *, 13> kRequiredColumns = {
+		"textbook_name",
+		"stage",
+		"strength",
+		"recall_score",
+		"output_score",
+		"next_review_at",
+		"lapse_count",
+		"last_practiced_at",
+		"last_decay_at",
+		"last_reviewed_at",
+		"last_response_time_ms",
+		"persistent_boost",
+		"mastered",
+	};
+	for (const char *column_name : kRequiredColumns) {
+		if (!HasColumn(db, "word_learning_profile", column_name)) {
+			WP_LEARNING_LOGW(kLearningLogTag,
+				"word_learning_profile schema mismatch missing column=%s; recreate user.db with DatabaseCreate.py",
+				column_name);
+			return false;
+		}
+	}
+	if (!HasExpectedWordLearningProfilePrimaryKey(db)) {
+		WP_LEARNING_LOGW(
+			kLearningLogTag,
+			"word_learning_profile schema mismatch unexpected primary key; recreate user.db with DatabaseCreate.py");
 		return false;
 	}
-	if (!ExecSqlWithLog(db, "BEGIN IMMEDIATE TRANSACTION;", "rebuild word_learning_profile begin")) {
-		return false;
-	}
-	if (!ExecSqlWithLog(db, "DROP TABLE IF EXISTS word_learning_profile__backup;", "rebuild word_learning_profile drop stale backup")) {
-		(void)ExecSqlWithLog(db, "ROLLBACK;", "rebuild word_learning_profile rollback");
-		return false;
-	}
-	if (!ExecSqlWithLog(db,
-			"CREATE TABLE word_learning_profile__backup AS SELECT * FROM word_learning_profile;",
-			"rebuild word_learning_profile copy original to backup")) {
-		(void)ExecSqlWithLog(db, "ROLLBACK;", "rebuild word_learning_profile rollback");
-		return false;
-	}
-	const char *create_sql =
-		"CREATE TABLE word_learning_profile ("
-		"user_id INTEGER NOT NULL,"
-		"word_id INTEGER NOT NULL,"
-		"textbook_name TEXT NOT NULL,"
-		"stage INTEGER DEFAULT 0,"
-		"strength INTEGER DEFAULT 0,"
-		"recall_score INTEGER DEFAULT 0,"
-		"output_score INTEGER DEFAULT 0,"
-		"next_review_at INTEGER DEFAULT 0,"
-		"lapse_count INTEGER DEFAULT 0,"
-		"last_practiced_at INTEGER DEFAULT 0,"
-		"last_decay_at INTEGER DEFAULT 0,"
-		"last_reviewed_at INTEGER DEFAULT 0,"
-		"last_response_time_ms INTEGER DEFAULT 0,"
-		"persistent_boost INTEGER DEFAULT 0,"
-		"mastered INTEGER DEFAULT 0,"
-		"PRIMARY KEY(user_id, word_id, textbook_name)"
-		");";
-	const char *copy_sql =
-		"INSERT OR REPLACE INTO word_learning_profile("
-		"user_id, word_id, textbook_name, stage, strength, recall_score, output_score, next_review_at, lapse_count, "
-		"last_practiced_at, last_decay_at, last_reviewed_at, last_response_time_ms, persistent_boost, mastered"
-		") "
-		"SELECT "
-		"user_id, "
-		"word_id, "
-		"COALESCE(NULLIF(textbook_name, ''), 'default'), "
-		"COALESCE(stage, 0), "
-		"COALESCE(strength, 0), "
-		"COALESCE(recall_score, 0), "
-		"COALESCE(output_score, 0), "
-		"COALESCE(next_review_at, 0), "
-		"COALESCE(lapse_count, 0), "
-		"COALESCE(last_practiced_at, 0), "
-		"COALESCE(last_decay_at, 0), "
-		"COALESCE(last_reviewed_at, 0), "
-		"COALESCE(last_response_time_ms, 0), "
-		"COALESCE(persistent_boost, 0), "
-		"COALESCE(mastered, 0) "
-		"FROM word_learning_profile__backup;";
-	if (!ExecSqlWithLog(db, "DROP TABLE word_learning_profile;", "rebuild word_learning_profile drop original") ||
-		!ExecSqlWithLog(db, create_sql, "rebuild word_learning_profile create migrated") ||
-		!ExecSqlWithLog(db, copy_sql, "rebuild word_learning_profile copy") ||
-		!ExecSqlWithLog(db,
-			"DROP TABLE word_learning_profile__backup;",
-			"rebuild word_learning_profile drop backup") ||
-		!ExecSqlWithLog(
-			db,
-			"CREATE INDEX IF NOT EXISTS idx_word_learning_profile_user_next_review ON word_learning_profile(user_id, next_review_at);",
-			"rebuild word_learning_profile recreate index") ||
-		!ExecSqlWithLog(db, "COMMIT;", "rebuild word_learning_profile commit")) {
-		(void)ExecSqlWithLog(db, "ROLLBACK;", "rebuild word_learning_profile rollback");
-		return false;
-	}
-	WP_LEARNING_LOGW(kLearningLogTag, "migrated legacy word_learning_profile primary key to include textbook_name");
 	return true;
 }
 
@@ -396,51 +281,6 @@ int GetColumnInt(sqlite3_stmt *stmt, const char *column_name, int fallback = 0) 
 int64_t GetColumnInt64(sqlite3_stmt *stmt, const char *column_name, int64_t fallback = 0) {
 	const int index = FindColumnIndex(stmt, column_name);
 	return index >= 0 ? sqlite3_column_int64(stmt, index) : fallback;
-}
-
-bool EnsureSchemaVersion(sqlite3 *db) {
-	if (db == nullptr) {
-		return false;
-	}
-	if (!EnsureColumns(
-			db,
-			"word_learning_profile",
-			{
-				{"textbook_name", "textbook_name TEXT NOT NULL DEFAULT 'default'"},
-				{"stage", "stage INTEGER DEFAULT 0"},
-				{"strength", "strength INTEGER DEFAULT 0"},
-				{"recall_score", "recall_score INTEGER DEFAULT 0"},
-				{"output_score", "output_score INTEGER DEFAULT 0"},
-				{"next_review_at", "next_review_at INTEGER DEFAULT 0"},
-				{"lapse_count", "lapse_count INTEGER DEFAULT 0"},
-				{"last_practiced_at", "last_practiced_at INTEGER DEFAULT 0"},
-				{"last_decay_at", "last_decay_at INTEGER DEFAULT 0"},
-				{"last_reviewed_at", "last_reviewed_at INTEGER DEFAULT 0"},
-				{"last_response_time_ms", "last_response_time_ms INTEGER DEFAULT 0"},
-				{"persistent_boost", "persistent_boost INTEGER DEFAULT 0"},
-				{"mastered", "mastered INTEGER DEFAULT 0"},
-			})) {
-		return false;
-	}
-	if (!HasExpectedWordLearningProfilePrimaryKey(db) && !RebuildWordLearningProfileTable(db)) {
-		WP_LEARNING_LOGW(kLearningLogTag, "ensure schema primary key migration failed msg=%s", sqlite3_errmsg(db));
-		return false;
-	}
-
-	StatementPtr stmt;
-	if (!PrepareStatement(db, "PRAGMA user_version;", &stmt)) {
-		WP_LEARNING_LOGW(kLearningLogTag, "prepare user_version pragma failed msg=%s", sqlite3_errmsg(db));
-		return false;
-	}
-	int version = 0;
-	if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-		version = sqlite3_column_int(stmt.get(), 0);
-	}
-	if (version >= kWordPracticeSchemaVersion) {
-		return true;
-	}
-	const std::string pragma_sql = "PRAGMA user_version = " + std::to_string(kWordPracticeSchemaVersion) + ";";
-	return ExecSqlWithLog(db, pragma_sql, "set user_version");
 }
 
 bool ExecSql(sqlite3 *db, const char *sql) {
@@ -489,16 +329,33 @@ std::string BuildReasonJsonValue(QuestionReasonType reason_type,
 	return buffer;
 }
 
+MasteredState NormalizeMasteredState(int value) {
+	switch (value) {
+		case static_cast<int>(MasteredState::AutoMastered):
+			return MasteredState::AutoMastered;
+		case static_cast<int>(MasteredState::UserMastered):
+			return MasteredState::UserMastered;
+		case static_cast<int>(MasteredState::Suppressed):
+			return MasteredState::Suppressed;
+		default:
+			return MasteredState::Active;
+	}
+}
+
+bool IsDisplayedAsMasteredState(MasteredState state) {
+	return state == MasteredState::AutoMastered || state == MasteredState::UserMastered;
+}
+
 int DeriveUiStage(const WordMasteryProfile &profile) {
 	int stage = config::kUiStageMin + (profile.strength / config::kUiStageStep);
 	stage = MaxValue(config::kUiStageMin, MinValue(config::kUiStageMax, stage));
-	if (profile.mastered && stage < config::kMasteredUiStageFloor) {
+	if (IsDisplayedAsMasteredState(profile.mastered) && stage < config::kMasteredUiStageFloor) {
 		stage = config::kMasteredUiStageFloor;
 	}
 	return stage;
 }
 
-bool IsMasteredProfile(const WordMasteryProfile &profile) {
+bool IsMasteredProfileEvidence(const WordMasteryProfile &profile) {
 	return profile.recall_score >= config::kMasteredMinRecallScore &&
 		profile.output_score >= config::kMasteredMinOutputScore &&
 		profile.strength >= config::kMasteredMinStrength &&
@@ -513,7 +370,12 @@ void SyncDerivedProfileState(WordMasteryProfile *profile) {
 	profile->recall_score = ClampEvidence(profile->recall_score);
 	profile->output_score = ClampEvidence(profile->output_score);
 	profile->persistent_boost = ClampScore(profile->persistent_boost);
-	profile->mastered = IsMasteredProfile(*profile);
+	profile->mastered = NormalizeMasteredState(static_cast<int>(profile->mastered));
+	if (profile->mastered != MasteredState::UserMastered && profile->mastered != MasteredState::Suppressed) {
+		profile->mastered = IsMasteredProfileEvidence(*profile)
+			? MasteredState::AutoMastered
+			: MasteredState::Active;
+	}
 	profile->stage = DeriveUiStage(*profile);
 }
 
@@ -613,7 +475,7 @@ void LoadProfileColumns(sqlite3_stmt *stmt, int word_id, int user_id, const std:
 		stmt,
 		"persistent_boost",
 		profile->lapse_count >= config::kPersistentBoostTriggerLapseCount ? config::kPersistentBoostTriggeredValue : 0);
-	profile->mastered = GetColumnInt(stmt, "mastered") != 0;
+	profile->mastered = NormalizeMasteredState(GetColumnInt(stmt, "mastered", static_cast<int>(MasteredState::Active)));
 	SyncDerivedProfileState(profile);
 }
 
@@ -663,12 +525,22 @@ void WordMasteryDao::SetUserId(int user_id) {
 }
 
 std::string WordMasteryDao::DiscoverUserDbPath() const {
-	return eteacher::database_manager::DiscoverUserDataDbPath(log_tag_, nullptr);
+	static std::string cached_user_db_path;
+	if (!cached_user_db_path.empty()) {
+		return cached_user_db_path;
+	}
+	cached_user_db_path = eteacher::database_manager::DiscoverUserDataDbPath(log_tag_, nullptr);
+	return cached_user_db_path;
 }
 
 bool WordMasteryDao::EnsureTables(sqlite3 *db) const {
 	if (db == nullptr) {
 		return false;
+	}
+	const std::string user_db_path = DiscoverUserDbPath();
+	static std::string cached_ensured_user_db_path;
+	if (!user_db_path.empty() && user_db_path == cached_ensured_user_db_path) {
+		return true;
 	}
 	const char *sql_profile =
 		"CREATE TABLE IF NOT EXISTS word_learning_profile ("
@@ -730,9 +602,12 @@ bool WordMasteryDao::EnsureTables(sqlite3 *db) const {
 	}
 	(void)sqlite3_exec(db, sql_profile_index, nullptr, nullptr, nullptr);
 	(void)sqlite3_exec(db, sql_history_index, nullptr, nullptr, nullptr);
-	if (!EnsureSchemaVersion(db)) {
-		WP_LEARNING_LOGW(log_tag_, "ensure schema version failed msg=%s", sqlite3_errmsg(db));
+	if (!ValidateWordLearningProfileSchema(db)) {
+		WP_LEARNING_LOGW(log_tag_, "validate word_learning_profile schema failed msg=%s", sqlite3_errmsg(db));
 		return false;
+	}
+	if (!user_db_path.empty()) {
+		cached_ensured_user_db_path = user_db_path;
 	}
 	return true;
 }
@@ -777,6 +652,25 @@ std::vector<WordMasteryProfile> WordMasteryDao::LoadProfiles(const std::vector<S
 		return profiles;
 	}
 	EnsureTables(db);
+	profiles = LoadProfiles(db, selected_words, textbook_name);
+	sqlite3_close(db);
+	return profiles;
+}
+
+std::vector<WordMasteryProfile> WordMasteryDao::LoadProfiles(sqlite3 *db,
+					      const std::vector<SelectedWord> &selected_words,
+					      const std::string &textbook_name) const {
+	std::vector<WordMasteryProfile> profiles;
+	profiles.reserve(selected_words.size());
+	if (selected_words.empty()) {
+		return profiles;
+	}
+	if (db == nullptr) {
+		for (const auto &selected : selected_words) {
+			profiles.push_back(BuildDefaultProfile(user_id_, selected, textbook_name));
+		}
+		return profiles;
+	}
 	std::vector<int> word_ids;
 	word_ids.reserve(selected_words.size());
 	std::unordered_set<int> seen_word_ids;
@@ -813,7 +707,6 @@ std::vector<WordMasteryProfile> WordMasteryDao::LoadProfiles(const std::vector<S
 			profiles.push_back(BuildDefaultProfile(user_id_, selected, textbook_name));
 		}
 	}
-	sqlite3_close(db);
 	return profiles;
 }
 
@@ -846,6 +739,24 @@ int WordMasteryDao::ApplyDueDecayIfNeeded(std::vector<WordMasteryProfile> *profi
 	if (profiles == nullptr || profiles->empty()) {
 		return 0;
 	}
+	const int64_t now = NowSec();
+	bool has_pending_decay = false;
+	for (const auto &profile : *profiles) {
+		if (profile.word_id <= 0 || profile.next_review_at <= 0) {
+			continue;
+		}
+		if (now <= profile.next_review_at) {
+			continue;
+		}
+		if (DayIndexFromSec(profile.last_decay_at) == DayIndexFromSec(now)) {
+			continue;
+		}
+		has_pending_decay = true;
+		break;
+	}
+	if (!has_pending_decay) {
+		return 0;
+	}
 	const std::string user_db = DiscoverUserDbPath();
 	if (user_db.empty()) {
 		return 0;
@@ -858,8 +769,16 @@ int WordMasteryDao::ApplyDueDecayIfNeeded(std::vector<WordMasteryProfile> *profi
 		return 0;
 	}
 	EnsureTables(db);
+	const int decayed_count = ApplyDueDecayIfNeeded(db, profiles);
+	sqlite3_close(db);
+	return decayed_count;
+}
+
+int WordMasteryDao::ApplyDueDecayIfNeeded(sqlite3 *db, std::vector<WordMasteryProfile> *profiles) const {
+	if (db == nullptr || profiles == nullptr || profiles->empty()) {
+		return 0;
+	}
 	if (!ExecSql(db, "BEGIN IMMEDIATE TRANSACTION;")) {
-		sqlite3_close(db);
 		return 0;
 	}
 	int decayed_count = 0;
@@ -879,7 +798,6 @@ int WordMasteryDao::ApplyDueDecayIfNeeded(std::vector<WordMasteryProfile> *profi
 		(void)ExecSql(db, "ROLLBACK;");
 		decayed_count = 0;
 	}
-	sqlite3_close(db);
 	return decayed_count;
 }
 
@@ -950,7 +868,7 @@ bool WordMasteryDao::ApplyAttempt(sqlite3 *db, WordMasteryProfile *profile, cons
 		profile->strength,
 		profile->recall_score,
 		profile->output_score,
-		profile->mastered ? 1 : 0,
+		static_cast<int>(profile->mastered),
 		static_cast<int>(profile->next_review_at));
 	return saved && recorded;
 }
@@ -980,7 +898,7 @@ bool WordMasteryDao::SaveProfile(sqlite3 *db, const WordMasteryProfile &profile)
 	sqlite3_bind_int64(stmt.get(), 9, profile.last_reviewed_at);
 	sqlite3_bind_int(stmt.get(), 10, profile.last_response_time_ms);
 	sqlite3_bind_int(stmt.get(), 11, profile.persistent_boost);
-	sqlite3_bind_int(stmt.get(), 12, profile.mastered ? 1 : 0);
+	sqlite3_bind_int(stmt.get(), 12, static_cast<int>(profile.mastered));
 	sqlite3_bind_int(stmt.get(), 13, user_id_);
 	sqlite3_bind_int(stmt.get(), 14, profile.word_id);
 	sqlite3_bind_text(stmt.get(), 15, profile.textbook_name.c_str(), -1, SQLITE_TRANSIENT);
@@ -1014,7 +932,7 @@ bool WordMasteryDao::SaveProfile(sqlite3 *db, const WordMasteryProfile &profile)
 	sqlite3_bind_int64(stmt.get(), 12, profile.last_reviewed_at);
 	sqlite3_bind_int(stmt.get(), 13, profile.last_response_time_ms);
 	sqlite3_bind_int(stmt.get(), 14, profile.persistent_boost);
-	sqlite3_bind_int(stmt.get(), 15, profile.mastered ? 1 : 0);
+	sqlite3_bind_int(stmt.get(), 15, static_cast<int>(profile.mastered));
 	if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
 		WP_LEARNING_LOGW(log_tag_, "save profile insert failed word_id=%d textbook=%s msg=%s", profile.word_id, profile.textbook_name.c_str(), sqlite3_errmsg(db));
 		return false;
@@ -1219,7 +1137,6 @@ void BatchProgressTracker::MarkPresented(int word_id) {
 void BatchProgressTracker::MarkOutcome(int word_id,
 			       BatchWordKind kind,
 			       TrainingSkill skill,
-			       QuestionReasonType reason_type,
 			       bool correct) {
 	auto it = items_.find(word_id);
 	if (it == items_.end()) {
@@ -1262,7 +1179,6 @@ void BatchProgressTracker::MarkOutcome(int word_id,
 				break;
 		}
 	}
-	(void)reason_type;
 	if (IsProgressComplete(
 			progress.completion_rule,
 			progress.shown_count,
@@ -1364,9 +1280,7 @@ void QuestionScheduler::Reset() {
 
 TrainingSkill QuestionScheduler::ChooseSkill(const BatchWordPlan &plan,
 				    const WordMasteryProfile *profile,
-				    const BatchProgressTracker &tracker,
-				    LearningMode learning_mode) const {
-	(void)learning_mode;
+				    const BatchProgressTracker &tracker) const {
 	if (plan.kind == BatchWordKind::NewWord) {
 		if (!tracker.HasRecognitionCheckpoint(plan.selected_word.word_id)) {
 			return TrainingSkill::Recognition;
@@ -1406,15 +1320,15 @@ void QuestionScheduler::AdvanceSkillQuestionCursor(TrainingSkill skill, int ques
 	const std::vector<int> base_types = [skill]() {
 		switch (skill) {
 			case TrainingSkill::Recognition:
-				return std::vector<int>{1, 2, 11, 12};
+				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeMeaningChoice, kQuestionTypeAudioWordChoice, kQuestionTypeAudioMeaningChoice};
 			case TrainingSkill::Recall:
-				return std::vector<int>{1, 3, 4, 8};
+				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning};
 			case TrainingSkill::Output:
-				return std::vector<int>{1, 5, 6, 7};
+				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord};
 			case TrainingSkill::AdvancedSpeak:
-				return std::vector<int>{9, 10};
+				return std::vector<int>{kQuestionTypeSpeakSentence, kQuestionTypeSpeakTranslate};
 			default:
-				return std::vector<int>{2, 3, 5};
+				return std::vector<int>{kQuestionTypeMeaningChoice, kQuestionTypeWordToMeaning, kQuestionTypeSentenceFillZh};
 		}
 	}();
 	if (base_types.empty()) {
@@ -1432,15 +1346,15 @@ std::vector<int> QuestionScheduler::QuestionTypesForSkill(TrainingSkill skill) c
 	const std::vector<int> base_types = [skill]() {
 		switch (skill) {
 			case TrainingSkill::Recognition:
-				return std::vector<int>{1, 2, 11, 12};
+				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeMeaningChoice, kQuestionTypeAudioWordChoice, kQuestionTypeAudioMeaningChoice};
 			case TrainingSkill::Recall:
-				return std::vector<int>{1, 3, 4, 8};
+				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning};
 			case TrainingSkill::Output:
-				return std::vector<int>{1, 5, 6, 7};
+				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord};
 			case TrainingSkill::AdvancedSpeak:
-				return std::vector<int>{9, 10};
+				return std::vector<int>{kQuestionTypeSpeakSentence, kQuestionTypeSpeakTranslate};
 			default:
-				return std::vector<int>{2, 3, 5};
+				return std::vector<int>{kQuestionTypeMeaningChoice, kQuestionTypeWordToMeaning, kQuestionTypeSentenceFillZh};
 		}
 	}();
 	if (base_types.empty()) {
@@ -1467,14 +1381,14 @@ ScheduledQuestion QuestionScheduler::FindQuestionForWord(const std::unordered_ma
 	}
 	const std::vector<int> &available_types = it_available->second;
 	if (skill == TrainingSkill::AdvancedSpeak &&
-		std::find(available_types.begin(), available_types.end(), 9) == available_types.end() &&
-		std::find(available_types.begin(), available_types.end(), 10) == available_types.end()) {
+		std::find(available_types.begin(), available_types.end(), kQuestionTypeSpeakSentence) == available_types.end() &&
+		std::find(available_types.begin(), available_types.end(), kQuestionTypeSpeakTranslate) == available_types.end()) {
 		skill = TrainingSkill::Output;
 	}
 	if (skill == TrainingSkill::Output &&
-		std::find(available_types.begin(), available_types.end(), 5) == available_types.end() &&
-		std::find(available_types.begin(), available_types.end(), 6) == available_types.end() &&
-		std::find(available_types.begin(), available_types.end(), 7) == available_types.end()) {
+		std::find(available_types.begin(), available_types.end(), kQuestionTypeSentenceFillZh) == available_types.end() &&
+		std::find(available_types.begin(), available_types.end(), kQuestionTypeSentenceBuildEn) == available_types.end() &&
+		std::find(available_types.begin(), available_types.end(), kQuestionTypeSpeakWord) == available_types.end()) {
 		skill = TrainingSkill::Recall;
 	}
 	const std::vector<int> preferred_types = QuestionTypesForSkill(skill);
@@ -1580,8 +1494,7 @@ ScheduledQuestion QuestionScheduler::ScheduleNext(const std::unordered_map<int, 
 		TrainingSkill skill = ChooseSkill(
 			*plan,
 			profile,
-			tracker,
-			learning_mode);
+			tracker);
 		const ScheduledQuestion scheduled = FindQuestionForWord(available_question_types,
 								   word_id,
 							   skill,
@@ -1603,15 +1516,10 @@ void QuestionScheduler::RecordSkip(const ScheduledQuestion &scheduled) {
 	++word_seen_count_[scheduled.word_id];
 }
 
-void QuestionScheduler::RecordResult(const ScheduledQuestion &scheduled,
-				 const WordMasteryProfile &profile,
-				 bool correct) {
+void QuestionScheduler::RecordResult(const ScheduledQuestion &scheduled) {
 	if (!scheduled.has_value || scheduled.word_id <= 0) {
 		return;
 	}
-	(void)profile;
-	(void)correct;
-	AdvanceSkillQuestionCursor(scheduled.target_skill, scheduled.question_type);
 	last_question_type_by_word_[scheduled.word_id] = scheduled.question_type;
 	++word_seen_count_[scheduled.word_id];
 }
