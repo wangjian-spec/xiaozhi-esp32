@@ -7,3 +7,10 @@
 墨水屏管理文档，见eteacher\epd_manager\readme.md
 
 每个app有各自的设计文档如：在word_practice文件夹下有word_practice_design.md文档描述app设计内容；
+
+
+
+
+小智控制台网址：https://xz.2naive.space
+              用户名：  kHFURlUh36TDMf
+              密码：    prI1FF8tvxXIiM

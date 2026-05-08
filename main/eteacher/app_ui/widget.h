@@ -387,12 +387,19 @@ struct SwitchProfile {
 };
 
 struct ProgressProfile {
+	enum class RenderMode : uint8_t {
+		Linear,
+		CircularArea,
+        CircularSector,
+	};
+
     uint8_t value = 0;
     uint8_t max_value = 100;
     bool draw_border = true;
     bool draw_rounded_border = false;
     int16_t corner_radius = 6;
     int16_t fill_inset = 1;
+	RenderMode render_mode = RenderMode::Linear;
 };
 
 class DialogBehavior {

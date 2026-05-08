@@ -18,6 +18,7 @@
 #include "eteacher/app_ui/common_ui_utils.h"
 #include "eteacher/apps/word_practice/word_practice_config.h"
 #include "eteacher/apps/word_practice/word_practice_db_utils.h"
+#include "eteacher/apps/word_practice/word_practice_review_model.h"
 #include "eteacher/apps/word_practice/word_practice_time_utils.h"
 #include "eteacher/apps/word_practice/word_practice_utils.h"
 #include "eteacher/database_manager/database_debug.h"
@@ -29,8 +30,6 @@
 namespace {
 
 constexpr const char *kTag = "WordPracticeSeed";
-constexpr size_t kImageChoiceOptionCount = 3;
-constexpr size_t kStandardChoiceOptionMinCount = 3;
 
 using word_practice::utils::BasenameFromPath;
 using word_practice::utils::BuildQuestionAudioPath;
@@ -790,6 +789,124 @@ std::vector<OptionSeed> BuildDistractorOptionsFromSeeds(const VocabularySeed &se
 	return distractors;
 }
 
+std::vector<OptionSeed> LoadRandomStandardDistractorsFromStage(const VocabularySeed &seed,
+											 const std::unordered_set<int> &excluded_word_ids,
+											 size_t limit) {
+	std::vector<OptionSeed> distractors;
+	if (limit == 0 || seed.stage <= 0) {
+		return distractors;
+	}
+	const int64_t load_start_ms = NowMs();
+	sqlite3 *db = nullptr;
+	std::string opened_db_path;
+	if (!OpenSeedDictionaryDb(seed.stage, &db, &opened_db_path) || db == nullptr) {
+		return distractors;
+	}
+	StatementPtr stmt;
+	const char *sql =
+		"SELECT w.id, COALESCE(w.word, ''), COALESCE(w.image, ''), COALESCE(wm.meaning_zh, ''), COALESCE(wm.meaning_en, '') "
+		"FROM word AS w "
+		"INNER JOIN ("
+		"SELECT word_id, MIN(id) AS first_id FROM word_meaning GROUP BY word_id"
+		") AS first_meaning ON first_meaning.word_id = w.id "
+		"INNER JOIN word_meaning AS wm ON wm.word_id = first_meaning.word_id AND wm.id = first_meaning.first_id "
+		"WHERE w.id <> ? "
+		"AND w.word IS NOT NULL AND TRIM(w.word) <> '' "
+		"AND ((wm.meaning_zh IS NOT NULL AND TRIM(wm.meaning_zh) <> '') OR (wm.meaning_en IS NOT NULL AND TRIM(wm.meaning_en) <> '')) "
+		"ORDER BY RANDOM() LIMIT ?;";
+	if (!PrepareStatement(db, sql, &stmt)) {
+		CloseSeedDb(db, "LoadRandomStandardDistractorsFromStage.prepare_failed");
+		return distractors;
+	}
+	const int sample_limit = static_cast<int>(std::max<size_t>(limit * 6, 24));
+	if (sqlite3_bind_int(stmt.get(), 1, seed.word_id) != SQLITE_OK ||
+		sqlite3_bind_int(stmt.get(), 2, sample_limit) != SQLITE_OK) {
+		CloseSeedDb(db, "LoadRandomStandardDistractorsFromStage.bind_failed");
+		return distractors;
+	}
+	std::unordered_set<std::string> used_words;
+	used_words.insert(Trim(seed.word));
+	while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+		OptionSeed candidate;
+		candidate.word_id = sqlite3_column_int(stmt.get(), 0);
+		const unsigned char *word_text = sqlite3_column_text(stmt.get(), 1);
+		const unsigned char *image_text = sqlite3_column_text(stmt.get(), 2);
+		const unsigned char *meaning_zh_text = sqlite3_column_text(stmt.get(), 3);
+		const unsigned char *meaning_en_text = sqlite3_column_text(stmt.get(), 4);
+		candidate.word = word_text != nullptr ? reinterpret_cast<const char *>(word_text) : "";
+		candidate.image = image_text != nullptr ? reinterpret_cast<const char *>(image_text) : "";
+		candidate.meaning_zh = meaning_zh_text != nullptr ? reinterpret_cast<const char *>(meaning_zh_text) : "";
+		candidate.meaning_en = meaning_en_text != nullptr ? reinterpret_cast<const char *>(meaning_en_text) : "";
+		const std::string candidate_word = Trim(candidate.word);
+		if (candidate.word_id <= 0 || candidate_word.empty()) {
+			continue;
+		}
+		if (excluded_word_ids.find(candidate.word_id) != excluded_word_ids.end()) {
+			continue;
+		}
+		if (!used_words.insert(candidate_word).second) {
+			continue;
+		}
+		if (BestMeaningText(VocabularySeed{candidate.word_id, 0, 0, candidate.word, candidate.meaning_zh, candidate.meaning_en, candidate.image, "", "", "", "", seed.stage, true}).empty()) {
+			continue;
+		}
+		distractors.push_back(std::move(candidate));
+		if (distractors.size() >= limit) {
+			break;
+		}
+	}
+	CloseSeedDb(db, "LoadRandomStandardDistractorsFromStage");
+	WP_SEED_LOGW(kTag,
+		"standard distractor fallback word_id=%d loaded=%d excluded=%d limit=%d total_ms=%d",
+		seed.word_id,
+		static_cast<int>(distractors.size()),
+		static_cast<int>(excluded_word_ids.size()),
+		static_cast<int>(limit),
+		static_cast<int>(NowMs() - load_start_ms));
+	return distractors;
+}
+
+std::vector<OptionSeed> BuildStandardOptionCandidates(const VocabularySeed &seed,
+										 const std::vector<VocabularySeed> &loaded_seeds) {
+	std::vector<OptionSeed> standard_distractors;
+	standard_distractors.reserve(kQuestionOptionTokens.size());
+	std::unordered_set<int> used_word_ids;
+	used_word_ids.insert(seed.word_id);
+	const std::vector<OptionSeed> distractors = BuildDistractorOptionsFromSeeds(seed, loaded_seeds, 12);
+	for (const auto &candidate : distractors) {
+		if (candidate.word_id <= 0 || Trim(candidate.word).empty()) {
+			continue;
+		}
+		if (BestMeaningText(VocabularySeed{candidate.word_id, 0, 0, candidate.word, candidate.meaning_zh, candidate.meaning_en, candidate.image, "", "", "", "", seed.stage, true}).empty()) {
+			continue;
+		}
+		if (!used_word_ids.insert(candidate.word_id).second) {
+			continue;
+		}
+		standard_distractors.push_back(candidate);
+		if (standard_distractors.size() + 1 >= kStandardChoiceOptionCount) {
+			break;
+		}
+	}
+	if (standard_distractors.size() + 1 < kStandardChoiceOptionCount) {
+		const size_t needed = (kStandardChoiceOptionCount - 1) - standard_distractors.size();
+		const std::vector<OptionSeed> stage_distractors = LoadRandomStandardDistractorsFromStage(seed, used_word_ids, needed);
+		for (const auto &candidate : stage_distractors) {
+			if (candidate.word_id <= 0 || Trim(candidate.word).empty()) {
+				continue;
+			}
+			if (!used_word_ids.insert(candidate.word_id).second) {
+				continue;
+			}
+			standard_distractors.push_back(candidate);
+			if (standard_distractors.size() + 1 >= kStandardChoiceOptionCount) {
+				break;
+			}
+		}
+	}
+	return BuildOptionCandidates(seed, standard_distractors, false);
+}
+
 std::vector<OptionSeed> LoadRandomImageDistractorsFromStage(const VocabularySeed &seed,
 										const std::unordered_set<int> &excluded_word_ids,
 										size_t limit) {
@@ -1053,6 +1170,7 @@ std::string BuildSentenceQuestionJson(const VocabularySeed &seed,
 bool LoadVocabularySeed(sqlite3 *db,
 			    const SeedQueryContext &query_context,
 			    const word_practice::SelectedWord &selected_word,
+			    int stage_index,
 			    VocabularySeed *seed) {
 	if (db == nullptr || seed == nullptr || selected_word.word_id <= 0 || selected_word.word.empty()) {
 		return false;
@@ -1062,7 +1180,7 @@ bool LoadVocabularySeed(sqlite3 *db,
 	seed->word_id = selected_word.word_id;
 	seed->word = Trim(selected_word.word);
 	seed->image = Trim(selected_word.image);
-	seed->stage = 1;
+	seed->stage = stage_index;
 	seed->is_review = selected_word.is_review;
 	ClearVocabularyExample(seed);
 	if (seed->word.empty()) {
@@ -1164,8 +1282,7 @@ std::vector<int> BuildAvailableQuestionTypesForSeed(const VocabularySeed &seed,
 						    bool include_speak_questions,
 					    word_practice::LearningMode learning_mode) {
 	const QuestionBuildPolicy policy = BuildQuestionBuildPolicy(seed, profile, include_speak_questions, learning_mode);
-	const std::vector<OptionSeed> distractors = BuildDistractorOptionsFromSeeds(seed, loaded_seeds, 12);
-	const std::vector<OptionSeed> standard_options = BuildOptionCandidates(seed, distractors, false);
+	const std::vector<OptionSeed> standard_options = BuildStandardOptionCandidates(seed, loaded_seeds);
 	const std::vector<OptionSeed> image_options = BuildImageOptionCandidates(seed, loaded_seeds);
 	const bool has_image = !Trim(seed.image).empty();
 	const bool has_example_sentence = !Trim(seed.example_en).empty() && !Trim(seed.example_zh).empty();
@@ -1175,15 +1292,15 @@ std::vector<int> BuildAvailableQuestionTypesForSeed(const VocabularySeed &seed,
 	if (policy.recognition && has_image && image_options.size() >= kImageChoiceOptionCount) {
 		available_types.push_back(kQuestionTypeImageChoice);
 	}
-	if (policy.recognition && standard_options.size() >= kStandardChoiceOptionMinCount) {
+	if (policy.recognition && standard_options.size() >= kStandardChoiceOptionCount) {
 		available_types.push_back(kQuestionTypeMeaningChoice);
 		available_types.push_back(kQuestionTypeAudioWordChoice);
 		available_types.push_back(kQuestionTypeAudioMeaningChoice);
 	}
-	if (policy.recall && standard_options.size() >= kStandardChoiceOptionMinCount) {
+	if (policy.recall && standard_options.size() >= kStandardChoiceOptionCount) {
 		available_types.push_back(kQuestionTypeWordToMeaning);
 	}
-	if (policy.recall && standard_options.size() >= 4) {
+	if (policy.recall && standard_options.size() >= kStandardChoiceOptionCount) {
 		available_types.push_back(kQuestionTypePairMatch);
 	}
 	if (policy.output && has_example_sentence) {
@@ -1215,10 +1332,9 @@ bool AppendGeneratedQuestionByType(std::vector<word_practice::QuestionData> *que
 		return false;
 	}
 	const QuestionBuildPolicy policy = BuildQuestionBuildPolicy(seed, profile, include_speak_questions, learning_mode);
-	const std::vector<OptionSeed> distractors = BuildDistractorOptionsFromSeeds(seed, loaded_seeds, 12);
-	const std::vector<OptionSeed> standard_options = BuildOptionCandidates(seed, distractors, false);
+	const std::vector<OptionSeed> standard_options = BuildStandardOptionCandidates(seed, loaded_seeds);
 	const std::vector<OptionSeed> image_options = BuildImageOptionCandidates(seed, loaded_seeds);
-	const size_t standard_choice_option_count = std::min(standard_options.size(), kQuestionOptionTokens.size());
+	const size_t standard_choice_option_count = kStandardChoiceOptionCount;
 	const std::string word_audio = ResolveStage1AudioName("", seed.word_id, seed.word);
 	const std::string example_audio = ResolveStage1ExampleAudioName(seed.word_id, seed.word, seed.example_id);
 	const std::string example_en = Trim(seed.example_en);
@@ -1233,10 +1349,10 @@ bool AppendGeneratedQuestionByType(std::vector<word_practice::QuestionData> *que
 			return policy.recognition && !Trim(seed.image).empty() && image_options.size() >= kImageChoiceOptionCount &&
 				AppendChoiceQuestion(question_pool, &question_built_count, seed, textbook_name, 1, image_options, Trim(seed.word), "", kImageChoiceOptionCount);
 		case 2:
-			return policy.recognition && standard_choice_option_count >= kStandardChoiceOptionMinCount &&
+			return policy.recognition && standard_options.size() >= standard_choice_option_count &&
 				AppendChoiceQuestion(question_pool, &question_built_count, seed, textbook_name, 2, standard_options, BestMeaningText(seed), "", standard_choice_option_count);
 		case 3:
-			return policy.recall && standard_choice_option_count >= kStandardChoiceOptionMinCount &&
+			return policy.recall && standard_options.size() >= standard_choice_option_count &&
 				AppendChoiceQuestion(question_pool, &question_built_count, seed, textbook_name, 3, standard_options, Trim(seed.word), "", standard_choice_option_count);
 		case 4:
 			return policy.recall && AppendPairQuestion(question_pool, &question_built_count, seed, textbook_name, standard_options);
@@ -1265,11 +1381,11 @@ bool AppendGeneratedQuestionByType(std::vector<word_practice::QuestionData> *que
 				AppendSentenceQuestion(question_pool, &question_built_count, seed, textbook_name, 10, example_zh, example_en,
 					BuildQuestionHints(example_en, seed.selection_en), BuildExampleQuestionAudioPath(example_audio));
 		case 11:
-			return policy.recognition && standard_choice_option_count >= kStandardChoiceOptionMinCount &&
+			return policy.recognition && standard_options.size() >= standard_choice_option_count &&
 				AppendChoiceQuestion(question_pool, &question_built_count, seed, textbook_name, 11, standard_options,
 					word_audio.empty() ? Trim(seed.word) : "按Start播放音频", word_audio, standard_choice_option_count);
 		case 12:
-			return policy.recognition && standard_choice_option_count >= kStandardChoiceOptionMinCount &&
+			return policy.recognition && standard_options.size() >= standard_choice_option_count &&
 				AppendChoiceQuestion(question_pool, &question_built_count, seed, textbook_name, 12, standard_options,
 					word_audio.empty() ? BestMeaningText(seed) : "按Start播放音频", word_audio, standard_choice_option_count);
 		default:
@@ -1296,8 +1412,7 @@ word_practice::LearningMode word_practice::QuestionSeedModule::DetermineLearning
 			if (profile->last_practiced_at <= 0) {
 				++real_new_word_count;
 			}
-			if (profile->persistent_boost > 0 || profile->lapse_count >= 3 ||
-				(profile->next_review_at > 0 && profile->next_review_at <= now_sec)) {
+			if (profile->lapse_count >= 3 || word_practice::review_model::OverdueRatio(*profile, now_sec) >= 0.25) {
 				++weak_or_due_count;
 			}
 		} else {
@@ -1368,7 +1483,7 @@ bool word_practice::QuestionSeedModule::LoadVocabularySeedForWord(
 			ESP_LOGW(kTag, "prepare single seed query context failed path=%s", cached_dictionary_db_path_.c_str());
 			return false;
 		}
-		loaded = LoadVocabularySeed(db, query_context, selected_word, out_seed);
+		loaded = LoadVocabularySeed(db, query_context, selected_word, stage_index, out_seed);
 	}
 	WP_SEED_LOGW(kTag,
 		"single seed load word_id=%d word=%s ok=%d total_ms=%d",
@@ -1403,7 +1518,7 @@ std::vector<word_practice::VocabularySeed> word_practice::QuestionSeedModule::Lo
 		seed.word_id = selected_word.word_id;
 		seed.word = Trim(selected_word.word);
 		seed.image = Trim(selected_word.image);
-		seed.stage = 1;
+		seed.stage = stage_index;
 		seed.is_review = selected_word.is_review;
 		ClearVocabularyExample(&seed);
 		seed_by_word_id[selected_word.word_id] = std::move(seed);

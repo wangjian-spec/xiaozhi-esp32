@@ -56,8 +56,11 @@ void UIEngine::Reset() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     reset_requested_ = true;
     focus_.Clear();
+    active_root_.reset();
     pending_root_.reset();
     cached_root_ = nullptr;
+    // Drop any stale focus request now so a fresh RequestFocus made after Reset()
+    // can survive until the next root swap.
     pending_focus_id_ = 0;
     input_queue_.Clear();
     deferred_inputs_.clear();
@@ -106,6 +109,9 @@ void UIEngine::ScheduleIfNeeded() {
     if (!epd_) {
         return;
     }
+    if (!active_root_ && !pending_root_) {
+        return;
+    }
     if (scheduled_.exchange(true, std::memory_order_acq_rel)) {
         return;
     }
@@ -145,7 +151,6 @@ void UIEngine::Tick(uint32_t delta_ms) {
     if (reset_requested_) {
         active_root_.reset();
         cached_root_ = nullptr;
-        pending_focus_id_ = 0;
         focus_.Clear();
         dirty_.Clear();
         input_queue_.Clear();

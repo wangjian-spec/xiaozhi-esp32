@@ -57,7 +57,7 @@ bool SessionModule::ForceFinished() const {
 }
 
 bool SessionModule::IsFinished() const {
-	return force_finished_ || AnswerLimitReached();
+	return force_finished_;
 }
 
 void SessionModule::SetAwaitingNextQuestion(bool awaiting) {
@@ -88,6 +88,32 @@ void SessionModule::RecordSkip() {
 	++total_answered_;
 	consecutive_correct_answers_ = 0;
 	awaiting_next_question_ = !force_finished_ && total_answered_ < pass_target_questions_;
+}
+
+SessionModule::Snapshot SessionModule::CaptureSnapshot() const {
+	Snapshot snapshot;
+	snapshot.correct_count = correct_count_;
+	snapshot.wrong_count = wrong_count_;
+	snapshot.skip_count = skip_count_;
+	snapshot.score = score_;
+	snapshot.total_answered = total_answered_;
+	snapshot.consecutive_correct_answers = consecutive_correct_answers_;
+	snapshot.pass_target_questions = pass_target_questions_;
+	snapshot.awaiting_next_question = awaiting_next_question_;
+	snapshot.force_finished = force_finished_;
+	return snapshot;
+}
+
+void SessionModule::RestoreSnapshot(const Snapshot &snapshot) {
+	correct_count_ = snapshot.correct_count;
+	wrong_count_ = snapshot.wrong_count;
+	skip_count_ = snapshot.skip_count;
+	score_ = snapshot.score;
+	total_answered_ = snapshot.total_answered;
+	consecutive_correct_answers_ = snapshot.consecutive_correct_answers;
+	pass_target_questions_ = snapshot.pass_target_questions;
+	awaiting_next_question_ = snapshot.awaiting_next_question;
+	force_finished_ = snapshot.force_finished;
 }
 
 }  // namespace word_practice

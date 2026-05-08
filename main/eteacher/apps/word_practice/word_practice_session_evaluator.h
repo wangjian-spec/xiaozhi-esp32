@@ -14,7 +14,7 @@ struct SessionEvaluationDetail {
 	bool pass_minimum_questions = false;
 	bool pass_skill_coverage = false;
 	bool finish_by_answer_limit = false;
-	bool finish_by_progress_gate = false;
+	bool finish_by_resource_gate = false;
 	bool scheduler_exhausted = false;
 };
 

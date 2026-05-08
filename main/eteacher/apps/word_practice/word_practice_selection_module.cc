@@ -662,8 +662,9 @@ void AppendSelectedProfileWords(sqlite3 *user_db,
 				  int user_id,
 				  const std::string &textbook_name,
 				  int64_t now_sec,
-				  size_t limit,
+				  const WordSelectionConfig &config,
 				  std::vector<SelectedWord> *selected_words) {
+	const size_t limit = static_cast<size_t>(std::max(0, config.total_word_count));
 	if (user_db == nullptr || dict_db == nullptr || selected_words == nullptr || limit == 0) {
 		return;
 	}
@@ -672,8 +673,15 @@ void AppendSelectedProfileWords(sqlite3 *user_db,
 	selected_profile_ids.reserve(limit);
 	std::unordered_set<int> seen_word_ids;
 	seen_word_ids.reserve(limit);
+	const size_t requested_new_count = static_cast<size_t>(std::min<int>(std::max(0, config.new_word_target), static_cast<int>(limit)));
+	const bool review_unlimited = config.review_word_target <= 0;
+	const size_t reserved_review_capacity = limit > requested_new_count ? (limit - requested_new_count) : 0;
+	const size_t requested_review_count = review_unlimited
+		? reserved_review_capacity
+		: static_cast<size_t>(std::min<int>(std::max(0, config.review_word_target), static_cast<int>(reserved_review_capacity)));
 	const int64_t count_ms = 0;
 	const size_t backlog_reserve_requested = ComputeNoDueBacklogReserve(limit);
+	const size_t initial_review_budget = review_unlimited ? reserved_review_capacity : requested_review_count;
 	size_t backlog_selected_count = 0;
 	size_t due_selected_count = 0;
 	bool priority_query_ok = false;
@@ -710,9 +718,9 @@ void AppendSelectedProfileWords(sqlite3 *user_db,
 			"AND (p.next_review_at IS NULL OR p.next_review_at = 0 OR p.next_review_at <= ?) "
 			"ORDER BY COALESCE(p.next_review_at, 0) ASC, p.word_id ASC "
 			"LIMIT ?;";
-		AppendProfileIds(user_db, user_id, textbook_name, due_sql, now_sec, limit, true, &seen_word_ids, &selected_profile_ids);
+		AppendProfileIds(user_db, user_id, textbook_name, due_sql, now_sec, initial_review_budget, true, &seen_word_ids, &selected_profile_ids);
 		due_selected_count = selected_profile_ids.size();
-		if (selected_profile_ids.size() < limit && due_selected_count == 0) {
+		if (selected_profile_ids.size() < limit && due_selected_count == 0 && initial_review_budget > selected_profile_ids.size()) {
 			const std::string backlog_sql =
 				"SELECT p.word_id "
 				"FROM word_learning_profile AS p "
@@ -724,19 +732,20 @@ void AppendSelectedProfileWords(sqlite3 *user_db,
 				"ORDER BY COALESCE(p.next_review_at, 0) ASC, p.word_id ASC "
 				"LIMIT ?;";
 			const size_t backlog_before = selected_profile_ids.size();
+			const size_t initial_backlog_budget = std::min(std::min(backlog_reserve_requested, initial_review_budget), limit);
 			AppendProfileIds(
 				user_db,
 				user_id,
 				textbook_name,
 				backlog_sql,
 				now_sec,
-				std::min(backlog_reserve_requested, limit - selected_profile_ids.size()),
+				initial_backlog_budget > selected_profile_ids.size() ? (initial_backlog_budget - selected_profile_ids.size()) : 0,
 				true,
 				&seen_word_ids,
 				&selected_profile_ids);
 			backlog_selected_count += selected_profile_ids.size() - backlog_before;
 		}
-		if (selected_profile_ids.size() < limit) {
+		if (selected_profile_ids.size() < limit && requested_new_count > 0) {
 			const std::string fresh_sql =
 				"SELECT p.word_id "
 				"FROM word_learning_profile AS p "
@@ -752,7 +761,7 @@ void AppendSelectedProfileWords(sqlite3 *user_db,
 				textbook_name,
 				fresh_sql,
 				now_sec,
-				limit - selected_profile_ids.size(),
+				std::min(limit - selected_profile_ids.size(), requested_new_count),
 				false,
 				&seen_word_ids,
 				&selected_profile_ids);
@@ -781,12 +790,35 @@ void AppendSelectedProfileWords(sqlite3 *user_db,
 				&selected_profile_ids);
 			backlog_selected_count += selected_profile_ids.size() - backlog_before;
 		}
+		if (selected_profile_ids.size() < limit) {
+			const std::string fresh_sql =
+				"SELECT p.word_id "
+				"FROM word_learning_profile AS p "
+				"WHERE p.user_id = ? "
+				"AND p.textbook_name = ? "
+				"AND " + NotMasteredProfileSqlCondition("p") + " "
+				"AND COALESCE(p.last_practiced_at, 0) = 0 "
+				"ORDER BY p.word_id ASC "
+				"LIMIT ?;";
+			AppendProfileIds(
+				user_db,
+				user_id,
+				textbook_name,
+				fresh_sql,
+				now_sec,
+				limit - selected_profile_ids.size(),
+				false,
+				&seen_word_ids,
+				&selected_profile_ids);
+		}
 		WP_SELECT_TRACE_LOGW(kTag,
-			"priority selection fallback used ok=%d selected_ids=%d due_selected=%d backlog_selected=%d",
+			"priority selection fallback used ok=%d selected_ids=%d due_selected=%d backlog_selected=%d requested_new=%d requested_review=%d",
 			priority_query_ok ? 1 : 0,
 			static_cast<int>(selected_profile_ids.size()),
 			static_cast<int>(due_selected_count),
-			static_cast<int>(backlog_selected_count));
+			static_cast<int>(backlog_selected_count),
+			static_cast<int>(requested_new_count),
+			static_cast<int>(requested_review_count));
 	}
 
 	const int64_t dict_lookup_start_ms = NowMs();
@@ -1012,7 +1044,7 @@ std::vector<SelectedWord> SelectionModule::SelectWordsFromVocabulary(const WordS
 		normalized_user_id,
 		textbook_name,
 		now_sec,
-		static_cast<size_t>(total_count),
+		config,
 		&selected_words);
 	const int64_t select_profile_ms = NowMs() - select_profile_start_ms;
 	if (next_new_word_id != nullptr) {

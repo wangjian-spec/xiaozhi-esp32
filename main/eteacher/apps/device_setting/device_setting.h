@@ -30,8 +30,9 @@ public:
 
 private:
 	struct TodayMissionData {
-		int today_mission_count = 15;
-		int today_practice_word = 15;
+		int daily_new_word_target = 10;
+		int daily_review_word_target = 5;
+		int daily_total_target = 15;
 		int completed_words = 0;
 		int target_words = 15;
 	};
@@ -82,6 +83,14 @@ private:
 	void BuildFocusCycle(const std::string& scene_id);
 	void SyncFocusCycleIndex();
 	bool HandleFocusCycle(const ButtonEvent &event);
+	bool HasFocusableListItems(const std::vector<std::string>& items) const;
+	void UpdateListFocusability();
+	int FocusCycleIndexOf(uint32_t id) const;
+	app_ui::Widget* FindFocusableCycleWidget(int start_index, int step, bool allow_tabview) const;
+	app_ui::Widget* FirstSceneFocus() const;
+	app_ui::Widget* LastSceneFocus() const;
+	app_ui::Widget* CurrentManagedFocus() const;
+	void EnsureManagedFocus();
 
 	bool HandleTabViewNav(AppContext &ctx, const ButtonEvent &event);
 	bool HandleKeyboardButtons(const ButtonEvent &event);
@@ -163,6 +172,7 @@ private:
 	bool scanning_in_progress_ = false;
 	bool has_scanned_once_ = false;
 	bool last_scan_failed_ = false;
+	bool initial_focus_pending_ = false;
 	bool connect_wait_connected_ = false;
 	bool connect_wait_failed_ = false;
 	bool submit_connect_in_progress_ = false;

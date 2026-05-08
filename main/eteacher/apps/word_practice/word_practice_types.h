@@ -84,6 +84,8 @@ enum class MasteredState : uint8_t {
 
 struct WordSelectionConfig {
 	int total_word_count = 0;
+	int new_word_target = 0;
+	int review_word_target = 0;
 };
 
 struct SelectedWord {
@@ -197,6 +199,7 @@ struct QuestionAttemptRecord {
 	std::string textbook_name;
 	std::string question_reason;
 	bool correct = false;
+	bool skipped = false;
 	int response_time_ms = 0;
 	int64_t practiced_at = 0;
 };

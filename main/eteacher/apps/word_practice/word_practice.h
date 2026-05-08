@@ -68,8 +68,9 @@ private:
 	};
 
 	struct TodayMissionData {
-		int today_mission_count = 15;
-		int today_practice_word = 15;
+		int daily_new_word_target = 10;
+		int daily_review_word_target = 5;
+		int daily_total_target = 15;
 		int completed_words = 0;
 	};
 
@@ -87,6 +88,7 @@ private:
 		int user_id = 0;
 		std::string name = "student";
 		std::string current_stage = "stage1";
+		std::string time_source = "wifi_system";
 		int level = 0;
 		TodayMissionData today_mission{};
 		bool enable_read_questions = true;
@@ -116,6 +118,28 @@ private:
 		std::vector<std::string> wrong_words{};
 	};
 
+	struct TodayTargetProgressState {
+		int completed_words = 0;
+		int progress_percent = 0;
+		bool all_completed = false;
+	};
+
+	struct AttemptUiStateSnapshot {
+		word_practice::SessionModule::Snapshot session{};
+		int cycle_correct_count = 0;
+		int cycle_wrong_count = 0;
+		int cycle_skip_count = 0;
+		int current_speak_asr_failure_count = 0;
+		std::vector<std::string> learned_words{};
+		std::vector<int> type4_selected_right_by_left{};
+		int type4_selected_left_index = 0;
+		bool type56_show_correct_answer = false;
+		std::string type56_correct_answer_display{};
+		std::vector<std::string> type56_dialog_items{};
+		int type56_selected_index = 0;
+		std::string type56_input_answer{};
+	};
+
 	bool LoadUi(AppContext &ctx);
 	bool LoadScene(AppContext &ctx, const std::string &scene_id, uint16_t scene_index);
 	bool ActivateScene(AppContext &ctx, const std::string &scene_id);
@@ -123,7 +147,7 @@ private:
 	void Render(AppContext &ctx);
 	void BindWidgets(app_ui::Widget *root);
 	void ShowHomePreview(AppContext &ctx);
-	void ShowLoadingPreview();
+	void LoadHomePreviewSelection();
 	void RefreshHomePreview();
 	void RefreshSelectionDialog();
 	void HideSelectionDialog();
@@ -132,15 +156,15 @@ private:
 	void HandleSettlementAction(AppContext &ctx, const ButtonEvent &event);
 	void StartPracticeRound(AppContext &ctx);
 
-	bool CanReuseQuestionPool(int stage_index, int stage_cursor_index, int next_new_word_id) const;
-	void UpdateQuestionPoolCacheState(int stage_index, int stage_cursor_index, int next_new_word_id);
-	void InvalidateQuestionPoolCache();
 	void ResetLoadedQuestionDataCache();
 	void ResetMasteryProfileCache();
 	void RebuildMasteryProfileCache();
 	void UpdateMasteryProfileCache(const word_practice::WordMasteryProfile &profile);
 	bool TryAppendSeedFromCache(const word_practice::SelectedWord &selected_word);
 	const word_practice::WordMasteryProfile *FindCachedMasteryProfile(int word_id) const;
+	void BuildQuestionPoolFromSelectedWords(const std::vector<word_practice::SelectedWord> &selected_words,
+						 int stage_index,
+						 int select_words_ms);
 	void LoadQuestionPool();
 	bool WarmQuestionCandidates(size_t target_seed_count, const char *reason);
 	bool PickNextQuestion();
@@ -149,7 +173,7 @@ private:
 	void ShowSessionSummary(bool finalize_round = true);
 	void ResetRoundState();
 	void UpdateSessionState(bool scheduler_exhausted = false);
-	bool RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, bool correct);
+	bool RecordCurrentAttempt(sqlite3 *db, const QuestionData &q, bool correct, bool skipped = false);
 	void MaybeRecordRoundCompletion();
 	std::string BuildRoundGoalText() const;
 	std::string BuildQuestionReasonText(const word_practice::ScheduledQuestion &scheduled) const;
@@ -183,7 +207,19 @@ private:
 	std::string BuildSettlementDialogText(const SessionSummaryData &summary) const;
 	std::string BuildTodayMissionText() const;
 	std::string BuildWordPreviewText() const;
+	std::string BuildPracticeWordGridText() const;
+	void UpdatePracticeWordTextarea();
+	void ApplyCurrentQuestionWidgets(const QuestionData &q);
 	int DisplayedPracticeProgressPercent() const;
+	TodayTargetProgressState ComputeTodayTargetProgress(const std::vector<word_practice::SelectedWord> &selected_words,
+						     const std::vector<word_practice::WordMasteryProfile> *profiles = nullptr) const;
+	bool LoadPersistedTodayTargets(int stage_index,
+				      std::vector<word_practice::SelectedWord> *selected_words,
+				      int *next_new_word_cursor) const;
+	void SavePersistedTodayTargets(int stage_index,
+				      const std::vector<word_practice::SelectedWord> &selected_words,
+				      int next_new_word_cursor) const;
+	void ClearPersistedTodayTargets(int stage_index) const;
 	void UpdatePracticeProgressWidget(bool visible);
 	int CurrentStageIndex() const;
 	int ComputeDisplayLevel() const;
@@ -195,7 +231,9 @@ private:
 	bool SaveUserJson() const;
 
 	std::string ButtonToken(AppButton button) const;
-	void SaveAnswerStats(const QuestionData &q, bool correct);
+	bool SaveAnswerStats(const QuestionData &q, bool correct, bool skipped = false);
+	AttemptUiStateSnapshot CaptureAttemptUiStateSnapshot() const;
+	void RestoreAttemptUiStateSnapshot(const AttemptUiStateSnapshot &snapshot);
 	bool PlayAudioFromSd(const std::string &audio_path);
 	bool EnsureAudioBundleIndexLoaded(const std::string &audio_path);
 	bool ReadAudioBundleEntry(const std::string &audio_path, const std::string &audio_name, std::string *ogg_data);
@@ -224,6 +262,8 @@ private:
 	app_ui::LabelWidget *label_press_d_skip_ = nullptr;
 	app_ui::LabelWidget *label_my_stage_ = nullptr;
 	app_ui::LabelWidget *label_my_level_ = nullptr;
+	app_ui::LabelWidget *label_progress_ = nullptr;
+	app_ui::LabelWidget *label_daily_target_ = nullptr;
 	app_ui::LabelWidget *label_read_setting_ = nullptr;
 	app_ui::LabelWidget *label_today_mission_ = nullptr;
 	app_ui::LabelWidget *label_word_preview_ = nullptr;
@@ -231,6 +271,7 @@ private:
 	app_ui::LabelWidget *label_progress_percent_ = nullptr;
 	app_ui::TextWidget *bottom_bar_ = nullptr;
 	app_ui::TextAreaWidget *textarea_input_answer_ = nullptr;
+	app_ui::TextAreaWidget *textarea_practice_word_ = nullptr;
 	app_ui::DialogWidget *dialog_select_board_ = nullptr;
 	app_ui::DialogWidget *dialog_setting_result_ = nullptr;
 	app_ui::ListViewWidget *listview_select_ = nullptr;
@@ -282,13 +323,12 @@ private:
 	word_practice::QuestionSeedModule question_seed_module_{};
 	word_practice::QuizModule quiz_module_{};
 	word_practice::SessionModule session_module_{};
-	word_practice::ResultModule result_module_{};
+	word_practice::UserProgressDao progress_dao_{};
 	word_practice::WordMasteryDao mastery_dao_{};
 	word_practice::LearningBatchPlanner batch_planner_{};
 	word_practice::BatchProgressTracker batch_progress_tracker_{};
 	word_practice::QuestionScheduler question_scheduler_{};
 	word_practice::WordSelectionConfig word_selection_config_{};
-	word_practice::WordSelectionConfig cached_question_pool_selection_config_{};
 	std::vector<word_practice::SelectedWord> selected_words_{};
 	std::vector<word_practice::VocabularySeed> question_seed_pool_{};
 	std::unordered_map<int, word_practice::VocabularySeed> seed_cache_{};
@@ -342,15 +382,12 @@ private:
 	word_practice::LearningMode current_learning_mode_ = word_practice::LearningMode::Normal;
 	bool round_completion_recorded_ = false;
 	bool session_scheduler_exhausted_ = false;
-	bool question_pool_cache_valid_ = false;
-	bool cached_question_pool_enable_speak_questions_ = true;
+	bool home_preview_selection_ready_ = false;
+	int home_preview_stage_index_ = 0;
+	int home_preview_next_new_word_cursor_ = -1;
 	int seed_cache_stage_index_ = 0;
 	int mastery_profile_cache_user_id_ = -1;
 	std::string mastery_profile_cache_textbook_name_{};
-	int cached_question_pool_user_id_ = -1;
-	int cached_question_pool_stage_index_ = 0;
-	int cached_question_pool_stage_cursor_index_ = -1;
-	int cached_question_pool_new_word_cursor_ = -1;
 	word_practice::PracticeFlowController practice_flow_controller_{};
 	UiMode ui_mode_ = UiMode::HomePreview;
 	OverlayMode overlay_mode_ = OverlayMode::None;

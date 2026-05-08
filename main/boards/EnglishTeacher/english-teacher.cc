@@ -10,6 +10,7 @@
 #include "eteacher/app_manager/app_manager.h"
 #include "eteacher/app_ui/debug.h"
 #include "eteacher/epd_manager/epd_manager.h"
+#include "rtc_helper.h"
 #include "lamp_controller.h"
 #include "led/single_led.h"
 
@@ -316,6 +317,7 @@ void EnglishTeacherBoard::InitializeButtons() {
 }
 
 void EnglishTeacherBoard::InitializeTools() {
+	english_teacher::InitializeRtc();
 	static LampController lamp(LAMP_GPIO);
 }
 

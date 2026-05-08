@@ -74,19 +74,20 @@ SessionEvaluation SessionEvaluator::Evaluate(const SessionModule &session,
 			std::max(evaluation.completed_words, std::min(target_words, config::kSessionMinimumQuestionSoftCap))));
 	evaluation.detail.pass_minimum_questions = evaluation.total_answered >= evaluation.minimum_questions;
 	evaluation.detail.pass_skill_coverage = progress.skill_coverage_ok;
-	evaluation.detail.finish_by_progress_gate = evaluation.detail.pass_words &&
-		evaluation.detail.pass_minimum_questions &&
-		evaluation.detail.pass_skill_coverage;
+	evaluation.detail.finish_by_resource_gate = progress.batch_completed;
 	evaluation.finished = evaluation.detail.finish_by_answer_limit ||
-		evaluation.detail.finish_by_progress_gate ||
+		evaluation.detail.finish_by_resource_gate ||
 		evaluation.detail.scheduler_exhausted;
-	evaluation.detail.pass_completion = evaluation.completion >= config::kSessionSuccessCompletionThreshold;
+	const bool completion_exempt_for_new_word_round = progress.review_total <= 0 && progress.weak_total <= 0 && progress.new_total > 0;
+	evaluation.detail.pass_completion = completion_exempt_for_new_word_round ||
+		evaluation.completion >= config::kSessionSuccessCompletionThreshold;
 	evaluation.detail.pass_accuracy = evaluation.accuracy >= config::kSessionSuccessAccuracyThreshold;
 	evaluation.success = evaluation.finished &&
+		evaluation.detail.pass_accuracy &&
 		evaluation.detail.pass_words &&
+		evaluation.detail.pass_minimum_questions &&
 		evaluation.detail.pass_skill_coverage &&
-		evaluation.detail.pass_completion &&
-		evaluation.detail.pass_accuracy;
+		evaluation.detail.pass_completion;
 	return evaluation;
 }
 

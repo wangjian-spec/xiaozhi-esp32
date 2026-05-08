@@ -9,12 +9,6 @@
 
 namespace word_practice {
 
-struct DailyProgressState {
-	int completed_words = 0;
-	int target_words = 0;
-	int progress_percent = 0;
-};
-
 class UserProgressDao {
 public:
 	explicit UserProgressDao(const char *log_tag = "WordPracticeApp", int user_id = 0);
@@ -26,9 +20,16 @@ public:
 	int QueryAppStateInt(sqlite3 *db, const std::string &key, int fallback_value = 0) const;
 	bool SaveAppStateInt(const std::string &key, int value) const;
 	bool SaveAppStateInt(sqlite3 *db, const std::string &key, int value) const;
-	DailyProgressState QueryDailyProgress(const std::string &textbook_name) const;
-	bool UpdateDailyProgress(const std::string &textbook_name, int completed_words, int target_words) const;
-	bool UpdateDailyProgress(sqlite3 *db, const std::string &textbook_name, int completed_words, int target_words) const;
+	std::string QueryAppStateText(const std::string &key, const std::string &fallback_value = {}) const;
+	std::string QueryAppStateText(sqlite3 *db, const std::string &key, const std::string &fallback_value = {}) const;
+	bool SaveAppStateText(const std::string &key, const std::string &value) const;
+	bool SaveAppStateText(sqlite3 *db, const std::string &key, const std::string &value) const;
+	bool UpdateDailyProgress(sqlite3 *db,
+				    const std::string &textbook_name,
+				    int completed_words,
+				    int target_words,
+				    int progress_percent,
+				    int completed_word_id = 0) const;
 	bool RecordRoundCompletion(const std::string &textbook_name, bool passed) const;
 	bool RecordRoundCompletion(sqlite3 *db, const std::string &textbook_name, bool passed) const;
 	bool SaveAnswerStats(sqlite3 *db,
@@ -37,32 +38,15 @@ public:
 			     const QuestionData &question,
 			     const std::string &textbook_name,
 			     bool correct,
+			     bool skipped,
 			     bool round_finished,
 			     bool round_passed) const;
-	void SaveAnswerStats(const SessionModule &session,
-				   int word_id,
-					   const QuestionData &question,
-					   const std::string &textbook_name,
-					   bool correct,
-					   bool round_finished,
-					   bool round_passed) const;
 
 private:
-	DailyProgressState QueryDailyProgress(sqlite3 *db, const std::string &textbook_name) const;
+	bool RecordDailyCompletedWord(sqlite3 *db, const std::string &textbook_name, int word_id) const;
 
 	const char *log_tag_;
 	int user_id_ = 0;
-};
-
-class ResultModule {
-public:
-	explicit ResultModule(const char *log_tag = "WordPracticeApp", int user_id = 0);
-	void SetUserId(int user_id);
-
-	const UserProgressDao &ProgressDao() const;
-
-private:
-	UserProgressDao progress_dao_;
 };
 
 }  // namespace word_practice

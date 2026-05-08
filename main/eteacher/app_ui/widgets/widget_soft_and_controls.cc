@@ -6,6 +6,7 @@
 #include "boards/common/board.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace app_ui {
@@ -398,6 +399,46 @@ void ProgressWidget::OnDraw(Painter& p) {
     const int percent = static_cast<int>(ClampProgressValue(profile_.value, max_value)) * 100 / max_value;
     const int inset = std::max<int>(0, profile_.fill_inset);
     auto* ep = dynamic_cast<EpdPainter*>(&p);
+    if ((profile_.render_mode == ProgressProfile::RenderMode::CircularArea ||
+         profile_.render_mode == ProgressProfile::RenderMode::CircularSector) && ep) {
+        const int diameter = std::max<int>(0, std::min<int>(rect.w, rect.h));
+        const int radius = std::max(0, diameter / 2 - inset);
+        const int center_x = rect.x + rect.w / 2;
+        const int center_y = rect.y + rect.h / 2;
+        ep->Gfx().fillCircle(center_x + ep->Offset().x, center_y + ep->Offset().y, radius, GxEPD_WHITE);
+        if (profile_.draw_border && radius > 0) {
+            ep->Gfx().drawCircle(center_x + ep->Offset().x, center_y + ep->Offset().y, radius, GxEPD_BLACK);
+        }
+        if (percent > 0 && radius > 0 && profile_.render_mode == ProgressProfile::RenderMode::CircularArea) {
+            const float area_ratio = static_cast<float>(percent) / 100.0f;
+            int completed_radius = static_cast<int>(std::lround(std::sqrt(area_ratio) * radius));
+            if (completed_radius < 1) {
+                completed_radius = 1;
+            }
+            ep->Gfx().fillCircle(center_x + ep->Offset().x, center_y + ep->Offset().y, completed_radius, GxEPD_BLACK);
+        } else if (percent > 0 && radius > 0 && profile_.render_mode == ProgressProfile::RenderMode::CircularSector) {
+            constexpr float kPi = 3.14159265358979323846f;
+            if (percent >= 100) {
+                ep->Gfx().fillCircle(center_x + ep->Offset().x, center_y + ep->Offset().y, radius, GxEPD_BLACK);
+            } else {
+                const int sweep_degrees = (360 * percent) / 100;
+                for (int degree = -90; degree < (-90 + sweep_degrees); ++degree) {
+                    const float rad = static_cast<float>(degree) * kPi / 180.0f;
+                    const int end_x = center_x + static_cast<int>(std::cos(rad) * radius);
+                    const int end_y = center_y + static_cast<int>(std::sin(rad) * radius);
+                    ep->Gfx().drawLine(center_x + ep->Offset().x,
+                                       center_y + ep->Offset().y,
+                                       end_x + ep->Offset().x,
+                                       end_y + ep->Offset().y,
+                                       GxEPD_BLACK);
+                }
+            }
+            if (profile_.draw_border && radius > 0) {
+                ep->Gfx().drawCircle(center_x + ep->Offset().x, center_y + ep->Offset().y, radius, GxEPD_BLACK);
+            }
+        }
+        return;
+    }
     const int16_t max_radius = static_cast<int16_t>(std::max<int>(0, (std::min<int>(rect.w, rect.h) - 1) / 2));
     const int16_t radius = std::max<int16_t>(0, std::min<int16_t>(profile_.corner_radius, max_radius));
     if (profile_.draw_border) {

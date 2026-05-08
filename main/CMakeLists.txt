@@ -562,6 +562,7 @@ elseif(CONFIG_BOARD_TYPE_English_Teacher)
     set(BOARD_TYPE "EnglishTeacher")
     # EnglishTeacher 专用：使用 Arduino 生态库（SdFat / GxEPD2），其初始化在 boards/EnglishTeacher/english-teacher.cc 内完成
     list(APPEND SOURCES
+    "boards/EnglishTeacher/rtc_helper.cc"
     )
     # EnglishTeacher：字库体积较大，不打进固件镜像；随默认 assets.bin 一起写入 assets 分区。
     # build_default_assets.py 会把该目录下的文件复制到 assets.bin 根目录。

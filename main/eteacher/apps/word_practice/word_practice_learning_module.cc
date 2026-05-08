@@ -14,6 +14,7 @@
 
 #include "eteacher/apps/word_practice/word_practice_config.h"
 #include "eteacher/apps/word_practice/word_practice_db_utils.h"
+#include "eteacher/apps/word_practice/word_practice_review_model.h"
 #include "eteacher/apps/word_practice/word_practice_time_utils.h"
 #include "eteacher/database_manager/database_debug.h"
 #include "eteacher/database_manager/sqlite_db_api.h"
@@ -379,26 +380,11 @@ void SyncDerivedProfileState(WordMasteryProfile *profile) {
 	profile->stage = DeriveUiStage(*profile);
 }
 
-int64_t NextReviewIntervalSec(const WordMasteryProfile &profile) {
-	const int skill_evidence = profile.recall_score + profile.output_score;
-	const int64_t base_interval = config::kReviewIntervalBaseSec +
-		static_cast<int64_t>(profile.strength) * config::kReviewIntervalPerStrengthSec;
-	const double strength_factor = config::kReviewStrengthFactorBase +
-		(static_cast<double>(profile.strength) / static_cast<double>(config::kScoreMax)) * config::kReviewStrengthFactorScale;
-	const double evidence_factor = config::kReviewEvidenceFactorBase +
-		static_cast<double>(skill_evidence) * config::kReviewEvidenceFactorPerPoint;
-	const double lapse_factor = MaxValue(
-		config::kReviewLapseFactorFloor,
-		1.0 - (static_cast<double>(profile.lapse_count) * config::kReviewLapseFactorPenaltyPerLapse));
-	const double boost_factor = profile.persistent_boost > 0 ? config::kReviewPersistentBoostFactor : 1.0;
-	const double interval = static_cast<double>(base_interval) * strength_factor * evidence_factor * lapse_factor * boost_factor;
-	return MaxValue<int64_t>(
-		config::kMinReviewIntervalSec,
-		MinValue<int64_t>(config::kMaxReviewIntervalSec, static_cast<int64_t>(std::llround(interval))));
-}
-
 void UpdateProfileFromAttempt(WordMasteryProfile *profile, const QuestionAttemptRecord &attempt) {
 	if (profile == nullptr) {
+		return;
+	}
+	if (attempt.skipped) {
 		return;
 	}
 	const int64_t practiced_at = attempt.practiced_at > 0 ? attempt.practiced_at : NowSec();
@@ -437,7 +423,7 @@ void UpdateProfileFromAttempt(WordMasteryProfile *profile, const QuestionAttempt
 	profile->last_reviewed_at = practiced_at;
 	profile->last_response_time_ms = MaxValue(0, attempt.response_time_ms);
 	SyncDerivedProfileState(profile);
-	profile->next_review_at = practiced_at + NextReviewIntervalSec(*profile);
+	profile->next_review_at = practiced_at + review_model::NextReviewIntervalSec(*profile);
 }
 
 WordMasteryProfile BuildDefaultProfile(int user_id,
@@ -537,11 +523,6 @@ bool WordMasteryDao::EnsureTables(sqlite3 *db) const {
 	if (db == nullptr) {
 		return false;
 	}
-	const std::string user_db_path = DiscoverUserDbPath();
-	static std::string cached_ensured_user_db_path;
-	if (!user_db_path.empty() && user_db_path == cached_ensured_user_db_path) {
-		return true;
-	}
 	const char *sql_profile =
 		"CREATE TABLE IF NOT EXISTS word_learning_profile ("
 		"user_id INTEGER NOT NULL,"
@@ -606,28 +587,7 @@ bool WordMasteryDao::EnsureTables(sqlite3 *db) const {
 		WP_LEARNING_LOGW(log_tag_, "validate word_learning_profile schema failed msg=%s", sqlite3_errmsg(db));
 		return false;
 	}
-	if (!user_db_path.empty()) {
-		cached_ensured_user_db_path = user_db_path;
-	}
 	return true;
-}
-
-WordMasteryProfile WordMasteryDao::LoadProfile(int word_id, const std::string &textbook_name) const {
-	const std::string user_db = DiscoverUserDbPath();
-	if (user_db.empty()) {
-		return {};
-	}
-	sqlite3 *db = nullptr;
-	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || db == nullptr) {
-		if (db != nullptr) {
-			sqlite3_close(db);
-		}
-		return {};
-	}
-	EnsureTables(db);
-	WordMasteryProfile profile = LoadProfile(db, word_id, textbook_name);
-	sqlite3_close(db);
-	return profile;
 }
 
 std::vector<WordMasteryProfile> WordMasteryDao::LoadProfiles(const std::vector<SelectedWord> &selected_words,
@@ -800,59 +760,54 @@ int WordMasteryDao::ApplyDueDecayIfNeeded(sqlite3 *db, std::vector<WordMasteryPr
 	}
 	return decayed_count;
 }
-
-bool WordMasteryDao::SaveProfile(const WordMasteryProfile &profile) const {
-	const std::string user_db = DiscoverUserDbPath();
-	if (user_db.empty()) {
-		return false;
-	}
-	sqlite3 *db = nullptr;
-	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || db == nullptr) {
-		if (db != nullptr) {
-			sqlite3_close(db);
-		}
-		return false;
-	}
-	EnsureTables(db);
-	const bool ok = SaveProfile(db, profile);
-	sqlite3_close(db);
-	return ok;
-}
-
-bool WordMasteryDao::ApplyAttempt(WordMasteryProfile *profile, const QuestionAttemptRecord &attempt) const {
-	if (profile == nullptr || profile->word_id <= 0 || attempt.word_id != profile->word_id) {
-		WP_LEARNING_LOGW(log_tag_, "apply attempt skipped invalid profile word_id=%d attempt_word_id=%d", profile ? profile->word_id : -1, attempt.word_id);
-		return false;
-	}
-	const std::string user_db = DiscoverUserDbPath();
-	if (user_db.empty()) {
-		WP_LEARNING_LOGW(log_tag_, "apply attempt failed: user db path missing word_id=%d textbook=%s", attempt.word_id, attempt.textbook_name.c_str());
-		return false;
-	}
-	sqlite3 *db = nullptr;
-	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || db == nullptr) {
-		WP_LEARNING_LOGW(log_tag_, "apply attempt failed: open user db path=%s msg=%s", user_db.c_str(), db ? sqlite3_errmsg(db) : "null");
-		if (db != nullptr) {
-			sqlite3_close(db);
-		}
-		return false;
-	}
-	EnsureTables(db);
-	const bool ok = ApplyAttempt(db, profile, attempt);
-	sqlite3_close(db);
-	return ok;
-}
-
 bool WordMasteryDao::ApplyAttempt(sqlite3 *db, WordMasteryProfile *profile, const QuestionAttemptRecord &attempt) const {
 	if (db == nullptr || profile == nullptr || profile->word_id <= 0 || attempt.word_id != profile->word_id) {
 		WP_LEARNING_LOGW(log_tag_, "apply attempt skipped invalid db/profile word_id=%d attempt_word_id=%d", profile ? profile->word_id : -1, attempt.word_id);
 		return false;
 	}
 	EnsureTables(db);
+	if (attempt.skipped) {
+		const bool recorded = RecordAttempt(db, attempt);
+		WP_LEARNING_LOGI(
+			log_tag_,
+			"apply attempt recorded skip word_id=%d textbook=%s qtype=%d record_history=%d",
+			attempt.word_id,
+			attempt.textbook_name.c_str(),
+			attempt.question_type,
+			recorded ? 1 : 0);
+		return recorded;
+	}
 	if (!attempt.textbook_name.empty()) {
 		profile->textbook_name = attempt.textbook_name;
 	}
+	const WordMasteryProfile before_profile = *profile;
 	UpdateProfileFromAttempt(profile, attempt);
+	const int strength_delta = profile->strength - before_profile.strength;
+	const int recall_delta = profile->recall_score - before_profile.recall_score;
+	const int output_delta = profile->output_score - before_profile.output_score;
+	const int lapse_delta = profile->lapse_count - before_profile.lapse_count;
+	const int next_interval_sec =
+		(profile->next_review_at > profile->last_practiced_at)
+			? static_cast<int>(profile->next_review_at - profile->last_practiced_at)
+			: 0;
+	const double skill_weight = SkillWeight(attempt.target_skill);
+	const double response_factor = attempt.correct
+		? ConfidenceFactor(attempt.response_time_ms)
+		: ErrorSeverityFactor(attempt.target_skill, attempt.response_time_ms);
+	WP_LEARNING_LOGI(
+		log_tag_,
+		"apply attempt factors word_id=%d skill=%s correct=%d response_ms=%d weight=%.2f factor=%.2f strength_delta=%d recall_delta=%d output_delta=%d lapse_delta=%d interval_sec=%d",
+		attempt.word_id,
+		ToString(attempt.target_skill),
+		attempt.correct ? 1 : 0,
+		attempt.response_time_ms,
+		skill_weight,
+		response_factor,
+		strength_delta,
+		recall_delta,
+		output_delta,
+		lapse_delta,
+		next_interval_sec);
 	const bool saved = SaveProfile(db, *profile);
 	const bool recorded = RecordAttempt(db, attempt);
 	WP_LEARNING_LOGI(
@@ -939,25 +894,6 @@ bool WordMasteryDao::SaveProfile(sqlite3 *db, const WordMasteryProfile &profile)
 	}
 	return true;
 }
-
-bool WordMasteryDao::RecordAttempt(const QuestionAttemptRecord &attempt) const {
-	const std::string user_db = DiscoverUserDbPath();
-	if (user_db.empty()) {
-		return false;
-	}
-	sqlite3 *db = nullptr;
-	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || db == nullptr) {
-		if (db != nullptr) {
-			sqlite3_close(db);
-		}
-		return false;
-	}
-	EnsureTables(db);
-	const bool ok = RecordAttempt(db, attempt);
-	sqlite3_close(db);
-	return ok;
-}
-
 bool WordMasteryDao::RecordAttempt(sqlite3 *db, const QuestionAttemptRecord &attempt) const {
 	if (db == nullptr || attempt.word_id <= 0) {
 		return false;
@@ -973,7 +909,7 @@ bool WordMasteryDao::RecordAttempt(sqlite3 *db, const QuestionAttemptRecord &att
 	sqlite3_bind_int(stmt.get(), 2, attempt.word_id);
 	sqlite3_bind_int(stmt.get(), 3, attempt.question_type);
 	sqlite3_bind_text(stmt.get(), 4, ToString(attempt.target_skill), -1, SQLITE_TRANSIENT);
-	sqlite3_bind_text(stmt.get(), 5, "word_practice", -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt.get(), 5, attempt.skipped ? "word_practice_skip" : "word_practice", -1, SQLITE_TRANSIENT);
 	sqlite3_bind_int(stmt.get(), 6, attempt.correct ? 1 : 0);
 	sqlite3_bind_int(stmt.get(), 7, MaxValue(0, attempt.response_time_ms));
 	sqlite3_bind_int(stmt.get(), 8, attempt.correct ? 1 : 0);
@@ -981,25 +917,6 @@ bool WordMasteryDao::RecordAttempt(sqlite3 *db, const QuestionAttemptRecord &att
 	sqlite3_bind_int64(stmt.get(), 10, attempt.practiced_at);
 	return sqlite3_step(stmt.get()) == SQLITE_DONE;
 }
-
-bool WordMasteryDao::ApplyDueDecayIfNeeded(WordMasteryProfile *profile) const {
-	const std::string user_db = DiscoverUserDbPath();
-	if (user_db.empty()) {
-		return false;
-	}
-	sqlite3 *db = nullptr;
-	if (sqlite3_open_v2(user_db.c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK || db == nullptr) {
-		if (db != nullptr) {
-			sqlite3_close(db);
-		}
-		return false;
-	}
-	EnsureTables(db);
-	const bool updated = ApplyDueDecayIfNeeded(db, profile);
-	sqlite3_close(db);
-	return updated;
-}
-
 bool WordMasteryDao::ApplyDueDecayIfNeeded(sqlite3 *db, WordMasteryProfile *profile) const {
 	if (profile == nullptr || profile->word_id <= 0 || profile->next_review_at <= 0) {
 		return false;
@@ -1011,15 +928,15 @@ bool WordMasteryDao::ApplyDueDecayIfNeeded(sqlite3 *db, WordMasteryProfile *prof
 	if (DayIndexFromSec(profile->last_decay_at) == DayIndexFromSec(now)) {
 		return false;
 	}
-	const int overdue_days = std::max(1, static_cast<int>((now - profile->next_review_at) / 86400) + 1);
-	const int boost_discount = profile->persistent_boost > 0 ? config::kDecayPersistentBoostDiscount : 0;
+	const double overdue_ratio = std::max(0.0, review_model::OverdueRatio(*profile, now));
+	const int overdue_pressure = std::max<int>(1, static_cast<int>(std::ceil(overdue_ratio * 2.0)));
 	const int decay_penalty = std::max(
 		config::kDecayMinPenalty,
 		std::min(
 			config::kDecayMaxPenalty,
-			overdue_days * config::kDecayPenaltyPerOverdueDay + profile->lapse_count - boost_discount));
+			overdue_pressure * config::kDecayPenaltyPerOverdueDay + profile->lapse_count));
 	profile->strength = ClampScore(profile->strength - decay_penalty);
-	if (overdue_days >= config::kDecayRecallDropStartOverdueDays && profile->recall_score > 0) {
+	if (overdue_ratio >= 1.0 && profile->recall_score > 0) {
 		profile->recall_score = ClampEvidence(profile->recall_score - config::kDecayRecallDropPerTrigger);
 	}
 	profile->last_decay_at = now;
@@ -1034,6 +951,7 @@ LearningBatch LearningBatchPlanner::Build(const std::vector<SelectedWord> &selec
 	if (selected_words.empty()) {
 		return batch;
 	}
+	const int64_t now_sec = NowSec();
 	const int total_slots = MinValue(config::kBatchMaxSlots, MaxValue(config::kBatchMinSlots, static_cast<int>(selected_words.size())));
 	const bool cold_start_mode = learning_mode == LearningMode::ColdStart;
 	const bool intensive_review_mode = learning_mode == LearningMode::IntensiveReview;
@@ -1063,8 +981,11 @@ LearningBatch LearningBatchPlanner::Build(const std::vector<SelectedWord> &selec
 			continue;
 		}
 		const int strength = profile == nullptr ? 0 : profile->strength;
+		const double overdue_ratio = profile != nullptr ? std::max(0.0, review_model::OverdueRatio(*profile, now_sec)) : 0.0;
 		if (!cold_start_mode && profile != nullptr &&
-			(profile->persistent_boost > 0 || profile->lapse_count >= config::kWeakWordLapseThreshold || strength < config::kWeakWordStrengthThreshold)) {
+			(overdue_ratio >= 0.5 ||
+			 profile->lapse_count >= config::kWeakWordLapseThreshold ||
+			 (strength < config::kWeakWordStrengthThreshold && overdue_ratio > 0.1))) {
 			plan.kind = BatchWordKind::WeakWord;
 			weak_words.push_back(std::move(plan));
 		} else {
@@ -1193,6 +1114,10 @@ void BatchProgressTracker::MarkOutcome(int word_id,
 	}
 }
 
+bool BatchProgressTracker::ContainsWord(int word_id) const {
+	return items_.find(word_id) != items_.end();
+}
+
 WordProgressState BatchProgressTracker::ProgressState(int word_id) const {
 	const auto it = items_.find(word_id);
 	return it == items_.end() ? WordProgressState::NotStarted : it->second.state;
@@ -1281,24 +1206,44 @@ void QuestionScheduler::Reset() {
 TrainingSkill QuestionScheduler::ChooseSkill(const BatchWordPlan &plan,
 				    const WordMasteryProfile *profile,
 				    const BatchProgressTracker &tracker) const {
+	const bool needs_recognition = !tracker.HasRecognitionCheckpoint(plan.selected_word.word_id);
+	const bool needs_recall = !tracker.HasRecallCheckpoint(plan.selected_word.word_id);
+	const int recall_score = profile != nullptr ? profile->recall_score : 0;
+	const int output_score = profile != nullptr ? profile->output_score : 0;
+
+	double recognition_gain = needs_recognition ? 3.0 : 0.0;
+	double recall_gain = (needs_recall ? 2.5 : 0.0) +
+		std::max(0, config::kRecallToOutputThreshold - recall_score) * 1.2;
+	double output_gain = (static_cast<double>(recall_score) / std::max(1, config::kRecallToOutputThreshold)) +
+		std::max(0, config::kOutputToAdvancedSpeakThreshold - output_score) * 1.1;
+	double advanced_gain = output_score >= config::kOutputToAdvancedSpeakThreshold
+		? 1.0 + (output_score - config::kOutputToAdvancedSpeakThreshold + 1) * 0.5
+		: -1.0;
+
 	if (plan.kind == BatchWordKind::NewWord) {
-		if (!tracker.HasRecognitionCheckpoint(plan.selected_word.word_id)) {
-			return TrainingSkill::Recognition;
-		}
-		if (!tracker.HasRecallCheckpoint(plan.selected_word.word_id)) {
-			return TrainingSkill::Recall;
-		}
+		recognition_gain += 2.0;
+		recall_gain += 1.0;
+		output_gain -= 1.5;
+		advanced_gain -= 2.0;
+	} else if (plan.kind == BatchWordKind::WeakWord) {
+		recall_gain += 0.8;
+		output_gain += 0.5;
 	}
-	if (profile == nullptr) {
-		return TrainingSkill::Recall;
+
+	TrainingSkill best_skill = TrainingSkill::Recognition;
+	double best_gain = recognition_gain;
+	if (recall_gain > best_gain) {
+		best_gain = recall_gain;
+		best_skill = TrainingSkill::Recall;
 	}
-	if (profile->recall_score < config::kRecallToOutputThreshold) {
-		return TrainingSkill::Recall;
+	if (output_gain > best_gain) {
+		best_gain = output_gain;
+		best_skill = TrainingSkill::Output;
 	}
-	if (profile->output_score < config::kOutputToAdvancedSpeakThreshold) {
-		return TrainingSkill::Output;
+	if (advanced_gain > best_gain) {
+		best_skill = TrainingSkill::AdvancedSpeak;
 	}
-	return TrainingSkill::AdvancedSpeak;
+	return best_skill;
 }
 
 ScheduledQuestion QuestionScheduler::BuildScheduledQuestion(int question_type,
@@ -1322,9 +1267,9 @@ void QuestionScheduler::AdvanceSkillQuestionCursor(TrainingSkill skill, int ques
 			case TrainingSkill::Recognition:
 				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeMeaningChoice, kQuestionTypeAudioWordChoice, kQuestionTypeAudioMeaningChoice};
 			case TrainingSkill::Recall:
-				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning};
+				return std::vector<int>{kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning, kQuestionTypeImageChoice};
 			case TrainingSkill::Output:
-				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord};
+				return std::vector<int>{kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord, kQuestionTypeImageChoice};
 			case TrainingSkill::AdvancedSpeak:
 				return std::vector<int>{kQuestionTypeSpeakSentence, kQuestionTypeSpeakTranslate};
 			default:
@@ -1348,9 +1293,9 @@ std::vector<int> QuestionScheduler::QuestionTypesForSkill(TrainingSkill skill) c
 			case TrainingSkill::Recognition:
 				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeMeaningChoice, kQuestionTypeAudioWordChoice, kQuestionTypeAudioMeaningChoice};
 			case TrainingSkill::Recall:
-				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning};
+				return std::vector<int>{kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning, kQuestionTypeImageChoice};
 			case TrainingSkill::Output:
-				return std::vector<int>{kQuestionTypeImageChoice, kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord};
+				return std::vector<int>{kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord, kQuestionTypeImageChoice};
 			case TrainingSkill::AdvancedSpeak:
 				return std::vector<int>{kQuestionTypeSpeakSentence, kQuestionTypeSpeakTranslate};
 			default:
@@ -1419,6 +1364,15 @@ const BatchWordPlan *QuestionScheduler::FindPlan(const LearningBatch &batch, int
 	return nullptr;
 }
 
+const SelectedWord *QuestionScheduler::FindSelectedWord(const std::vector<SelectedWord> &selected_words, int word_id) const {
+	for (const auto &selected_word : selected_words) {
+		if (selected_word.word_id == word_id) {
+			return &selected_word;
+		}
+	}
+	return nullptr;
+}
+
 const WordMasteryProfile *QuestionScheduler::FindProfile(const std::vector<WordMasteryProfile> &profiles, int word_id) const {
 	for (const auto &profile : profiles) {
 		if (profile.word_id == word_id) {
@@ -1428,7 +1382,26 @@ const WordMasteryProfile *QuestionScheduler::FindProfile(const std::vector<WordM
 	return nullptr;
 }
 
+BatchWordKind QuestionScheduler::ResolveWordKind(const SelectedWord &selected_word,
+						 const WordMasteryProfile *profile,
+						 LearningMode learning_mode) const {
+	if (!selected_word.is_review) {
+		return BatchWordKind::NewWord;
+	}
+	const bool cold_start_mode = learning_mode == LearningMode::ColdStart;
+	const int strength = profile == nullptr ? 0 : profile->strength;
+	const double overdue_ratio = profile != nullptr ? std::max(0.0, review_model::OverdueRatio(*profile, NowSec())) : 0.0;
+	if (!cold_start_mode && profile != nullptr &&
+		(overdue_ratio >= 0.5 ||
+		 profile->lapse_count >= config::kWeakWordLapseThreshold ||
+		 (strength < config::kWeakWordStrengthThreshold && overdue_ratio > 0.1))) {
+		return BatchWordKind::WeakWord;
+	}
+	return BatchWordKind::ReviewWord;
+}
+
 ScheduledQuestion QuestionScheduler::ScheduleNext(const std::unordered_map<int, std::vector<int>> &available_question_types,
+					  const std::vector<SelectedWord> &selected_words,
 					  const LearningBatch &batch,
 					  const std::vector<WordMasteryProfile> &profiles,
 					  const BatchProgressTracker &tracker,
@@ -1448,29 +1421,42 @@ ScheduledQuestion QuestionScheduler::ScheduleNext(const std::unordered_map<int, 
 	const int64_t now_sec = NowSec();
 	auto candidate_priority = [&](int word_id) {
 		const BatchWordPlan *plan = FindPlan(batch, word_id);
+		const SelectedWord *selected_word = FindSelectedWord(selected_words, word_id);
 		const WordMasteryProfile *profile = FindProfile(profiles, word_id);
+		if (plan == nullptr && selected_word == nullptr) {
+			return -100000.0;
+		}
+		const BatchWordKind kind = plan != nullptr
+			? plan->kind
+			: ResolveWordKind(*selected_word, profile, learning_mode);
+		double score = (kind == BatchWordKind::NewWord)
+			? static_cast<double>(config::kSchedulerPriorityNewWord)
+			: static_cast<double>(config::kSchedulerPriorityReviewBacklog);
+		if (profile != nullptr) {
+			const double overdue_ratio = std::max(0.0, review_model::OverdueRatio(*profile, now_sec));
+			if (overdue_ratio > 0.0) {
+				const double overdue_pressure = std::min(3.0, overdue_ratio);
+				score += static_cast<double>(config::kSchedulerPriorityDueReview) + overdue_pressure * 24.0;
+			}
+			const double weakness_from_strength = std::max(0, config::kWeakWordStrengthThreshold - profile->strength) * 0.35;
+			const double weakness_from_lapse = profile->lapse_count * 6.0;
+			score += weakness_from_strength + weakness_from_lapse;
+		}
+		if (kind == BatchWordKind::WeakWord) {
+			score += 10.0;
+		}
+		if (learning_mode == LearningMode::IntensiveReview && kind != BatchWordKind::NewWord) {
+			score += static_cast<double>(config::kSchedulerIntensiveReviewBonus);
+		}
 		if (plan == nullptr) {
-			return -100000;
+			score -= 15.0;
 		}
-		int score = 0;
-		if (plan->kind == BatchWordKind::WeakWord) {
-			score += config::kSchedulerPriorityWeakWord;
-		} else if (profile != nullptr && profile->next_review_at > 0 && profile->next_review_at <= now_sec) {
-			score += config::kSchedulerPriorityDueReview;
-		} else if (plan->kind == BatchWordKind::NewWord) {
-			score += config::kSchedulerPriorityNewWord;
-		} else {
-			score += config::kSchedulerPriorityReviewBacklog;
-		}
-		if (learning_mode == LearningMode::IntensiveReview && plan->kind != BatchWordKind::NewWord) {
-			score += config::kSchedulerIntensiveReviewBonus;
-		}
-		score -= word_seen_count_[word_id] * config::kSchedulerSeenPenaltyPerShow;
+		score -= static_cast<double>(word_seen_count_[word_id] * config::kSchedulerSeenPenaltyPerShow);
 		return score;
 	};
 	std::stable_sort(candidate_word_ids.begin(), candidate_word_ids.end(), [&candidate_priority, this](int lhs, int rhs) {
-		const int lhs_priority = candidate_priority(lhs);
-		const int rhs_priority = candidate_priority(rhs);
+		const double lhs_priority = candidate_priority(lhs);
+		const double rhs_priority = candidate_priority(rhs);
 		if (lhs_priority != rhs_priority) {
 			return lhs_priority > rhs_priority;
 		}
@@ -1479,20 +1465,24 @@ ScheduledQuestion QuestionScheduler::ScheduleNext(const std::unordered_map<int, 
 
 	for (int word_id : candidate_word_ids) {
 		const BatchWordPlan *plan = FindPlan(batch, word_id);
+		const SelectedWord *selected_word = FindSelectedWord(selected_words, word_id);
 		const WordMasteryProfile *profile = FindProfile(profiles, word_id);
-		if (plan == nullptr) {
+		if (plan == nullptr && selected_word == nullptr) {
 			continue;
 		}
+		const BatchWordKind kind = plan != nullptr
+			? plan->kind
+			: ResolveWordKind(*selected_word, profile, learning_mode);
 		QuestionReasonType reason_type = QuestionReasonType::BatchTarget;
-		if (plan->kind == BatchWordKind::NewWord) {
+		if (kind == BatchWordKind::NewWord) {
 			reason_type = QuestionReasonType::NewWord;
-		} else if (plan->kind == BatchWordKind::WeakWord) {
+		} else if (kind == BatchWordKind::WeakWord) {
 			reason_type = QuestionReasonType::WeakReinforce;
 		} else if (profile != nullptr && profile->next_review_at > 0 && profile->next_review_at <= NowSec()) {
 			reason_type = QuestionReasonType::ReviewDue;
 		}
 		TrainingSkill skill = ChooseSkill(
-			*plan,
+			plan != nullptr ? *plan : BatchWordPlan{*selected_word, kind},
 			profile,
 			tracker);
 		const ScheduledQuestion scheduled = FindQuestionForWord(available_question_types,
@@ -1520,6 +1510,7 @@ void QuestionScheduler::RecordResult(const ScheduledQuestion &scheduled) {
 	if (!scheduled.has_value || scheduled.word_id <= 0) {
 		return;
 	}
+	AdvanceSkillQuestionCursor(scheduled.target_skill, scheduled.question_type);
 	last_question_type_by_word_[scheduled.word_id] = scheduled.question_type;
 	++word_seen_count_[scheduled.word_id];
 }

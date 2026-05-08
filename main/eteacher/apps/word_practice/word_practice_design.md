@@ -55,7 +55,7 @@
 | 调度器 | `QuestionScheduler` | 决定下一题训练哪个词、哪个技能、哪种题型 |
 | 会话计数 | `SessionModule` | 记录正确数、错误数、跳过数、分数、答题数 |
 | 会话评估 | `SessionEvaluator` | 统一计算 `finished`、`success`、`completion`、`accuracy` |
-| 结果统计 | `ResultModule` / `UserProgressDao` | 更新 learned、daily stats、daily progress、runtime_state |
+| 结果统计 | `UserProgressDao` | 更新 learned、daily stats、daily progress、runtime_state，并持久化 `app_state` |
 
 ### 2.3 当前实现的四个核心概念
 
@@ -80,7 +80,13 @@
 1. 初始化 UI 与场景。
 2. 调用 `LoadUserJson()` 读取用户配置。
 3. 调用 `SyncUserProgressState()` 同步当前掌握词数、等级和今日进度。
-4. 展示首页预览。
+4. 调用 `LoadHomePreviewSelection()` 只做首页需要的选词，不做 seed/profile/batch 预热。
+5. 展示首页预览。
+
+说明：
+
+- 当前实现刻意避免在首页首帧前执行完整 `LoadQuestionPool()`，以缩短进入首页时间。
+- `UIEngine` 现在只有在已有 `active_root_` 或 `pending_root_` 时才会向 EPD 排渲染任务，避免“先整屏清白、后续才切到首页”的 rootless 首帧白屏。
 
 ### 3.2 启动一轮练习
 
@@ -89,13 +95,24 @@
 1. 清理本轮错词列表和学习词列表。
 2. 从 `PracticeFlowController::BuildRoundPlan()` 读取本轮目标词数，存入 `word_selection_config_`。
 3. 调用 `ResetRoundState()` 清理 Session、Scheduler、当前题目等运行态。
-4. 调用 `CanReuseQuestionPool()` 检查是否可复用上一轮的题目池（阶段、游标、speak 开关、selection_config 均未变化时复用）。
-5. 若不可复用，调用 `LoadQuestionPool()` 建立当前题目候选池。
+4. 若首页已经通过 `LoadHomePreviewSelection()` 选好了当前阶段的今日词，则直接复用这批 `selected_words_`，保存新词游标后调用 `BuildQuestionPoolFromSelectedWords(...)` 构建题目候选池。
+5. 否则调用 `LoadQuestionPool()` 走完整选词与建池流程。
 6. 调用 `PickNextQuestion()` 获取第一题（内部会自动调用 `CommitScheduledQuestion()` 和 `PresentCurrentQuestion()`）。
 
-### 3.3 `LoadQuestionPool()` 的完整步骤
+### 3.3 `LoadHomePreviewSelection()` 的完整步骤
 
-`LoadQuestionPool()` 是本系统的启动核心，顺序如下：
+首页预览当前的真实准备链路如下：
+
+1. 清空上一轮遗留的首页选词缓存状态。
+2. 解析 `CurrentStageIndex()`，得到当前 `stage_index`。
+3. 先读取 `app_state[word_practice.stageN.daily_targets.YYYY-MM-DD]`；若当日词单仍未全部完成，则直接复用其中的 `selected_words_` 和新词游标。
+4. 若当日词单不存在或已经全部完成，则读取 `app_state[word_practice.stageN_cursor]`，再调用 `SelectionModule::SelectWordsFromVocabulary(...)` 重新选出首页要显示的今日练习词。
+5. 将新的今日词单写回 `app_state[word_practice.stageN.daily_targets.YYYY-MM-DD]`，并记录 `home_preview_next_new_word_cursor_`，等用户真正开始一轮练习时再保存 stage cursor。
+6. 调用方随后再执行 `ShowHomePreview()`，由首页场景首帧直接显示最终文字与单词网格。
+
+### 3.4 `LoadQuestionPool()` 的完整步骤
+
+`LoadQuestionPool()` 是“进入做题态”时的完整建池路径，而不是首页首帧的启动核心。顺序如下：
 
 1. 清空 `selected_words_`、`question_seed_pool_`、`available_question_types_by_word_`、`mastery_profiles_`、`learning_batch_` 等缓存。
 2. 解析 `CurrentStageIndex()`，得到当前 `stage_index`。
@@ -112,7 +129,7 @@
 13. 调用 `question_scheduler_.Reset()` 重置调度器状态。
 14. 构造本轮目标文案 `current_round_goal_text_`。
 
-### 3.4 单题运行链路
+### 3.5 单题运行链路
 
 一题从调度到持久化的链路如下：
 
@@ -136,9 +153,9 @@
    - 进入 user.db 事务。
    - 调用 `RecordCurrentAttempt(...)` 更新画像和批次进度。
    - 调用 `UpdateDailyProgress(...)` 更新当日完成词数与进度。
-   - 调用 `ResultModule::ProgressDao().SaveAnswerStats(...)` 更新 learned 和 daily stats。
+   - 调用 `UserProgressDao::SaveAnswerStats(...)` 更新 learned 和 daily stats。
    - 若本轮完成且尚未记过回合结果，再调用 `RecordRoundCompletion(...)` 更新 `word_practice_runtime_state`。
-   - 事务提交后调用 `SyncUserProgressState()` 与 `SaveUserJson()` 同步首页运行态。
+   - 事务提交成功后才调用 `SyncUserProgressState()` 与 `SaveUserJson()` 同步首页运行态；若事务失败，数据库回滚，内存态恢复到答题前快照，不继续写 JSON。
 
 6. `UpdateSessionState()`
    - 调用 `EvaluateSession()` 判断本轮是否应结束。
@@ -161,14 +178,16 @@
 - `users.name`
 - `users.current_stage`
 - `learning_preferences.enable_read_questions`
-- `learning_preferences.today_mission_count`
-- `learning_preferences.today_practice_word`
+- `learning_preferences.daily_new_word_target`
+- `learning_preferences.daily_review_word_target`
+- `learning_preferences.daily_total_target`
 - `settings.enable_read_questions`
+- `settings.time_source`
 - `practice_stats.continuous_days`
 - `practice_stats.last_practice_date`
 - `stage_levelup_count`
 
-`users.level`、`stage_words_quantity`、`stage_new_word_cursor` 若在旧版 JSON 中存在，当前实现会忽略，不再作为运行时权威状态。
+除上述正式字段外，`LoadUserJson()` 不再读取历史字段别名；缺失字段统一回落到当前默认值，并在下次 `SaveUserJson()` 时写回正式结构。
 
 ### 4.3 保存结构
 
@@ -186,12 +205,14 @@
     "firmware": ""
   },
   "settings": {
-    "enable_read_questions": true
+	"enable_read_questions": true,
+	"time_source": "wifi_system"
   },
   "learning_preferences": {
     "enable_read_questions": true,
-    "today_mission_count": 15,
-    "today_practice_word": 15
+      "daily_new_word_target": 10,
+      "daily_review_word_target": 5,
+      "daily_total_target": 15
   },
   "practice_stats": {
     "continuous_days": 1,
@@ -206,6 +227,10 @@
 - `level` 改为运行时根据 `mastered_words + stage_levelup_count` 派生。
 - `stage_new_word_cursor` 改为保存在 `user.db.app_state`。
 - `stage_words_quantity` 不再持久化。
+- `settings.time_source` 控制 `word_practice` 的时间来源。当前支持 `wifi_system` 与 `rtc_chip` 两个值，默认值是 `wifi_system`。
+- 当 `settings.time_source=rtc_chip` 时，`word_practice_time_utils` 会优先读取板级外部 RTC 芯片时间；若当前板卡未实现 RTC 读时接口或 RTC 时间不可用，会自动回退到系统时间，再回退到内部 uptime 基线，避免影响现有运行。
+- OTA / 联网流程收到服务器时间并调用 `settimeofday(...)` 后，会额外尝试把该时间同步写入板级 RTC 芯片；未实现 RTC 写接口的板卡会忽略该步骤。
+- 当前回退到 uptime 基线时，时间字段依然可用于“单次开机内的相对排序”，但不适合作为跨重启的长期复习依据；这属于时间源可信度问题，不是字段类型问题。
 
 ### 4.4 阶段映射
 
@@ -321,6 +346,12 @@ struct WordMasteryProfile {
 - `stage`：UI 展示阶段，由 `strength` 与 `mastered` 派生并缓存。
 - `mastered`：调度与掌握状态枚举。当前实现约定 `0=Active`、`1=AutoMastered`、`2=UserMastered`、`3=Suppressed`。
 
+时间字段补充约束：
+
+- `next_review_at`、`last_practiced_at`、`last_decay_at`、`last_reviewed_at` 均来自 `word_practice_time_utils` 当前选中的时间源。
+- 默认时间源为 `wifi_system`，即 OTA / 网络侧写入的系统时间。
+- 当配置为 `rtc_chip` 时，上述字段会优先基于板级 RTC 芯片返回的 Unix 秒时间戳计算；如果 RTC 芯片不可用，运行时自动回退为系统时间，不中断练习流程。
+
 ### 5.6 `LearningMode`
 
 当前显式模式：
@@ -427,6 +458,8 @@ CREATE TABLE IF NOT EXISTS word_practice_history (
 
 每次 `ApplyAttempt()` 成功后，都会记录一条历史。`question_reason` 存的是 `ScheduledQuestion.reason_text` 的 JSON 串。
 
+口语题手动跳过时，也会写入一条 history；此时 `review_type='word_practice_skip'`，用于和普通作答区分。
+
 ### 6.3 统计表
 
 由 `UserProgressDao::EnsureStatsTables()` 创建：
@@ -445,6 +478,9 @@ CREATE TABLE IF NOT EXISTS word_practice_history (
 
 5. `app_state`
    - 记录 word_practice 的轻量运行状态，例如 `word_practice.stage1_cursor` 这类新词游标。
+
+6. `word_practice_daily_completed_words`
+   - 记录某天某教材已完成过的 `word_id`，用于将 daily progress 按“今日完成的不同单词数”去重累计。
 
 ## 7. 选词机制
 
@@ -527,6 +563,8 @@ seed 层只负责“把一个词当前可出题所需的词典素材拉齐”，
 - 是否有图片、例句、音频和足够干扰项
 
 动态计算该词当前能出的题型集合。
+
+其中图片题以外的标准选择题干扰项，当前也支持在已预热 seed 不足时回退到阶段词典数据库随机补齐，以降低 warm seed 较小时 type2/3/4/11/12 不可用的概率。
 
 ### 8.4 题型与技能映射
 
@@ -691,8 +729,8 @@ skill_coverage_ok = recognition_coverage_ok && recall_coverage_ok && output_cove
 当前技能偏好序列（使用 `word_practice::config` 命名常量）：
 
 - `Recognition` -> `[kQuestionTypeImageChoice, kQuestionTypeMeaningChoice, kQuestionTypeAudioWordChoice, kQuestionTypeAudioMeaningChoice]`
-- `Recall` -> `[kQuestionTypeImageChoice, kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning]`
-- `Output` -> `[kQuestionTypeImageChoice, kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord]`
+- `Recall` -> `[kQuestionTypeWordToMeaning, kQuestionTypePairMatch, kQuestionTypeSpeakMeaning, kQuestionTypeImageChoice]`
+- `Output` -> `[kQuestionTypeSentenceFillZh, kQuestionTypeSentenceBuildEn, kQuestionTypeSpeakWord, kQuestionTypeImageChoice]`
 - `AdvancedSpeak` -> `[kQuestionTypeSpeakSentence, kQuestionTypeSpeakTranslate]`
 
 回退规则：
@@ -701,6 +739,8 @@ skill_coverage_ok = recognition_coverage_ok && recall_coverage_ok && output_cove
 - 若 `Output` 没有 5/6/7，则降为 `Recall`
 
 此外，如果同一词上一题的题型与当前候选题型相同，并且该技能有多个可选题型，则优先跳过这次重复，尽量轮换。
+
+当前调度器只从 `learning_batch_` 中尚未完成的词选择候选，不再把 batch 外的 `selected_words` 混入当前 round，避免题数增长但 batch 目标不推进。
 
 ## 12. 学习画像更新规则
 
@@ -821,7 +861,7 @@ finish_by_progress_gate = pass_words && pass_minimum_questions && pass_skill_cov
 通过条件：
 
 ```text
-success = finished && pass_words && pass_skill_coverage && pass_completion && pass_accuracy
+success = finished && pass_words && pass_minimum_questions && pass_skill_coverage && pass_completion && pass_accuracy
 ```
 
 这意味着：
@@ -838,24 +878,36 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 1. 根据当前 `ScheduledQuestion` 找到目标 profile。
 2. 构造 `QuestionAttemptRecord`。
 3. 调用 `mastery_dao_.ApplyAttempt(db, profile, attempt)` 更新画像和历史。
-4. 更新内存缓存中的画像。
-5. 调用 `batch_progress_tracker_.MarkOutcome(word_id, kind, skill, correct)` 更新当前批次短期进度。
-6. 调用 `question_scheduler_.RecordResult(scheduled)` 更新调度器去重与展示统计。
+4. 若是普通作答，则更新内存缓存中的画像。
+5. 若是普通作答，则调用 `batch_progress_tracker_.MarkOutcome(word_id, kind, skill, correct)` 更新当前批次短期进度。
+6. 若是普通作答，则调用 `question_scheduler_.RecordResult(scheduled)`；若是手动跳过，则调用 `question_scheduler_.RecordSkip(scheduled)` 并移除该词当前题型，避免立即重复出同题。
 7. 更新本题反馈文案与错词列表。
 8. 调用 `UpdateSessionState()` 重新评估当前 Session。
 
 ### 14.2 `SaveAnswerStats()`
 
-`WordPracticeApp::SaveAnswerStats()` 在 user.db 事务中完成：
+`WordPracticeApp::SaveAnswerStats()` 在 user.db 事务中按以下顺序完成：
 
 - `RecordCurrentAttempt(...)`
+- `UpdateDailyProgress(...)`
+   - 若当前答题让某个词首次跨过“今日达标”阈值，则先写入 `word_practice_daily_completed_words`
+   - 然后 upsert `word_practice_daily_progress`
 - `UserProgressDao::SaveAnswerStats(...)`
-- 若本轮结束：
-  - `UpdateDailyProgress(...)`
-  - `RecordRoundCompletion(...)`
-  - 更新 `practice_stats`
-  - 更新 `today_progress_percent`
-  - 回写 `user.json`
+- 若本轮已结束且尚未记录过结果，再调用 `RecordRoundCompletion(...)`
+
+事务提交成功后才会：
+
+- 更新 `round_completion_recorded_` / `completed_rounds_for_textbook_`
+- 调用 `SyncUserProgressState()` 刷新首页运行态
+- 调用 `SaveUserJson()` 回写 `user.json`
+
+若任一步骤失败或事务提交失败：
+
+- 回滚数据库事务
+- `SaveAnswerStats()` 恢复 `mastery_profiles_`、`mastery_profile_cache_`、`batch_progress_tracker_`、`question_scheduler_`、`available_question_types_by_word_`、反馈文本与错词列表等内存状态
+- 调用方保留当前题目并提示用户重新作答，不继续写 `user.json`
+
+其中 `UpdateDailyProgress(...)` 使用当前 `selected_words_` 与最新画像重新计算今日完成词数和进度百分比，不按 round 内某次边沿事件直接累加。
 
 ### 14.3 learned 与 daily stats
 
@@ -863,6 +915,7 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 
 - `learned`
 - `word_practice_stats_daily`
+- `word_practice_history`
 
 若本轮结束，还会更新：
 
@@ -882,6 +935,17 @@ success = finished && pass_words && pass_skill_coverage && pass_completion && pa
 
 2. `UserProgressDao`
    - 当前教材的当日完成词数与进度百分比
+
+首页当前显示：
+
+- `label_my_level`：`我的等级`
+- `label_my_stage`：`我的阶段` + `users.current_stage`
+- `label_daily_target`：`今日任务 新词X 复习Y`
+- `label_progress`：`今日完成XX%`
+- `progress_today_mission`：圆心到圆周的扇形进度
+- `textarea_practice_word`：本轮英文单词网格；11pt 放不下时自动降级到 `wenquanyi_9pt`
+
+`textarea_practice_word` 的数据来自 `selected_words_`，而 `selected_words_` 在首页首帧之前就由 `LoadHomePreviewSelection()` 准备完成，因此首页不会再出现“先空白后补单词”的二次刷新。
 
 `QueryMasteredWordCount()` 直接按掌握门槛统计已掌握词数：
 ```sql
@@ -915,9 +979,11 @@ WHERE user_id=? AND (mastered=2 OR (mastered<>3 AND recall_score>=3 AND output_s
 - `users.name`
 - `users.current_stage`
 - `learning_preferences.enable_read_questions`
-- `learning_preferences.today_mission_count`
-- `learning_preferences.today_practice_word`
+- `learning_preferences.daily_new_word_target`
+- `learning_preferences.daily_review_word_target`
+- `learning_preferences.daily_total_target`
 - `settings.enable_read_questions`
+- `settings.time_source`
 - `practice_stats.continuous_days`
 - `practice_stats.last_practice_date`
 - `stage_levelup_count`

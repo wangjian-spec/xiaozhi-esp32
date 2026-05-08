@@ -224,8 +224,6 @@ std::vector<std::string> SplitHintWords(const std::string &text) {
 ChoiceState QuizModule::Generate(const QuestionData &question) const {
 	ChoiceState state;
 	state.prompt = "请作答";
-	state.option_keys = {"A", "B", "C", "D"};
-	state.options = {"A", "B", "C", "D"};
 	state.option_images = {"", "", "", ""};
 	state.source_word_id = 0;
 	state.expected = question.answer;
@@ -296,13 +294,26 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 	}
 	if (cJSON_IsObject(options_obj)) {
 		std::array<const char *, 4> keys = {"A", "B", "C", "D"};
+		auto ensure_choice_slot = [&state](size_t index) {
+			if (state.options.size() <= index) {
+				state.options.resize(index + 1);
+			}
+			if (state.option_keys.size() <= index) {
+				state.option_keys.resize(index + 1);
+			}
+			if (state.option_keys[index].empty()) {
+				state.option_keys[index] = std::string(1, static_cast<char>('A' + static_cast<int>(index)));
+			}
+		};
 		for (size_t index = 0; index < keys.size(); ++index) {
 			cJSON *entry = cJSON_GetObjectItemCaseSensitive(options_obj, keys[index]);
 			if (cJSON_IsString(entry) && entry->valuestring) {
+				ensure_choice_slot(index);
 				state.options[index] = Trim(entry->valuestring);
 				continue;
 			}
 			if (cJSON_IsObject(entry)) {
+				ensure_choice_slot(index);
 				std::string key = Trim(JsonString(entry, "key"));
 				if (!key.empty()) {
 					state.option_keys[index] = key;
@@ -322,6 +333,7 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 
 			std::string value = JsonString(options_obj, keys[index]);
 			if (!value.empty()) {
+				ensure_choice_slot(index);
 				state.options[index] = Trim(value);
 			}
 		}
@@ -329,7 +341,17 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 		for (int index = 0; index < cJSON_GetArraySize(options_obj) && index < 4; ++index) {
 			cJSON *item = cJSON_GetArrayItem(options_obj, index);
 			if (cJSON_IsString(item) && item->valuestring) {
-				state.options[static_cast<size_t>(index)] = Trim(item->valuestring);
+				const size_t dst_index = static_cast<size_t>(index);
+				if (state.options.size() <= dst_index) {
+					state.options.resize(dst_index + 1);
+				}
+				if (state.option_keys.size() <= dst_index) {
+					state.option_keys.resize(dst_index + 1);
+				}
+				if (state.option_keys[dst_index].empty()) {
+					state.option_keys[dst_index] = std::string(1, static_cast<char>('A' + index));
+				}
+				state.options[dst_index] = Trim(item->valuestring);
 			} else if (cJSON_IsObject(item)) {
 				std::string key = Trim(JsonString(item, "key"));
 				size_t dst_index = static_cast<size_t>(index);
@@ -339,8 +361,16 @@ ChoiceState QuizModule::Generate(const QuestionData &question) const {
 						dst_index = static_cast<size_t>(token[0] - 'A');
 					}
 				}
+				if (state.options.size() <= dst_index) {
+					state.options.resize(dst_index + 1);
+				}
+				if (state.option_keys.size() <= dst_index) {
+					state.option_keys.resize(dst_index + 1);
+				}
 				if (!key.empty()) {
 					state.option_keys[dst_index] = key;
+				} else if (state.option_keys[dst_index].empty()) {
+					state.option_keys[dst_index] = std::string(1, static_cast<char>('A' + static_cast<int>(dst_index)));
 				}
 
 				std::string image = Trim(JsonString(item, "image"));

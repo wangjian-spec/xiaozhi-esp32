@@ -18,6 +18,7 @@
 #include "boards/common/board.h"
 #include "boards/EnglishTeacher/custom_epd_display.h"
 #include "eteacher/app_service/app_service.h"
+#include "eteacher/app_ui/debug.h"
 #include "eteacher/app_ui/input.h"
 #include "eteacher/app_ui/scene.h"
 #include "eteacher/apps/device_setting/device_setting_ui.h"
@@ -80,17 +81,18 @@ constexpr uint32_t kWidgetDeviceDownloadButton = 0xCD89E678u;
 
 constexpr const char* kInputInitStatus = "请输入WIFI密码,按Start退出键盘";
 constexpr const char* kUserJsonPath = "/sdcard/user/user.json";
-constexpr int kDefaultTodayMissionCount = 15;
-constexpr int kDefaultTodayPracticeWordCount = 15;
+constexpr int kDefaultDailyNewWordTarget = 10;
+constexpr int kDefaultDailyReviewWordTarget = 5;
+constexpr int kDefaultDailyTotalTarget = 15;
 constexpr std::array<int, 12> kDefaultStageLevelupCount = {10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48};
 constexpr std::array<std::pair<int, int>, 7> kMissionPresets = {
-    std::pair<int, int>{15, 15},
-    std::pair<int, int>{20, 20},
-    std::pair<int, int>{25, 25},
-    std::pair<int, int>{30, 30},
-    std::pair<int, int>{35, 35},
-    std::pair<int, int>{40, 40},
-    std::pair<int, int>{50, 50},
+    std::pair<int, int>{15, 5},
+    std::pair<int, int>{20, 5},
+    std::pair<int, int>{25, 5},
+    std::pair<int, int>{30, 5},
+    std::pair<int, int>{35, 5},
+    std::pair<int, int>{40, 5},
+    std::pair<int, int>{50, 5},
 };
 
 int PositiveOrFallback(int value, int fallback) {
@@ -101,11 +103,14 @@ int JsonIntOrDefault(const cJSON* obj, const char* key, int fallback);
 bool JsonBoolOrDefault(const cJSON* obj, const char* key, bool fallback);
 std::string JsonStringOrDefault(const cJSON* obj, const char* key, const std::string& fallback);
 
-int ReadLegacyMissionCount(const cJSON* object, int fallback) {
+int ReadLegacyDailyTotalTarget(const cJSON* object, int fallback) {
     if (!cJSON_IsObject(object)) {
         return fallback;
     }
-    const int configured_count = JsonIntOrDefault(object, "today_mission_count", JsonIntOrDefault(object, "target_words", 0));
+    const int configured_count = JsonIntOrDefault(
+        object,
+        "daily_total_target",
+        JsonIntOrDefault(object, "today_mission_count", JsonIntOrDefault(object, "today_practice_word", JsonIntOrDefault(object, "target_words", 0))));
     if (configured_count > 0) {
         return configured_count;
     }
@@ -115,22 +120,45 @@ int ReadLegacyMissionCount(const cJSON* object, int fallback) {
     return combined_count > 0 ? combined_count : fallback;
 }
 
-int ReadPracticeWordCount(const cJSON* object, int fallback) {
+int ReadDailyNewWordTarget(const cJSON* object, int fallback) {
     if (!cJSON_IsObject(object)) {
         return fallback;
     }
-    const int configured_count = JsonIntOrDefault(object, "today_practice_word", 0);
+    const int configured_count = JsonIntOrDefault(object, "daily_new_word_target", JsonIntOrDefault(object, "new_word_count", 0));
     if (configured_count > 0) {
         return configured_count;
     }
-    const int legacy_target_words = JsonIntOrDefault(object, "target_words", 0);
-    if (legacy_target_words > 0) {
-        return legacy_target_words;
+    return fallback;
+}
+
+int ReadDailyReviewWordTarget(const cJSON* object, int daily_new_word_target, int daily_total_target, int fallback) {
+    if (!cJSON_IsObject(object)) {
+        return fallback;
     }
-    const int new_word_count = std::max(0, JsonIntOrDefault(object, "new_word_count", 0));
-    const int review_word_count = std::max(0, JsonIntOrDefault(object, "review_word_count", 0));
-    const int combined_count = new_word_count + review_word_count;
-    return combined_count > 0 ? combined_count : fallback;
+    const int configured_count = JsonIntOrDefault(object, "daily_review_word_target", JsonIntOrDefault(object, "review_word_count", -1));
+    if (configured_count >= 0) {
+        return configured_count;
+    }
+    if (daily_total_target > 0 && daily_total_target >= daily_new_word_target) {
+        return daily_total_target - daily_new_word_target;
+    }
+    return fallback;
+}
+
+void NormalizeTodayMissionTargets(int* daily_new_word_target, int* daily_review_word_target, int* daily_total_target, int* target_words) {
+    if (daily_new_word_target == nullptr || daily_review_word_target == nullptr || daily_total_target == nullptr || target_words == nullptr) {
+        return;
+    }
+    *daily_new_word_target = PositiveOrFallback(*daily_new_word_target, kDefaultDailyNewWordTarget);
+    *daily_review_word_target = std::max(0, *daily_review_word_target);
+    *daily_total_target = PositiveOrFallback(*daily_total_target, kDefaultDailyTotalTarget);
+    if (*daily_total_target < *daily_new_word_target) {
+        *daily_total_target = *daily_new_word_target;
+    }
+    if (*daily_review_word_target > 0) {
+        *daily_total_target = std::max(*daily_total_target, *daily_new_word_target + *daily_review_word_target);
+    }
+    *target_words = *daily_total_target;
 }
 
 bool IsClickLike(const ButtonEvent& event) {
@@ -274,8 +302,8 @@ std::string StageKey(int stage_index) {
     return "stage" + std::to_string(std::max(1, std::min(12, stage_index)));
 }
 
-std::string BuildMissionLabel(int mission_count, int practice_word_count) {
-    return "目标" + std::to_string(mission_count) + " / 练" + std::to_string(practice_word_count);
+std::string BuildMissionLabel(int daily_new_word_target, int daily_review_word_target, int daily_total_target) {
+    return "新" + std::to_string(daily_new_word_target) + " / 复" + std::to_string(daily_review_word_target) + " / 总" + std::to_string(daily_total_target);
 }
 
 std::string BuildJsonLogPreview(const std::string& content, size_t max_length = 160) {
@@ -369,6 +397,7 @@ void DeviceSettingApp::OnEnter(AppContext &ctx) {
     scanning_in_progress_ = false;
     has_scanned_once_ = false;
     last_scan_failed_ = false;
+    initial_focus_pending_ = false;
     submit_connect_in_progress_ = false;
     confirm_connect_in_progress_ = false;
     submit_cooldown_until_us_ = 0;
@@ -425,6 +454,20 @@ void DeviceSettingApp::OnExit(AppContext &ctx) {
 }
 
 void DeviceSettingApp::OnTick(AppContext &ctx) {
+    if (initial_focus_pending_) {
+        if (tabview_) {
+            ESP_LOGI(kTag, "Forcing initial tab focus on post-activation tick id=0x%08lx",
+                     static_cast<unsigned long>(tabview_->Id()));
+            ui_engine_.RequestFocus(tabview_->Id());
+        } else {
+            EnsureManagedFocus();
+        }
+        initial_focus_pending_ = false;
+        UpdateBottomBarHintByFocus();
+        Render(ctx);
+        return;
+    }
+
     if (!ui_ready_ || !is_wifi_scene_) {
         return;
     }
@@ -446,39 +489,46 @@ void DeviceSettingApp::OnButton(AppContext &ctx, const ButtonEvent &event) {
     }
 
     if (HandleConfirmDialogButtons(event)) {
+        EnsureManagedFocus();
         UpdateBottomBarHintByFocus();
         Render(ctx);
         return;
     }
 
     if (!keyboard_visible_ && !confirm_dialog_visible_ && HandleFocusCycle(event)) {
+        EnsureManagedFocus();
         UpdateBottomBarHintByFocus();
         Render(ctx);
         return;
     }
 
     if (HandleKeyboardButtons(event)) {
+        EnsureManagedFocus();
         UpdateBottomBarHintByFocus();
         Render(ctx);
         return;
     }
     if (HandleTabViewNav(ctx, event)) {
+        EnsureManagedFocus();
         UpdateBottomBarHintByFocus();
         Render(ctx);
         return;
     }
     if (HandleFocusedButtons(event)) {
+        EnsureManagedFocus();
         UpdateBottomBarHintByFocus();
         Render(ctx);
         return;
     }
     if (HandleListViewActivate(event)) {
+        EnsureManagedFocus();
         UpdateBottomBarHintByFocus();
         Render(ctx);
         return;
     }
 
     SendInputToUi(event);
+    EnsureManagedFocus();
     UpdateBottomBarHintByFocus();
     Render(ctx);
 }
@@ -508,17 +558,29 @@ bool DeviceSettingApp::LoadScene(AppContext &ctx, const std::string& scene_id, u
     root_ = new_root.get();
     BindWidgets(root_);
     last_alert_text_.clear();
-    ui_engine_.SetRoot(std::move(new_root));
     UpdateTabSelection();
     BuildFocusCycle(scene_id);
     SyncFocusCycleIndex();
-    if (scene_id == "page_1e8a" && user_stage_setting_button_) {
-        ui_engine_.RequestFocus(user_stage_setting_button_->Id());
+    initial_focus_pending_ = true;
+
+    uint32_t preferred_focus_id = 0;
+    if (tabview_) {
+        ESP_LOGI(kTag, "Scene %s requesting initial tab focus id=0x%08lx focusable=%d",
+                 scene_id.c_str(),
+                 static_cast<unsigned long>(tabview_->Id()),
+                 tabview_->Focusable() ? 1 : 0);
+        preferred_focus_id = tabview_->Id();
+    } else if (scene_id == "page_1e8a" && user_stage_setting_button_) {
+        preferred_focus_id = user_stage_setting_button_->Id();
     } else if (scene_id == "page_9b37" && device_status_button_) {
-        ui_engine_.RequestFocus(device_status_button_->Id());
-    } else if (tabview_) {
-        ui_engine_.RequestFocus(tabview_->Id());
+        preferred_focus_id = device_status_button_->Id();
     }
+
+    if (preferred_focus_id != 0) {
+        ui_engine_.RequestFocus(preferred_focus_id);
+    }
+
+    ui_engine_.SetRoot(std::move(new_root));
     ESP_LOGI(kTag, "Load scene: %s", scene_id.c_str());
     HideKeyboard();
     HideConfirmDialog();
@@ -529,6 +591,7 @@ bool DeviceSettingApp::LoadScene(AppContext &ctx, const std::string& scene_id, u
 
 void DeviceSettingApp::InitUiEngine() {
     ui_engine_.Reset();
+    app_ui::debug::SetUiDebugLoggingEnabled(true);
     ui_engine_.SetEpd(epd_);
 }
 
@@ -690,10 +753,24 @@ void DeviceSettingApp::BindWidgets(app_ui::Widget* root) {
     last_scan_failed_ = false;
     RefreshNetworkListDisplay();
     if (scan_list_) {
+        auto profile = scan_list_->Profile();
+        profile.rows = 10;
+        profile.cols = 1;
+        profile.selection_enabled = true;
+        profile.focus_highlight_enabled = true;
+        scan_list_->SetProfile(profile);
         scan_list_->SetItems(scan_results_);
     }
 
     PopulateSavedNetworks();
+    if (saved_list_) {
+        auto profile = saved_list_->Profile();
+        profile.rows = 10;
+        profile.cols = 1;
+        profile.selection_enabled = true;
+        profile.focus_highlight_enabled = true;
+        saved_list_->SetProfile(profile);
+    }
     HideKeyboard();
     HideConfirmDialog();
     SetInputStatus(kInputInitStatus);
@@ -743,21 +820,63 @@ void DeviceSettingApp::PopulateScanResults() {
             ESP_LOGW(kTag, "Manual scan start failed: %s", esp_err_to_name(err));
             scan_failed = true;
         } else {
-            constexpr int kConsumeRetryStepMs = 30;
-            constexpr int kConsumeRetryTimeoutMs = 600;
-            int waited_ms = 0;
             std::vector<std::pair<std::string, int>> scan_results;
-            while (waited_ms <= kConsumeRetryTimeoutMs) {
-                scan_results = app_service.ConsumeWifiScanResults();
-                if (!scan_results.empty()) {
-                    break;
+            uint16_t ap_num = 0;
+            err = esp_wifi_scan_get_ap_num(&ap_num);
+            if (err != ESP_OK) {
+                ESP_LOGW(kTag, "Manual scan get_ap_num failed: %s", esp_err_to_name(err));
+                scan_failed = true;
+            } else if (ap_num > 0) {
+                std::vector<wifi_ap_record_t> records(ap_num);
+                uint16_t record_count = ap_num;
+                err = esp_wifi_scan_get_ap_records(&record_count, records.data());
+                if (err != ESP_OK) {
+                    ESP_LOGW(kTag, "Manual scan get_ap_records failed: %s", esp_err_to_name(err));
+                    scan_failed = true;
+                } else {
+                    records.resize(record_count);
+                    std::sort(records.begin(), records.end(), [](const wifi_ap_record_t& lhs, const wifi_ap_record_t& rhs) {
+                        return lhs.rssi > rhs.rssi;
+                    });
+
+                    scan_results.reserve(records.size());
+                    for (const auto& record : records) {
+                        const char* ssid = reinterpret_cast<const char*>(record.ssid);
+                        if (ssid == nullptr || ssid[0] == '\0') {
+                            continue;
+                        }
+                        auto duplicate = std::find_if(scan_results.begin(), scan_results.end(), [ssid](const auto& item) {
+                            return item.first == ssid;
+                        });
+                        if (duplicate != scan_results.end()) {
+                            continue;
+                        }
+                        scan_results.emplace_back(ssid, static_cast<int>(record.rssi));
+                    }
                 }
-                vTaskDelay(pdMS_TO_TICKS(kConsumeRetryStepMs));
-                waited_ms += kConsumeRetryStepMs;
             }
 
-            ESP_LOGI(kTag, "Manual scan consumed %u APs after waiting %d ms",
-                     static_cast<unsigned>(scan_results.size()), waited_ms);
+            if (scan_results.empty()) {
+                constexpr int kCacheRetryStepMs = 20;
+                constexpr int kCacheRetryTimeoutMs = 160;
+                int waited_ms = 0;
+                while (waited_ms <= kCacheRetryTimeoutMs) {
+                    scan_results = app_service.ConsumeWifiScanResults();
+                    if (!scan_results.empty()) {
+                        ESP_LOGI(kTag, "Manual scan recovered %u APs from scan guard cache after %d ms",
+                                 static_cast<unsigned>(scan_results.size()), waited_ms);
+                        break;
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(kCacheRetryStepMs));
+                    waited_ms += kCacheRetryStepMs;
+                }
+            } else {
+                // Drain any guard cache populated by the scan callback so the next scan starts cleanly.
+                (void)app_service.ConsumeWifiScanResults();
+            }
+
+            ESP_LOGI(kTag, "Manual scan captured %u APs directly from driver",
+                     static_cast<unsigned>(scan_results.size()));
 
             for (const auto& item : scan_results) {
                 if (item.first.empty()) {
@@ -833,6 +952,26 @@ void DeviceSettingApp::RefreshNetworkListDisplay() {
     }
     if (saved_list_) {
         saved_list_->SetItems(saved_display_items_);
+    }
+
+    UpdateListFocusability();
+}
+
+bool DeviceSettingApp::HasFocusableListItems(const std::vector<std::string>& items) const {
+    for (const auto& item : items) {
+        if (!item.empty() && !IsPlaceholderItem(item)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void DeviceSettingApp::UpdateListFocusability() {
+    if (scan_list_) {
+        scan_list_->SetFocusable(HasFocusableListItems(scan_ssids_raw_));
+    }
+    if (saved_list_) {
+        saved_list_->SetFocusable(HasFocusableListItems(saved_networks_));
     }
 }
 
@@ -978,36 +1117,154 @@ void DeviceSettingApp::SyncFocusCycleIndex() {
     focus_cycle_index_ = 0;
 }
 
+int DeviceSettingApp::FocusCycleIndexOf(uint32_t id) const {
+    for (size_t i = 0; i < focus_cycle_ids_.size(); ++i) {
+        if (focus_cycle_ids_[i] == id) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+app_ui::Widget* DeviceSettingApp::FindFocusableCycleWidget(int start_index, int step, bool allow_tabview) const {
+    if (root_ == nullptr || focus_cycle_ids_.empty() || step == 0) {
+        return nullptr;
+    }
+
+    for (int index = start_index; index >= 0 && index < static_cast<int>(focus_cycle_ids_.size()); index += step) {
+        app_ui::Widget* widget = root_->FindById(focus_cycle_ids_[index]);
+        if (!widget || !widget->Focusable()) {
+            continue;
+        }
+        if (!allow_tabview && widget == tabview_) {
+            continue;
+        }
+        return widget;
+    }
+    return nullptr;
+}
+
+app_ui::Widget* DeviceSettingApp::FirstSceneFocus() const {
+    return FindFocusableCycleWidget(1, 1, false);
+}
+
+app_ui::Widget* DeviceSettingApp::LastSceneFocus() const {
+    return FindFocusableCycleWidget(static_cast<int>(focus_cycle_ids_.size()) - 1, -1, false);
+}
+
+app_ui::Widget* DeviceSettingApp::CurrentManagedFocus() const {
+    if (root_ == nullptr) {
+        return nullptr;
+    }
+    for (uint32_t id : focus_cycle_ids_) {
+        app_ui::Widget* widget = root_->FindById(id);
+        if (widget && widget->Focused()) {
+            return widget;
+        }
+    }
+    return nullptr;
+}
+
+void DeviceSettingApp::EnsureManagedFocus() {
+    if (keyboard_visible_ || confirm_dialog_visible_ || IsInputDialogVisible() || IsHintDialogVisible()) {
+        return;
+    }
+    if (app_ui::Widget* current_focus = CurrentManagedFocus()) {
+        ESP_LOGI(kTag, "Managed focus present id=0x%08lx", static_cast<unsigned long>(current_focus->Id()));
+        return;
+    }
+    if (tabview_ && tabview_->Focusable()) {
+        ESP_LOGW(kTag, "Managed focus missing, restoring tabview focus id=0x%08lx",
+                 static_cast<unsigned long>(tabview_->Id()));
+        ui_engine_.RequestFocus(tabview_->Id());
+        return;
+    }
+    if (app_ui::Widget* first_focus = FirstSceneFocus()) {
+        ESP_LOGW(kTag, "Managed focus missing, restoring first scene focus id=0x%08lx",
+                 static_cast<unsigned long>(first_focus->Id()));
+        ui_engine_.RequestFocus(first_focus->Id());
+    }
+}
+
 bool DeviceSettingApp::HandleFocusCycle(const ButtonEvent &event) {
-    if (focus_cycle_ids_.empty()) {
+    if (focus_cycle_ids_.empty() || event.action != ButtonAction::Click) {
         return false;
     }
 
-    const bool tab_focused = tabview_ && tabview_->Focused();
-    const bool allow_four_way_cycle = IsUserSettingsScene() || IsDeviceInfoScene();
-    if (tab_focused) {
-        if (event.id != AppButton::Up && event.id != AppButton::Down) {
-            return false;
+    app_ui::Widget* first_focus = FirstSceneFocus();
+    app_ui::Widget* last_focus = LastSceneFocus();
+
+    if (tabview_ && tabview_->Focused()) {
+        if (event.id == AppButton::Down && first_focus) {
+            ui_engine_.RequestFocus(first_focus->Id());
+            ESP_LOGI(kTag, "Focus moved from tabview to widget=0x%08lx",
+                     static_cast<unsigned long>(first_focus->Id()));
+            return true;
         }
-    } else if (allow_four_way_cycle) {
-        if (event.id != AppButton::Up && event.id != AppButton::Down &&
-            event.id != AppButton::Left && event.id != AppButton::Right) {
-            return false;
+        if (event.id == AppButton::Up && last_focus) {
+            ui_engine_.RequestFocus(last_focus->Id());
+            ESP_LOGI(kTag, "Focus moved from tabview to widget=0x%08lx",
+                     static_cast<unsigned long>(last_focus->Id()));
+            return true;
         }
-    } else if (event.id != AppButton::Left && event.id != AppButton::Right) {
         return false;
     }
 
-    SyncFocusCycleIndex();
-    const int count = static_cast<int>(focus_cycle_ids_.size());
-    if (event.id == AppButton::Up || event.id == AppButton::Left) {
-        focus_cycle_index_ = (focus_cycle_index_ + count - 1) % count;
-    } else {
-        focus_cycle_index_ = (focus_cycle_index_ + 1) % count;
+    if (first_focus && first_focus->Focused() && event.id == AppButton::Up && tabview_) {
+        ui_engine_.RequestFocus(tabview_->Id());
+        ESP_LOGI(kTag, "Focus moved to tabview from widget=0x%08lx",
+                 static_cast<unsigned long>(first_focus->Id()));
+        return true;
     }
-    ui_engine_.RequestFocus(focus_cycle_ids_[focus_cycle_index_]);
-    ESP_LOGI(kTag, "Focus moved to widget=0x%08lx", static_cast<unsigned long>(focus_cycle_ids_[focus_cycle_index_]));
-    return true;
+
+    if (!is_wifi_scene_) {
+        return false;
+    }
+
+    app_ui::Widget* current_focus = CurrentManagedFocus();
+    if (current_focus == nullptr) {
+        return false;
+    }
+
+    const int current_index = FocusCycleIndexOf(current_focus->Id());
+    if (current_index < 0) {
+        return false;
+    }
+
+    if (scan_list_ && scan_list_->Focused()) {
+        const int selected_index = scan_list_->SelectedIndex();
+        const int item_count = scan_list_->ItemCount();
+        if ((event.id == AppButton::Up && selected_index <= 0) ||
+            (event.id == AppButton::Down && selected_index >= item_count - 1)) {
+            return true;
+        }
+    }
+
+    if (saved_list_ && saved_list_->Focused()) {
+        const int selected_index = saved_list_->SelectedIndex();
+        const int item_count = saved_list_->ItemCount();
+        if ((event.id == AppButton::Up && selected_index <= 0) ||
+            (event.id == AppButton::Down && selected_index >= item_count - 1)) {
+            return true;
+        }
+    }
+
+    app_ui::Widget* target_focus = nullptr;
+    if (event.id == AppButton::Left) {
+        target_focus = FindFocusableCycleWidget(current_index - 1, -1, true);
+    } else if (event.id == AppButton::Right) {
+        target_focus = FindFocusableCycleWidget(current_index + 1, 1, false);
+    } else if (event.id == AppButton::Down && current_focus == scan_button_) {
+        target_focus = FindFocusableCycleWidget(current_index + 1, 1, false);
+    }
+
+    if (target_focus && target_focus != current_focus) {
+        ui_engine_.RequestFocus(target_focus->Id());
+        ESP_LOGI(kTag, "Focus moved to widget=0x%08lx", static_cast<unsigned long>(target_focus->Id()));
+        return true;
+    }
+
+    return false;
 }
 
 bool DeviceSettingApp::HandleTabViewNav(AppContext &ctx, const ButtonEvent &event) {
@@ -1030,21 +1287,12 @@ bool DeviceSettingApp::HandleKeyboardButtons(const ButtonEvent &event) {
         return false;
     }
 
-    if (keyboard_ignore_activation_once_ &&
-        (event.id == AppButton::Start || event.id == AppButton::C) &&
-        (event.action == ButtonAction::PressDown || event.action == ButtonAction::Click)) {
-        keyboard_ignore_activation_once_ = false;
-        ESP_LOGI(kTag, "Ignore activation event after keyboard open: button=%d action=%d",
-                 static_cast<int>(event.id), static_cast<int>(event.action));
-        return true;
-    }
-
     if (event.id == AppButton::B) {
         DeletePasswordChar();
         return true;
     }
     if (event.id == AppButton::Select) {
-        ConfirmPassword();
+        HideKeyboard();
         return true;
     }
     if (event.id == AppButton::Start) {
@@ -1226,7 +1474,7 @@ void DeviceSettingApp::ShowKeyboardForSsid(const std::string& ssid) {
 
     keyboard_visible_ = true;
     keyboard_mode_ = KeyboardMode::WifiPassword;
-    keyboard_ignore_activation_once_ = true;
+    keyboard_ignore_activation_once_ = false;
     active_ssid_ = ssid;
     active_user_input_ = nullptr;
     keyboard_field_title_.clear();
@@ -1272,7 +1520,7 @@ void DeviceSettingApp::ShowKeyboardForUserField(app_ui::TextAreaWidget* field) {
 
     keyboard_visible_ = true;
     keyboard_mode_ = KeyboardMode::UserField;
-    keyboard_ignore_activation_once_ = true;
+    keyboard_ignore_activation_once_ = false;
     active_ssid_.clear();
     active_user_input_ = field;
     keyboard_field_title_ = UserFieldTitle(field);
@@ -1516,10 +1764,15 @@ void DeviceSettingApp::ConfirmPassword() {
 
 void DeviceSettingApp::UpdatePasswordText() {
     if (password_area_) {
+        password_area_->SetVisible(true);
         password_area_->SetText(password_input_);
+        password_area_->MarkDirty();
     }
     if (keyboard_mode_ == KeyboardMode::UserField && active_user_input_ != nullptr) {
         active_user_input_->SetText(password_input_);
+    }
+    if (input_dialog_) {
+        input_dialog_->MarkDirty();
     }
 }
 
@@ -1614,7 +1867,7 @@ void DeviceSettingApp::RefreshUserSettingsPage() {
         user_name_label_->SetText(std::string("口语题: ") + (user_json_.enable_read_questions ? "开启" : "关闭"));
     }
     if (user_phone_label_) {
-        user_phone_label_->SetText("今日任务: " + BuildMissionLabel(user_json_.today_mission.today_mission_count, user_json_.today_mission.today_practice_word));
+        user_phone_label_->SetText("今日任务: " + BuildMissionLabel(user_json_.today_mission.daily_new_word_target, user_json_.today_mission.daily_review_word_target, user_json_.today_mission.daily_total_target));
     }
     if (user_mode_label_) {
         user_mode_label_->SetText("按 C 切换当前焦点项");
@@ -1628,7 +1881,7 @@ void DeviceSettingApp::RefreshUserSettingsPage() {
     }
     if (user_mission_setting_button_) {
         user_mission_setting_button_->SetVisible(true);
-        user_mission_setting_button_->SetText(BuildMissionLabel(user_json_.today_mission.today_mission_count, user_json_.today_mission.today_practice_word));
+        user_mission_setting_button_->SetText(BuildMissionLabel(user_json_.today_mission.daily_new_word_target, user_json_.today_mission.daily_review_word_target, user_json_.today_mission.daily_total_target));
         auto profile = user_mission_setting_button_->Profile();
         profile.focus_invert = true;
         user_mission_setting_button_->SetProfile(profile);
@@ -1701,9 +1954,10 @@ bool DeviceSettingApp::LoadUserJson() {
     user_json_.stage_levelup_count.assign(kDefaultStageLevelupCount.begin(), kDefaultStageLevelupCount.end());
     user_json_.stage_words_quantity.assign(12, 0);
     user_json_.stage_new_word_cursor.assign(12, 0);
-    user_json_.today_mission.today_mission_count = kDefaultTodayMissionCount;
-    user_json_.today_mission.today_practice_word = kDefaultTodayPracticeWordCount;
-    user_json_.today_mission.target_words = kDefaultTodayMissionCount;
+    user_json_.today_mission.daily_new_word_target = kDefaultDailyNewWordTarget;
+    user_json_.today_mission.daily_review_word_target = kDefaultDailyReviewWordTarget;
+    user_json_.today_mission.daily_total_target = kDefaultDailyTotalTarget;
+    user_json_.today_mission.target_words = kDefaultDailyTotalTarget;
     const std::string content = ReadFileToString(kUserJsonPath);
     if (content.empty()) {
         return SaveUserJson();
@@ -1720,12 +1974,13 @@ bool DeviceSettingApp::LoadUserJson() {
         user_json_.current_stage = JsonStringOrDefault(users, "current_stage", user_json_.current_stage);
         user_json_.level = std::max(0, JsonIntOrDefault(users, "level", user_json_.level));
         cJSON* today_mission = cJSON_GetObjectItemCaseSensitive(users, "today_mission");
-        user_json_.today_mission.today_mission_count = PositiveOrFallback(
-            ReadLegacyMissionCount(today_mission, user_json_.today_mission.today_mission_count),
-            user_json_.today_mission.today_mission_count);
-        user_json_.today_mission.today_practice_word = PositiveOrFallback(
-            ReadPracticeWordCount(today_mission, user_json_.today_mission.today_practice_word),
-            user_json_.today_mission.today_practice_word);
+        user_json_.today_mission.daily_new_word_target = ReadDailyNewWordTarget(today_mission, user_json_.today_mission.daily_new_word_target);
+        user_json_.today_mission.daily_total_target = ReadLegacyDailyTotalTarget(today_mission, user_json_.today_mission.daily_total_target);
+        user_json_.today_mission.daily_review_word_target = ReadDailyReviewWordTarget(
+            today_mission,
+            user_json_.today_mission.daily_new_word_target,
+            user_json_.today_mission.daily_total_target,
+            user_json_.today_mission.daily_review_word_target);
     }
 
     cJSON* learning_preferences = cJSON_GetObjectItemCaseSensitive(root, "learning_preferences");
@@ -1734,20 +1989,22 @@ bool DeviceSettingApp::LoadUserJson() {
             learning_preferences,
             "enable_read_questions",
             user_json_.enable_read_questions);
-        user_json_.today_mission.today_mission_count = PositiveOrFallback(
-            ReadLegacyMissionCount(learning_preferences, user_json_.today_mission.today_mission_count),
-            user_json_.today_mission.today_mission_count);
-        user_json_.today_mission.today_practice_word = PositiveOrFallback(
-            ReadPracticeWordCount(learning_preferences, user_json_.today_mission.today_practice_word),
-            user_json_.today_mission.today_practice_word);
+        user_json_.today_mission.daily_new_word_target = ReadDailyNewWordTarget(learning_preferences, user_json_.today_mission.daily_new_word_target);
+        user_json_.today_mission.daily_total_target = ReadLegacyDailyTotalTarget(learning_preferences, user_json_.today_mission.daily_total_target);
+        user_json_.today_mission.daily_review_word_target = ReadDailyReviewWordTarget(
+            learning_preferences,
+            user_json_.today_mission.daily_new_word_target,
+            user_json_.today_mission.daily_total_target,
+            user_json_.today_mission.daily_review_word_target);
 
         cJSON* preference_mission = cJSON_GetObjectItemCaseSensitive(learning_preferences, "today_mission");
-        user_json_.today_mission.today_mission_count = PositiveOrFallback(
-            ReadLegacyMissionCount(preference_mission, user_json_.today_mission.today_mission_count),
-            user_json_.today_mission.today_mission_count);
-        user_json_.today_mission.today_practice_word = PositiveOrFallback(
-            ReadPracticeWordCount(preference_mission, user_json_.today_mission.today_practice_word),
-            user_json_.today_mission.today_practice_word);
+        user_json_.today_mission.daily_new_word_target = ReadDailyNewWordTarget(preference_mission, user_json_.today_mission.daily_new_word_target);
+        user_json_.today_mission.daily_total_target = ReadLegacyDailyTotalTarget(preference_mission, user_json_.today_mission.daily_total_target);
+        user_json_.today_mission.daily_review_word_target = ReadDailyReviewWordTarget(
+            preference_mission,
+            user_json_.today_mission.daily_new_word_target,
+            user_json_.today_mission.daily_total_target,
+            user_json_.today_mission.daily_review_word_target);
     }
 
     cJSON* settings = cJSON_GetObjectItemCaseSensitive(root, "settings");
@@ -1769,13 +2026,17 @@ bool DeviceSettingApp::LoadUserJson() {
     EnsureIntVectorSize(&user_json_.stage_levelup_count, 12, 20);
     EnsureIntVectorSize(&user_json_.stage_words_quantity, 12, 0);
     EnsureIntVectorSize(&user_json_.stage_new_word_cursor, 12, 0);
-    user_json_.today_mission.target_words = std::max(1, user_json_.today_mission.today_mission_count);
+    NormalizeTodayMissionTargets(
+        &user_json_.today_mission.daily_new_word_target,
+        &user_json_.today_mission.daily_review_word_target,
+        &user_json_.today_mission.daily_total_target,
+        &user_json_.today_mission.target_words);
     ESP_LOGI(kTag,
-             "device_setting user.json loaded path=%s stage=%s mission_count=%d practice_words=%d completed=%d target=%d speak=%d preview=%s",
+             "device_setting user.json loaded path=%s stage=%s new_target=%d review_target=%d completed=%d total_target=%d speak=%d preview=%s",
              kUserJsonPath,
              user_json_.current_stage.c_str(),
-             user_json_.today_mission.today_mission_count,
-             user_json_.today_mission.today_practice_word,
+             user_json_.today_mission.daily_new_word_target,
+             user_json_.today_mission.daily_review_word_target,
              user_json_.today_mission.completed_words,
              user_json_.today_mission.target_words,
              user_json_.enable_read_questions ? 1 : 0,
@@ -1801,8 +2062,9 @@ bool DeviceSettingApp::SaveUserJson() const {
 
     cJSON* learning_preferences = cJSON_CreateObject();
     cJSON_AddBoolToObject(learning_preferences, "enable_read_questions", user_json_.enable_read_questions);
-    cJSON_AddNumberToObject(learning_preferences, "today_mission_count", std::max(1, user_json_.today_mission.today_mission_count));
-    cJSON_AddNumberToObject(learning_preferences, "today_practice_word", std::max(1, user_json_.today_mission.today_practice_word));
+    cJSON_AddNumberToObject(learning_preferences, "daily_new_word_target", std::max(1, user_json_.today_mission.daily_new_word_target));
+    cJSON_AddNumberToObject(learning_preferences, "daily_review_word_target", std::max(0, user_json_.today_mission.daily_review_word_target));
+    cJSON_AddNumberToObject(learning_preferences, "daily_total_target", std::max(1, user_json_.today_mission.daily_total_target));
     cJSON_AddItemToObject(root, "learning_preferences", learning_preferences);
 
     cJSON* devices = cJSON_CreateObject();
@@ -1843,12 +2105,12 @@ bool DeviceSettingApp::SaveUserJson() const {
     cJSON_Delete(root);
     const bool ok = WriteStringToFile(kUserJsonPath, output);
     ESP_LOGI(kTag,
-             "device_setting user.json save %s path=%s stage=%s mission_count=%d practice_words=%d completed=%d target=%d speak=%d preview=%s",
+             "device_setting user.json save %s path=%s stage=%s new_target=%d review_target=%d completed=%d total_target=%d speak=%d preview=%s",
              ok ? "ok" : "failed",
              kUserJsonPath,
              user_json_.current_stage.c_str(),
-             user_json_.today_mission.today_mission_count,
-             user_json_.today_mission.today_practice_word,
+             user_json_.today_mission.daily_new_word_target,
+             user_json_.today_mission.daily_review_word_target,
              user_json_.today_mission.completed_words,
              user_json_.today_mission.target_words,
              user_json_.enable_read_questions ? 1 : 0,
@@ -1869,15 +2131,16 @@ void DeviceSettingApp::CycleStageSetting() {
 void DeviceSettingApp::CycleMissionSetting() {
     int next_index = 0;
     for (size_t i = 0; i < kMissionPresets.size(); ++i) {
-        if (user_json_.today_mission.today_mission_count == kMissionPresets[i].first &&
-            user_json_.today_mission.today_practice_word == kMissionPresets[i].second) {
+        if (user_json_.today_mission.daily_total_target == kMissionPresets[i].first &&
+            user_json_.today_mission.daily_review_word_target == kMissionPresets[i].second) {
             next_index = static_cast<int>((i + 1) % kMissionPresets.size());
             break;
         }
     }
-    user_json_.today_mission.today_mission_count = kMissionPresets[static_cast<size_t>(next_index)].first;
-    user_json_.today_mission.today_practice_word = kMissionPresets[static_cast<size_t>(next_index)].second;
-    user_json_.today_mission.target_words = user_json_.today_mission.today_mission_count;
+    user_json_.today_mission.daily_total_target = kMissionPresets[static_cast<size_t>(next_index)].first;
+    user_json_.today_mission.daily_review_word_target = kMissionPresets[static_cast<size_t>(next_index)].second;
+    user_json_.today_mission.daily_new_word_target = std::max(1, user_json_.today_mission.daily_total_target - user_json_.today_mission.daily_review_word_target);
+    user_json_.today_mission.target_words = user_json_.today_mission.daily_total_target;
     (void)SaveUserJson();
     RefreshUserSettingsPage();
 }

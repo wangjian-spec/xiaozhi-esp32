@@ -6,13 +6,9 @@
 
 namespace word_practice {
 
-struct PracticeRoundPlan {
-	WordSelectionConfig selection_config{};
-};
-
 class PracticeFlowController {
 public:
-	PracticeRoundPlan BuildRoundPlan(int practice_word_count) const;
+	WordSelectionConfig BuildRoundPlan(int total_word_count, int new_word_target, int review_word_target) const;
 
 	int MaxSpeakRetryCount() const;
 	bool ShouldAutoFailSpeakQuestion(int failed_attempts) const;

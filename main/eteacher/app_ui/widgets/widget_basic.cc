@@ -4,8 +4,50 @@
 #include "eteacher/app_ui/common_ui_utils.h"
 
 #include <algorithm>
+#include <vector>
 
 namespace app_ui {
+
+namespace {
+
+std::vector<std::string> BuildTextareaLines(Painter& painter,
+                            const std::string& text,
+                            int wrap_width,
+                            int max_lines) {
+    std::vector<std::string> lines;
+    if (max_lines <= 0) {
+        return lines;
+    }
+    if (text.empty()) {
+        lines.push_back("");
+        return lines;
+    }
+    size_t start = 0;
+    while (start <= text.size() && static_cast<int>(lines.size()) < max_lines) {
+        const size_t end = text.find('\n', start);
+        const std::string segment = (end == std::string::npos) ? text.substr(start) : text.substr(start, end - start);
+        if (segment.empty()) {
+            lines.push_back("");
+        } else {
+            auto wrapped = widget_internal::WrapTextByWidth(painter, segment, wrap_width, max_lines - static_cast<int>(lines.size()));
+            if (wrapped.empty()) {
+                lines.push_back(segment);
+            } else {
+                lines.insert(lines.end(), wrapped.begin(), wrapped.end());
+            }
+        }
+        if (end == std::string::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    if (lines.empty()) {
+        lines.push_back("");
+    }
+    return lines;
+}
+
+}  // namespace
 
 void BasicWidget::ApplyStyle(uint16_t style_id) {
     style_id_ = style_id;
@@ -324,6 +366,21 @@ void TextAreaWidget::OnDraw(Painter& p) {
 
     if (profile_.decoration_mode == TextAreaProfile::DecorationMode::Box) {
         p.DrawRect(rect);
+        const int max_lines = std::max(1, profile_.max_lines);
+        const int wrap_width = std::max<int>(1, rect.w - std::max<int16_t>(0, static_cast<int16_t>(profile_.text_offset_x * 2)));
+        const Size line_ref = p.MeasureText("A", nullptr);
+        const int16_t line_height = static_cast<int16_t>(std::max<int16_t>(1, line_ref.h));
+        const int16_t line_step = static_cast<int16_t>(line_height + std::max<int16_t>(0, profile_.line_gap_px));
+        const auto lines = BuildTextareaLines(p, text_, wrap_width, max_lines);
+        for (size_t i = 0; i < lines.size() && i < static_cast<size_t>(max_lines); ++i) {
+            const int16_t line_y = static_cast<int16_t>(profile_.text_offset_y + static_cast<int16_t>(i) * line_step);
+            if (line_y >= rect.h) {
+                break;
+            }
+            if (!lines[i].empty()) {
+                p.DrawText({profile_.text_offset_x, line_y}, lines[i].c_str());
+            }
+        }
     } else {
         const int16_t margin_x = std::max<int16_t>(0, profile_.underline_margin_x);
         const int16_t start_x = margin_x;

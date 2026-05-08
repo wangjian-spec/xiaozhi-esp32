@@ -251,18 +251,13 @@ static const app_ui::desc::SceneDesc kScene_page_5d74 = {
 // Scene page_9abe
 
 static const app_ui::desc::TextDesc kText_page_9abe_label_my_stage = {
-    "",
-    0x00000000u
+    "\u6211\u7684\u9636\u6BB5",
+    0xF13C557Fu
 };
 
 static const app_ui::desc::TextDesc kText_page_9abe_label_my_level = {
-    "Label",
+    "\u6211\u7684\u7B49\u7EA7",
     0x37D8F963u
-};
-
-static const app_ui::desc::TextDesc kText_page_9abe_frame_979067 = {
-    "",
-    0x00000000u
 };
 
 static const app_ui::desc::TextDesc kText_page_9abe_image_sun_moon_star = {
@@ -270,19 +265,14 @@ static const app_ui::desc::TextDesc kText_page_9abe_image_sun_moon_star = {
     0x00000000u
 };
 
-static const app_ui::desc::TextDesc kText_page_9abe_label_read_setting = {
-    "Label",
-    0x37D8F963u
+static const app_ui::desc::TextDesc kText_page_9abe_label_progress = {
+    "\u4ECA\u65E5\u4EFB\u52A1",
+    0x34DA11E7u
 };
 
-static const app_ui::desc::TextDesc kText_page_9abe_frame_589564 = {
+static const app_ui::desc::TextDesc kText_page_9abe_label_daily_target = {
     "",
     0x00000000u
-};
-
-static const app_ui::desc::TextDesc kText_page_9abe_label_today_mission = {
-    "Label",
-    0x37D8F963u
 };
 
 static const app_ui::desc::ProgressDesc kProgress_page_9abe_progress_today_mission = {
@@ -291,28 +281,32 @@ static const app_ui::desc::ProgressDesc kProgress_page_9abe_progress_today_missi
     0
 };
 
-static const app_ui::desc::TextDesc kText_page_9abe_label_word_preview = {
-    "Label",
-    0x37D8F963u
+static const app_ui::desc::TextDesc kText_page_9abe_textarea_practice_word = {
+    "",
+    0x00000000u
 };
 
-static const app_ui::desc::TextDesc kText_page_9abe_label_mission_progress = {
-    "Label",
-    0x37D8F963u
+static const app_ui::desc::TextDesc kText_page_9abe_frame_bed329 = {
+    "",
+    0x00000000u
+};
+
+static const app_ui::desc::TextDesc kText_page_9abe_frame_7e09c9 = {
+    "",
+    0x00000000u
 };
 
 static const app_ui::desc::WidgetDesc kScene_page_9abe_widgets[] = {
     { 0x951022FDu, 0x00000000u, app_ui::WidgetType::Container, {0, 0, 400, 300}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, nullptr },
-    { 0x152EA4ADu, 0x951022FDu, app_ui::WidgetType::Label, {146, 39, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_my_stage },
-    { 0x286DF25Du, 0x951022FDu, app_ui::WidgetType::Label, {18, 25, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_my_level },
-    { 0x01F331C9u, 0x951022FDu, app_ui::WidgetType::Frame, {12, 24, 380, 125}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, -1, &kText_page_9abe_frame_979067 },
-    { 0x4E42D10Au, 0x951022FDu, app_ui::WidgetType::Image, {18, 47, 100, 100}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_image_sun_moon_star },
-    { 0x2C4D6279u, 0x951022FDu, app_ui::WidgetType::Label, {146, 74, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_read_setting },
-    { 0x40AB301Au, 0x951022FDu, app_ui::WidgetType::Frame, {12, 155, 380, 125}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, -1, &kText_page_9abe_frame_589564 },
-    { 0xC210C036u, 0x951022FDu, app_ui::WidgetType::Label, {134, 158, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_today_mission },
-    { 0x06460615u, 0x951022FDu, app_ui::WidgetType::Progress, {19, 178, 100, 100}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kProgress_page_9abe_progress_today_mission },
-    { 0xE1A01541u, 0x951022FDu, app_ui::WidgetType::Label, {133, 194, 250, 80}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_word_preview },
-    { 0x8FC5D946u, 0x951022FDu, app_ui::WidgetType::Label, {19, 156, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_mission_progress },
+    { 0x152EA4ADu, 0x951022FDu, app_ui::WidgetType::Label, {141, 29, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_my_stage },
+    { 0x286DF25Du, 0x951022FDu, app_ui::WidgetType::Label, {14, 26, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_my_level },
+    { 0x4E42D10Au, 0x951022FDu, app_ui::WidgetType::Image, {14, 50, 100, 100}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_image_sun_moon_star },
+    { 0xD0F2AE69u, 0x951022FDu, app_ui::WidgetType::Label, {14, 154, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_progress },
+    { 0x4CB40E8Du, 0x951022FDu, app_ui::WidgetType::Label, {253, 29, 100, 20}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kText_page_9abe_label_daily_target },
+    { 0x06460615u, 0x951022FDu, app_ui::WidgetType::Progress, {14, 176, 100, 100}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, 0, &kProgress_page_9abe_progress_today_mission },
+    { 0x364AE5EAu, 0x951022FDu, app_ui::WidgetType::TextArea, {131, 54, 260, 220}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled | app_ui::desc::kWidgetFlagFocusable, 0, &kText_page_9abe_textarea_practice_word },
+    { 0x1F42F5E6u, 0x951022FDu, app_ui::WidgetType::Frame, {6, 23, 115, 256}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, -1, &kText_page_9abe_frame_bed329 },
+    { 0x7E741040u, 0x951022FDu, app_ui::WidgetType::Frame, {124, 23, 270, 256}, app_ui::kInvalidStyleId, app_ui::desc::kWidgetFlagVisible | app_ui::desc::kWidgetFlagEnabled, -1, &kText_page_9abe_frame_7e09c9 },
 };
 
 static const app_ui::desc::SceneDesc kScene_page_9abe = {

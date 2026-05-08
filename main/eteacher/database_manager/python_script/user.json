@@ -13,8 +13,9 @@
   },
   "learning_preferences": {
     "enable_read_questions": true,
-    "today_mission_count": 15,
-    "today_practice_word": 15
+    "daily_new_word_target": 10,
+    "daily_review_word_target": 5,
+    "daily_total_target": 15
   },
   "practice_stats": {
     "continuous_days": 1,

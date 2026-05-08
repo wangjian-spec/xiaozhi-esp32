@@ -20,7 +20,6 @@ public:
 
 	std::string DiscoverUserDbPath() const;
 	bool EnsureTables(sqlite3 *db) const;
-	WordMasteryProfile LoadProfile(int word_id, const std::string &textbook_name) const;
 	std::vector<WordMasteryProfile> LoadProfiles(sqlite3 *db,
 					      const std::vector<SelectedWord> &selected_words,
 					      const std::string &textbook_name) const;
@@ -28,11 +27,7 @@ public:
 						      const std::string &textbook_name) const;
 	int ApplyDueDecayIfNeeded(sqlite3 *db, std::vector<WordMasteryProfile> *profiles) const;
 	int ApplyDueDecayIfNeeded(std::vector<WordMasteryProfile> *profiles) const;
-	bool ApplyAttempt(WordMasteryProfile *profile, const QuestionAttemptRecord &attempt) const;
 	bool ApplyAttempt(sqlite3 *db, WordMasteryProfile *profile, const QuestionAttemptRecord &attempt) const;
-	bool SaveProfile(const WordMasteryProfile &profile) const;
-	bool RecordAttempt(const QuestionAttemptRecord &attempt) const;
-	bool ApplyDueDecayIfNeeded(WordMasteryProfile *profile) const;
 
 private:
 	WordMasteryProfile LoadProfile(sqlite3 *db, int word_id, const std::string &textbook_name) const;
@@ -59,6 +54,7 @@ public:
 			 BatchWordKind kind,
 			 TrainingSkill skill,
 			 bool correct);
+	bool ContainsWord(int word_id) const;
 	WordProgressState ProgressState(int word_id) const;
 	bool HasRecognitionCheckpoint(int word_id) const;
 	bool HasRecallCheckpoint(int word_id) const;
@@ -92,6 +88,7 @@ public:
 
 	void Reset();
 	ScheduledQuestion ScheduleNext(const std::unordered_map<int, std::vector<int>> &available_question_types,
+			       const std::vector<SelectedWord> &selected_words,
 				       const LearningBatch &batch,
 				       const std::vector<WordMasteryProfile> &profiles,
 				       const BatchProgressTracker &tracker,
@@ -115,8 +112,12 @@ private:
 					   TrainingSkill skill,
 					   QuestionReasonType reason_type,
 					   const WordMasteryProfile *profile) const;
+	const SelectedWord *FindSelectedWord(const std::vector<SelectedWord> &selected_words, int word_id) const;
 	const BatchWordPlan *FindPlan(const LearningBatch &batch, int word_id) const;
 	const WordMasteryProfile *FindProfile(const std::vector<WordMasteryProfile> &profiles, int word_id) const;
+	BatchWordKind ResolveWordKind(const SelectedWord &selected_word,
+				     const WordMasteryProfile *profile,
+				     LearningMode learning_mode) const;
 	void AdvanceSkillQuestionCursor(TrainingSkill skill, int question_type);
 	std::vector<int> QuestionTypesForSkill(TrainingSkill skill) const;
 
